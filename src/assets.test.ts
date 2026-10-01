@@ -1,9 +1,10 @@
 import { afterEach, expect, test } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, win32 } from 'node:path';
 import {
   FileAssetLibrary,
+  assertCollectionRoot,
   localAssetLibrary,
   collectionConfigPath,
   defaultUserLibraryRoot,
@@ -55,6 +56,57 @@ test('project and additional named collection locations persist in workspace con
     }).collections()[0]!.id,
   ).toBe('override');
 });
+test('Windows collection roots must name a drive or share, never a Git Bash path', async () => {
+  const { root } = await library();
+  const env = { KILN_PROGRAM_STORE: join(root, '.kiln', 'programs') };
+  const gitBash = '/c/Users/example/kiln-library';
+  const expectRefused = (run: () => unknown, source: string) => {
+    let message = '';
+    try {
+      run();
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain('shared-library');
+    expect(message).toContain(gitBash);
+    expect(message).toContain(win32.resolve(gitBash));
+    expect(message).toContain('C:/Users/example/kiln-library');
+    expect(message).toContain(source);
+  };
+  expectRefused(
+    () =>
+      localAssetLibrary(
+        { ...env, KILN_COLLECTIONS: JSON.stringify({ 'shared-library': gitBash }) },
+        'win32',
+      ),
+    'KILN_COLLECTIONS',
+  );
+  const config = collectionConfigPath(env);
+  await mkdir(dirname(config), { recursive: true });
+  await writeFile(config, JSON.stringify({ project: 'D:/game/assets', 'shared-library': gitBash }));
+  expectRefused(() => localAssetLibrary(env, 'win32'), config);
+  // Elsewhere the same text is an ordinary absolute path.
+  expect(localAssetLibrary(env, 'linux').directory('shared-library')).toBe(resolve(gitBash));
+  await writeFile(
+    config,
+    JSON.stringify({
+      project: 'D:/game/assets',
+      drive: 'C:\\kiln\\lib',
+      share: '\\\\host\\share\\kiln',
+    }),
+  );
+  expect(
+    localAssetLibrary(env, 'win32')
+      .collections()
+      .map((collection) => collection.id),
+  ).toEqual(['project', 'drive', 'share']);
+  for (const accepted of ['C:/Users/x', 'd:\\assets', '\\\\host\\share', '//host/share/kiln'])
+    expect(() => assertCollectionRoot('lib', accepted, 'win32')).not.toThrow();
+  for (const refused of ['relative/lib', '\\Users\\x', '/home/x', '//host', 'C:relative'])
+    expect(() => assertCollectionRoot('lib', refused, 'win32')).toThrow(/C:\/Users\//);
+  expect(() => assertCollectionRoot('lib', '/c', 'win32')).toThrow('Write it as C:/.');
+  expect(() => assertCollectionRoot('lib', 'relative/lib', 'darwin')).not.toThrow();
+});
 test('an unconfigured workspace exposes a project and a durable user library with clear labels', () => {
   const workspace = join(tmpdir(), 'kiln-workspace-defaults');
   const dataRoot = join(tmpdir(), 'kiln-user-data');
@@ -64,8 +116,8 @@ test('an unconfigured workspace exposes a project and a durable user library wit
   };
   const store = localAssetLibrary(env);
   expect(store.collections()).toEqual([
-    { id: 'project', label: 'This project' },
-    { id: 'library', label: 'Your library' },
+    { id: 'project', label: 'Workspace storage' },
+    { id: 'library', label: 'User library storage' },
   ]);
   expect(store.directory('project')).toBe(join(workspace, 'assets', 'kiln'));
   expect(store.directory('library')).toBe(join(dataRoot, 'kiln', 'library'));

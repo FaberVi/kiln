@@ -42,7 +42,7 @@ test('MCP saves an editable revision, exposes exact downloadable bytes, and rest
     const collectionProperty = saveDefinition.inputSchema.properties?.collection as
       | { description?: string }
       | undefined;
-    expect(collectionProperty?.description).toContain('Discover available IDs with kiln_assets');
+    expect(collectionProperty?.description).toContain('kiln_assets action=collections');
     const presentation = definitions.tools.find((tool) => tool.name === 'kiln_present')!;
     expect(presentation.description).toContain('does not launch a local browser');
     expect(presentation.outputSchema).toBeDefined();
@@ -317,6 +317,16 @@ test('kiln_save paints its preview on the named backdrop and records it in the m
       const record = await assetLibrary.read('project', data.asset.assetId, data.asset.revisionId);
       expect(record.manifest.preview?.backdrop).toBe(expected);
       expect(corner(record.files['preview.png']!)).toEqual([...BACKDROPS[expected].rgb]);
+      // The preview depicts the very bytes this save persisted, so it is a view
+      // of the artifact rather than of an unpersisted in-loop build.
+      const fidelity = record.manifest.preview?.fidelity as {
+        exactArtifact: boolean;
+        inputGlbSha256: string;
+        reasonCodes?: string[];
+      };
+      expect(fidelity.inputGlbSha256).toBe(record.manifest.files['asset.glb']!.sha256);
+      expect(fidelity.exactArtifact).toBe(true);
+      expect(fidelity.reasonCodes ?? []).not.toContain('IN_LOOP_BUILD_NOT_PERSISTED');
     }
     const bad = await client.callTool({
       name: 'kiln_save',

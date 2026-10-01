@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import type { Document } from '@gltf-transform/core';
 import { createGltfIO } from './gltf-io';
+import { openShellExtras } from './open-shell';
 import { rigExtrasForExport } from './rig-export';
+import type { AuthorExtras } from './user-data-extras';
 import {
   KILN_SEMANTIC_EXTRAS_KEY,
   validateSemanticMetadataV1,
@@ -57,6 +59,7 @@ export async function communitySceneDocument(
   root: THREE.Object3D,
   clips: THREE.AnimationClip[],
   platform: ExportPlatform = browserPlatform,
+  authorExtras?: AuthorExtras,
 ): Promise<Document> {
   const materials = new Map<THREE.Material, THREE.Material>();
   const textures = new Map<THREE.Texture, THREE.Texture>();
@@ -87,6 +90,8 @@ export async function communitySceneDocument(
     const found = materials.get(source);
     if (found) return found;
     const copy = cleanClone(source);
+    // GLTFExporter writes material userData as extras: only the author's checked JSON.
+    Object.assign(copy.userData, authorExtras?.material(source));
     const physical = copy as THREE.MeshPhysicalMaterial;
     if (physical.isMeshPhysicalMaterial && physical.sheen > 0) {
       // glTF has a sheen color factor, but no separate intensity. Match the
@@ -110,6 +115,9 @@ export async function communitySceneDocument(
     const shadow = Object.create(source) as THREE.Object3D;
     shadow.userData = {};
     let copy = shadow.clone(false);
+    // GLTFExporter uses TRS when animations are enabled. Manual matrices (including
+    // expanded GPU instances in review derivatives) must populate those fields too.
+    if (!copy.matrixAutoUpdate) copy.matrix.decompose(copy.position, copy.quaternion, copy.scale);
     if ((source as THREE.Scene).isScene) {
       copy = new THREE.Group();
       copy.copy(shadow, false);
@@ -128,10 +136,16 @@ export async function communitySceneDocument(
         side: sprite.material.side,
         map: sprite.material.map ? texture(sprite.material.map) : null,
       });
+      Object.assign(spriteMaterial.userData, authorExtras?.material(sprite.material));
       copy = new THREE.Mesh(geometry, spriteMaterial);
       THREE.Object3D.prototype.copy.call(copy, shadow, false);
     }
-    Object.assign(copy.userData, rigExtrasForExport(source));
+    Object.assign(
+      copy.userData,
+      authorExtras?.node(source),
+      rigExtrasForExport(source),
+      openShellExtras(source),
+    );
     const semantic = source.userData[KILN_SEMANTIC_EXTRAS_KEY];
     if (semantic !== undefined) {
       const checked = validateSemanticMetadataV1(semantic);

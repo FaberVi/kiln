@@ -12,6 +12,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Console } from 'node:console';
 import { ApprovedTextureResourceCache, approvedTextureCatalogV1 } from './material-resources';
+import { FileWorkspace, localWorkspaceRoot } from './workspace-node';
+import { FileLiveReview } from './live-review-node';
+import { localProgramStoreDirectory } from './workspace-location';
+import { exportWorkspaceProjectBundle } from './project-bundle-node';
 
 export interface LocalExecution {
   mode: 'in-process' | 'subprocess' | 'isolated';
@@ -24,7 +28,10 @@ export interface LocalExecution {
   cacheScope: 'process' | 'disk' | 'disabled';
   cacheBytes?: number;
   cacheReason?: string;
+  /** Installed runtime identity: worker bytes, installed dependencies and Node/platform. */
   runtimeIdentity?: string;
+  /** The dist build identity alone; `.kiln/workspace.json` records the same value. */
+  buildIdentity?: string;
 }
 
 let scope = 0;
@@ -46,7 +53,26 @@ export function createLocalToolContext(
   base: KilnToolContext = {},
   env: Record<string, string | undefined> = process.env,
 ): KilnToolContext & { localExecution: LocalExecution } {
+  const workspaceRoot = env.KILN_WORKSPACE
+    ? resolve(env.KILN_WORKSPACE)
+    : base.programStore instanceof FileProgramStore
+      ? dirname(dirname(base.programStore.directory))
+      : localWorkspaceRoot(env);
+  const workspace = base.workspace ?? new FileWorkspace(workspaceRoot, env.KILN_PROJECT);
+  const projectStore =
+    base.projectStore ?? (workspace instanceof FileWorkspace ? workspace.projects : undefined);
+  const liveReview =
+    base.liveReview ??
+    (env.KILN_LIVE_REVIEW === 'off'
+      ? undefined
+      : new FileLiveReview(workspaceRoot, {
+          transport: 'cli',
+          workId: env.KILN_WORK_ITEM,
+        }));
   const geometryPolicy = base.geometryPolicy ?? env.KILN_GEOMETRY_POLICY ?? 'warn';
+  const indexPolicy = base.indexPolicy ?? env.KILN_INDEX_POLICY ?? 'indexed';
+  if (indexPolicy !== 'indexed' && indexPolicy !== 'asBuilt')
+    throw new Error('KILN_INDEX_POLICY must be indexed or asBuilt.');
   if (!['warn', 'strict'].includes(geometryPolicy))
     throw new Error('KILN_GEOMETRY_POLICY must be warn or strict.');
   const mode = resolveEvaluatorMode({
@@ -89,10 +115,14 @@ export function createLocalToolContext(
       )
         throw new Error('geometryPolicy must be warn or strict');
       const resolved: RenderGlbOptions = {
+        indexPolicy,
         gltfExporter,
         optimize,
         instance,
         ...options,
+        ...(workspace.current()?.materialResources.records.length
+          ? { materialResources: workspace.current()!.materialResources }
+          : {}),
         geometryPolicy: geometryPolicy === 'strict' ? 'strict' : (options.geometryPolicy ?? 'warn'),
       };
       if (mode === 'in-process') {
@@ -104,11 +134,17 @@ export function createLocalToolContext(
         return result;
       }
       const limits = { deadlineMs, maxGlbBytes, maxResponseBytes, ...controls };
-      if (mode === 'isolated') return renderGLBViaIsolatedEvaluator(code, resolved, limits);
-      return renderGLBViaSubprocess(code, resolved, {
-        ...limits,
-        ...(!process.versions.bun ? { maxHeapMb: heapMb } : {}),
-      });
+      try {
+        if (mode === 'isolated') return await renderGLBViaIsolatedEvaluator(code, resolved, limits);
+        return await renderGLBViaSubprocess(code, resolved, {
+          ...limits,
+          ...(!process.versions.bun ? { maxHeapMb: heapMb } : {}),
+        });
+      } catch (error) {
+        // The worker returns only a closed cause; the host still has the source.
+        const { withSourceCheck } = await import('./evaluator/source-check');
+        throw withSourceCheck(error, code);
+      }
     },
   };
   const localExecution: LocalExecution = {
@@ -122,27 +158,44 @@ export function createLocalToolContext(
   };
   return {
     ...base,
+    workspace,
+    projectStore,
+    projectBundleReader:
+      base.projectBundleReader ??
+      (workspace instanceof FileWorkspace && base.assetLibrary
+        ? (projectId, revisionId, profile) =>
+            exportWorkspaceProjectBundle(workspace, base.assetLibrary!, projectId, {
+              revisionId,
+              profile,
+            })
+        : undefined),
+    materialLibrary:
+      base.materialLibrary ??
+      (workspace instanceof FileWorkspace ? workspace.materials : undefined),
+    liveReview,
+    reviewStore:
+      base.reviewStore ?? (liveReview instanceof FileLiveReview ? liveReview : undefined),
     approvedTextureResources: () => approvedTextureCatalogV1({ cache: workerTextures }),
     geometryPolicy: geometryPolicy as 'warn' | 'strict',
-    programStore:
-      base.programStore ??
-      new FileProgramStore(resolve(env.KILN_PROGRAM_STORE ?? '.kiln/programs')),
+    indexPolicy,
+    programStore: base.programStore ?? new FileProgramStore(localProgramStoreDirectory(env)),
     evaluatorPort,
     assetBuildOptions: {
       gltfExporter,
       optimize,
       instance,
       geometryPolicy,
+      indexPolicy,
       qaMode: env.KILN_QA_MODE ?? 'enforce',
       evaluatorMode: mode,
     },
     buildCache: new MemoryBuildCache(),
-    evaluatorCacheIdentity: `kiln-local-${process.pid}-${++scope}:${JSON.stringify({ mode, optimize, instance, geometryPolicy, qa: env.KILN_QA_MODE, deadlineMs, heapMb })}`,
+    evaluatorCacheIdentity: `kiln-local-${process.pid}-${++scope}:${JSON.stringify({ mode, optimize, instance, geometryPolicy, indexPolicy, qa: env.KILN_QA_MODE, deadlineMs, heapMb })}`,
     localExecution,
   };
 }
 
-/** CLI/MCP startup: durable build reuse only for a verifiable packaged Node worker. */
+/** Packaged Node provenance is independent of reuse; non-disk hosts scan on first save. */
 export async function createPackagedLocalToolContext(
   base: KilnToolContext = {},
   env: Record<string, string | undefined> = process.env,
@@ -162,6 +215,10 @@ export async function createPackagedLocalToolContext(
           code,
           {
             ...options,
+            indexPolicy: options?.indexPolicy ?? context.indexPolicy,
+            ...(context.workspace?.current()?.materialResources.records.length
+              ? { materialResources: context.workspace.current()!.materialResources }
+              : {}),
             geometryPolicy:
               context.geometryPolicy === 'strict'
                 ? 'strict'
@@ -176,18 +233,36 @@ export async function createPackagedLocalToolContext(
   const policy = env.KILN_BUILD_CACHE ?? 'disk';
   if (!['disk', 'memory', 'off'].includes(policy))
     throw new Error('KILN_BUILD_CACHE must be disk, memory, or off.');
+  const packagedNode =
+    !process.versions.bun &&
+    !import.meta.url.endsWith('.ts') &&
+    context.localExecution.mode === 'subprocess';
+  let pendingIdentity: ReturnType<typeof installedRuntimeIdentity> | undefined;
+  const identityForHost = () =>
+    (pendingIdentity ??= installedRuntimeIdentity(installationRoot).then((identity) => {
+      if (identity.identity) {
+        context.localExecution.runtimeIdentity = identity.identity;
+        context.localExecution.buildIdentity = identity.buildIdentity;
+      } else context.localExecution.cacheReason = identity.reason;
+      return identity;
+    }));
+  if (packagedNode) {
+    context.prepareBuildProvenance = async () => {
+      await identityForHost();
+    };
+  }
   if (policy === 'off' || base.cacheEvaluations === false) {
     context.cacheEvaluations = false;
     context.localExecution.cacheScope = 'disabled';
     return context;
   }
   if (policy === 'memory') return managed();
-  if (process.versions.bun || context.localExecution.mode !== 'subprocess') {
+  if (!packagedNode) {
     context.localExecution.cacheReason =
       'Disk reuse requires the packaged Node subprocess evaluator; this host uses process memory.';
     return managed();
   }
-  const identity = await installedRuntimeIdentity(installationRoot);
+  const identity = await identityForHost();
   if (!identity.identity) {
     context.localExecution.cacheReason = identity.reason;
     return managed();
@@ -209,6 +284,7 @@ export async function createPackagedLocalToolContext(
     instance: env.KILN_BAKE_INSTANCE ?? 'auto',
     qa: env.KILN_QA_MODE ?? 'enforce',
     geometryPolicy: context.geometryPolicy,
+    indexPolicy: context.indexPolicy,
     timezone: env.TZ,
     ...(env.KILN_GLTF_EXPORTER === 'three' ? { gltfExporter: 'three' } : {}),
   })}`;
@@ -217,6 +293,7 @@ export async function createPackagedLocalToolContext(
     cacheScope: 'disk',
     cacheBytes,
     runtimeIdentity: identity.identity,
+    buildIdentity: identity.buildIdentity,
   };
   return managed();
 }

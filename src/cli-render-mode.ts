@@ -13,6 +13,7 @@ import {
   inspectLocalRenderService,
   localRenderServiceState,
   localRenderServiceUrl,
+  namesLocalRenderService,
   renderServiceDir,
   renderServiceSourceFingerprint,
   startLocalRenderService,
@@ -25,9 +26,12 @@ export {
 export type RenderMode = 'auto' | 'cpu' | 'gpu';
 /** In-loop timeout. Artifact callers supply their own larger deadline through the port owner. */
 export const CLI_VIEW_RENDER_TIMEOUT_MS = 20_000;
-export function resolveRenderMode(value: string): RenderMode {
-  if (value === 'auto' || value === 'cpu' || value === 'gpu') return value;
-  throw new Error(`--render must be auto, cpu or gpu (got: ${value})`);
+/** An explicit option wins over the environment; omission defaults to auto. */
+export function resolveRenderMode(value?: string): RenderMode {
+  const source = value === undefined ? 'KILN_RENDER' : '--render';
+  const selected = value ?? process.env['KILN_RENDER'] ?? 'auto';
+  if (selected === 'auto' || selected === 'cpu' || selected === 'gpu') return selected;
+  throw new Error(`${source} must be auto, cpu or gpu (got: ${selected})`);
 }
 /** Failed starts are cached. Only an explicitly refused socket permits a new local start. */
 export function makeLazyRenderPort(
@@ -146,7 +150,11 @@ export async function buildRenderPort(
   });
   // Keep route and credentials fixed for the lifetime of this host. Reprobe
   // refreshes readiness, not ambient configuration or the loaded source build.
-  const explicitUrl = portUrl || process.env['KILN_RENDER_PORT_URL'];
+  // A URL naming the shared local socket takes the local route below, so it can
+  // wake a managed service after its idle exit.
+  const configuredUrl = portUrl || process.env['KILN_RENDER_PORT_URL'];
+  const explicitUrl =
+    configuredUrl && !namesLocalRenderService(configuredUrl) ? configuredUrl : undefined;
   const dir = options?.serviceDir ?? renderServiceDir();
   const url = localRenderServiceUrl();
   const source = mode === 'cpu' ? undefined : renderServiceSourceFingerprint(dir);

@@ -25,7 +25,7 @@ Kiln uses +X forward, +Y up and +Z right. Azimuth 0 looks from the front (+X), 9
 
 The versioned capture format supports up to nine `shots`. Use the exact `parts[].path` or a unique `parts[].name` from a render result. These identify evaluated scene nodes, whose names can include generated prefixes. Duplicate names require a path.
 
-Render results preview at most 80 paths and report `partsTotal`, `partsTruncated`
+Render results preview 24 paths (80 with `detail: "full"`) and report `partsTotal`, `partsTruncated`
 and, when needed, `partsNextOffset`. An absent preview entry is not evidence of a
 missing exported part. Retrieve the full inventory without generating an image:
 
@@ -61,9 +61,9 @@ needs a renderer for `image:false` listings. Paths belong to that evaluated revi
 }
 ```
 
-Replace the sample path with one returned for your asset. Paths encode node names and distinguish same-name siblings with occurrence indices. They are scoped to the evaluated revision; a topology-changing edit can change them.
+Replace the sample path with one returned for your asset. Paths encode node names and distinguish same-name siblings with occurrence indices. They are scoped to the evaluated revision; a topology-changing edit can change them. The first segment is the glTF scene, which usually repeats the root name (`/Hall[0]/Hall[0]/...`), and each mesh node lists one `<name>:primitive-N` child per material primitive. Those entries are valid selectors but are not exported nodes, so node counts in a listing exceed the GLB's. A versioned capture returns each resolved shot in `cameraShots`, whose `subject.bounds` is that part's world bounds; use it, animation `measureParts` and `measure` instead of parsing the GLB.
 
-`relativeTo` accepts `world`, `asset`, or `part`. Part-local directions follow the selected node's transformed axes. The camera frames its world bounds. `visibility:"context"` retains surrounding geometry; `"isolate"` hides other meshes for that shot. Inspection does not alter the saved program or exported original asset.
+`relativeTo` accepts `world`, `asset`, or `part`. Part-local directions follow the selected node's transformed axes. The camera frames its world bounds. `visibility:"context"` retains surrounding geometry; `"isolate"` hides other meshes for that shot. GPU and CPU views both draw only the subject subtree, so an isolated LOD group shows no sibling parts. Inspection does not alter the saved program or exported original asset.
 
 An explicit camera uses world positions in the asset's units:
 
@@ -73,9 +73,25 @@ An explicit camera uses world positions in the asset's units:
 
 Use `projection:"orthographic"` and `halfHeight` instead of `fovDeg` for a measured view. Both projections accept `up`, `near`, and `far`. Perspective is implemented in both CPU and GPU rendering; CPU images remain geometry-flat.
 
-The versioned format uses `shots`, not legacy `preset/cells`. Unknown or conflicting controls fail instead of being silently ignored. Cell size is an integer from 128 to 1024. Set `output:"separate"` to return one image per shot; omit it for a grid. Both deliveries preserve shot order and camera metadata.
+Without `near`, an explicit perspective camera sets its near plane to half the distance to the nearest geometry, at least 0.001. That plane clips nothing, and it keeps depth precision on large assets: a 1 mm plane showed false z-fighting between faces 0.3 m apart at 100 m. A locked animation camera keeps the plane short of every sampled pose. Skinned or morphing geometry keeps 0.001. The resolved `near` is echoed with the camera; pass `near` to set it yourself.
+
+An unknown camera key fails with the accepted keys, for example `fov` names `fovDeg`. `kiln_discover` with `capabilities:true` lists the lens and clip fields under `camera`. A subject name that matches several nodes fails with every matching path. A name that matches none suggests similar names before listing paths.
+
+The versioned format uses `shots`, not legacy `preset/cells`. Unknown or conflicting controls fail instead of being silently ignored. Cell size is an integer from 128 to 2048; the capture pixel budget (24M pixels by default) bounds the whole sheet, so nine 2048 px shots are refused. Set `output:"separate"` to return one image per shot; omit it for a grid. Both deliveries preserve shot order and camera metadata.
 
 `size` is the square pixel size of each shot. There are no capture request fields named `width` or `height`; those names occur only in returned grid/image dimensions. Orbit cameras likewise have no `target` or `distance` fields: they derive both from the selected subject's bounds. Select the subject and use `padding` to pull back or crop in. When an exact position or look target matters, use an explicit camera with `position` and `target`.
+
+## Levels of detail
+
+An asset with declared tiers exports each set as one `MSFT_lod` chain: LOD0 stays in the scene, and the lower levels are off-scene nodes whose transforms are relative to LOD0's parent. Default sheets from `kiln_render`, `kiln_inspect` and the `kiln_save` preview draw LOD0, as a loader without the extension does, and the headline triangles and bounds are LOD0's. `levelsOfDetail` in the result lists every chain with each level's `path` and triangles. A lower level's path is the one it takes in LOD0's place.
+
+To view a lower level, make its `path`, a path inside it, or a name only one level carries a shot's subject. The shot draws that level in LOD0's place and frames it; `visibility:"isolate"` shows it alone:
+
+```json
+{"name":"Body LOD2","subject":{"path":"/Car[0]/Car[0]/Body_LOD2[0]"},"visibility":"isolate"}
+```
+
+Every chain in `levelsOfDetail` carries `drawn`, one entry per view in view order: 0 when the view drew LOD0, otherwise the level the shot's subject named. Only the chain that holds the subject changes level; every other chain draws LOD0. A name that several lower levels share fails with every matching path. The CPU view and the GPU derivative of a shot draw the same level. The legacy `kiln_inspect` `part` field reaches a level by its exact name. Part listings (a render's `parts`, `listParts`) and measurements (`measure`, `surfacePairs`) read the LOD0 scene: they neither list nor measure a lower level's nodes.
 
 ## Inspection, edits, interiors and motion
 
@@ -87,7 +103,8 @@ The versioned format uses `shots`, not legacy `preset/cells`. Unknown or conflic
 Animation `measureParts` accepts 1–16 `{name}` or `{path}` selectors and returns
 world-space bounds for each selected subtree in every `poseBounds.parts` entry.
 Selections do not change camera framing; ambiguous names and duplicate selections
-fail explicitly. Empty geometry returns `bounds:null`. Use this to compare moving
+fail explicitly. Each entry also gives `origin`, the node's world position. Empty
+geometry returns `bounds:null`, so read a locator from `origin`. Use this to compare moving
 contacts or attachments together; scene bounds alone cannot establish support.
 CLI accepts the same array in `--measure-parts parts.json`. These are sampled
 geometry bounds, not continuous collision, balance or physical-contact evidence.

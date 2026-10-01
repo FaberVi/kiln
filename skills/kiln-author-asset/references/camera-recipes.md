@@ -18,7 +18,7 @@ Presets are `COLSxROWS`: `1x1`, `1x2`, `2x1`, `3x1`, `2x2`, `3x2`, `3x3`. `cells
 
 ## A whole asset and one local detail
 
-Read exact part paths from a render result. It previews at most 80 entries and reports `partsTotal` and `partsTruncated`. Retrieve later or nested paths with `kiln_inspect({ programRef: REF, image: false, listParts: { query: "hinge" } })`; omit `query` for all parts and follow `partListing.nextOffset` using the same reference/query. Listings include groups and exported primitive children. `subject.name` requires an exact unique name; `subject.path` resolves duplicate names unambiguously.
+Read exact part paths from a render result. It previews 24 entries (80 with `detail: "full"`) and reports `partsTotal` and `partsTruncated`. Retrieve later or nested paths with `kiln_inspect({ programRef: REF, image: false, listParts: { query: "hinge" } })`; omit `query` for all parts and follow `partListing.nextOffset` using the same reference/query. Listings include groups and exported primitive children. `subject.name` requires an exact unique name; `subject.path` resolves duplicate names unambiguously.
 
 ```js
 kiln_render({ programRef: REF, capture: {
@@ -31,11 +31,19 @@ kiln_render({ programRef: REF, capture: {
 } });
 ```
 
-Versioned capture accepts 1–9 shots, 1–3 columns, and a square per-shot `size` from 128–1024. It does not accept `width`/`height`; those are returned dimensions. Set `output: 'separate'` when individual images better fit the harness. `visibility: 'isolate'` hides everything outside the selected subtree; context remains visible by default. Orbit `relativeTo` is `world`, `asset`, or `part`. Put `subject` on the shot, alongside `camera`, using either `{ path: EXACT_PATH }` or `{ name: EXACT_UNIQUE_NAME }`, never both. Orbit cameras derive target and distance from that subject's bounds; `padding` belongs inside `camera`, while `subject`, `target` and `distance` do not. Use an explicit camera when you need `position` and `target`.
+Versioned capture accepts 1–9 shots, 1–3 columns, and a square per-shot `size` from 128–2048. It does not accept `width`/`height`; those are returned dimensions. Set `output: 'separate'` when individual images better fit the harness. `visibility: 'isolate'` hides everything outside the selected subtree; context remains visible by default. Orbit `relativeTo` is `world`, `asset`, or `part`. Put `subject` on the shot, alongside `camera`, using either `{ path: EXACT_PATH }` or `{ name: EXACT_UNIQUE_NAME }`, never both. Orbit cameras derive target and distance from that subject's bounds; `padding` belongs inside `camera`, while `subject`, `target` and `distance` do not. Use an explicit camera when you need `position` and `target`.
 
 `backdrop` selects the colour behind every cell: `neutral` grey by default, `dark` when a part that merges with the grey is lighter than it (near-white, pale grey, emissive), `light` when it is darker (near-black, dark wood). Choose it from a sheet you have seen, not from the brief: render on the default first and switch only when a silhouette merges with it. It is a fixed choice, not a free colour, and the result echoes it as `capture.backdrop`. Legacy `preset`/`cells` sheets accept it too.
 
 The same capture object can accompany `kiln_edit` so the edited result answers the same visual question. It is a render request, not a source change.
+
+For selective occluders, use `version: 'kiln.capture.v2'` and add
+`hide: [EXACT_PATH_FROM_LISTING, 'UniqueCoverName']` to a shot. There are at most 64
+selectors; a hidden group hides its subtree, and missing or ambiguous names fail
+before any image is drawn. CPU and GPU captures use the same list. Framing is
+resolved first so hiding a cover retains the comparison camera. Read the canonical
+paths in the returned `cameraShots[].hide`. Version 1 stays valid but cannot use
+`hide`. CLI `--capture` reads the same capture JSON.
 
 ## Explicit framing
 

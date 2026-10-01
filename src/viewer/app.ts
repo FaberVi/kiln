@@ -8,8 +8,14 @@ import {
 } from '../assets';
 import { assetAttributionRows } from './attribution';
 import { createAssetStage } from './scene';
+import { bindLodControls } from './lod-control';
 import { assetViewerSelection } from './deep-link';
 import { exportAssetGlb } from '../asset-export';
+import { mountDashboard } from './dashboard';
+import { mountPerformanceControl } from './performance-control';
+import type { ProjectRevision } from '../projects';
+import { assetIdentity, entriesForProject } from './library-state';
+import { mountMembership } from './membership-panel';
 
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 const node = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, className?: string) => {
@@ -25,10 +31,12 @@ type Entry = {
   loose?: Uint8Array;
 };
 let collections: { id: string; label: string }[] = [];
+let projects: ProjectRevision[] = [];
 let entries: Entry[] = [];
 const opened: Entry[] = [];
 let currentCollection = '';
 let chosen: Entry | undefined;
+let loadedEntry: Entry | undefined;
 let stage: ReturnType<typeof createAssetStage> | undefined;
 let detailGeneration = 0;
 let listGeneration = 0;
@@ -96,6 +104,7 @@ function collectionNav() {
   const nav = el('collections');
   nav.replaceChildren();
   for (const collection of [
+    { id: 'all', label: 'All saved assets' },
     ...collections,
     ...(opened.length ? [{ id: 'opened-files', label: 'Opened files' }] : []),
   ]) {
@@ -108,33 +117,59 @@ function collectionNav() {
     nav.append(button);
   }
 }
-async function loadCollection(id: string) {
+async function loadCollection(id: string, showPanel = true) {
+  if (showPanel) dashboard.library();
   const generation = ++listGeneration;
   currentCollection = id;
   selected.clear();
   collectionNav();
   message('');
   const loaded =
-    id === 'opened-files'
-      ? opened
-      : (await json(`/api/assets?collection=${encodeURIComponent(id)}`)).assets.map(
-          (manifest: AssetManifest) => ({ collection: id, manifest }),
-        );
+    id === 'all'
+      ? await (async () => {
+          const result = await json('/api/library');
+          if (result.errors.length)
+            message(
+              result.errors
+                .map(
+                  (e: { collectionId: string; message: string }) =>
+                    `${e.collectionId}: ${e.message}`,
+                )
+                .join(' · '),
+            );
+          return result.entries.map((e: { collectionId: string; manifest: AssetManifest }) => ({
+            collection: e.collectionId,
+            manifest: e.manifest,
+          }));
+        })()
+      : id === 'opened-files'
+        ? opened
+        : (await json(`/api/assets?collection=${encodeURIComponent(id)}`)).assets.map(
+            (manifest: AssetManifest) => ({ collection: id, manifest }),
+          );
   if (generation !== listGeneration) return;
   entries = loaded;
   remember('kiln.collection', id);
   el('collection-title').textContent =
-    id === 'opened-files' ? 'Opened files' : (collections.find((c) => c.id === id)?.label ?? id);
+    id === 'all'
+      ? 'Library'
+      : id === 'opened-files'
+        ? 'Opened files'
+        : (collections.find((c) => c.id === id)?.label ?? id);
   el('collection-caption').textContent =
     id === 'opened-files'
       ? 'Previewed in your browser. Your original files stay untouched.'
-      : 'Saved revisions, editable source, and everything ready to use.';
+      : 'Saved assets across registered storage. Projects link exact revisions; standalone assets belong here too.';
   renderCards();
 }
 function latestEntries() {
   const groups = new Map<string, Entry[]>();
-  for (const entry of entries) {
-    const id = entry.manifest.assetId;
+  for (const entry of entriesForProject(
+    entries,
+    projects,
+    el<HTMLSelectElement>('library-project').value,
+  )) {
+    const id = assetIdentity(entry);
     groups.set(id, [...(groups.get(id) ?? []), entry]);
   }
   return [...groups.values()].map((group) => {
@@ -198,7 +233,7 @@ function renderCards() {
     } else thumb.textContent = '◇';
     const content = node('div', undefined, 'card-content');
     content.append(node('span', manifest.name, 'card-title'));
-    const revisions = entries.filter((e) => e.manifest.assetId === manifest.assetId);
+    const revisions = entries.filter((e) => assetIdentity(e) === assetIdentity(entry));
     const parentIds = new Set(revisions.map((e) => e.manifest.parentRevision));
     const heads = revisions.filter((e) => !parentIds.has(e.manifest.revisionId));
     content.append(
@@ -211,6 +246,28 @@ function renderCards() {
     const tags = node('div', undefined, 'tags');
     for (const tag of manifest.tags) tags.append(node('span', tag, 'tag'));
     content.append(tags);
+    content.append(
+      node(
+        'small',
+        collections.find((c) => c.id === entry.collection)?.label ?? entry.collection,
+        'card-meta',
+      ),
+    );
+    const memberships = projects.filter((p) =>
+      p.inventory.some(
+        (i) =>
+          i.asset &&
+          i.asset.collectionId === entry.collection &&
+          i.asset.assetId === manifest.assetId,
+      ),
+    );
+    content.append(
+      node(
+        'small',
+        memberships.length ? memberships.map((p) => p.name).join(' · ') : 'No project membership',
+        'card-meta',
+      ),
+    );
     button.append(thumb, content);
     card.append(button);
     if (!entry.loose) {
@@ -232,6 +289,9 @@ function renderCards() {
 async function openDetail(entry: Entry) {
   const generation = ++detailGeneration;
   chosen = entry;
+  loadedEntry = undefined;
+  stage?.cancelMeasurement('The Library selection changed. Measure the loaded revision again.');
+  el('library-performance').replaceChildren();
   remember(
     `kiln.revision.${entry.collection}.${entry.manifest.assetId}`,
     entry.manifest.revisionId,
@@ -240,9 +300,25 @@ async function openDetail(entry: Entry) {
   const dialog = el<HTMLDialogElement>('detail');
   if (!dialog.open) dialog.showModal();
   el('asset-name').textContent = entry.manifest.name;
+  const membership = el('asset-membership');
+  membership.replaceChildren();
+  if (!entry.local && !entry.loose) {
+    const target = node('div');
+    membership.append(target);
+    void mountMembership(
+      target,
+      {
+        collectionId: entry.collection,
+        assetId: entry.manifest.assetId,
+        revisionId: entry.manifest.revisionId,
+      },
+      entry.manifest.name,
+      dashboard.refreshProjects,
+    ).catch(showError);
+  }
   const revisions = el<HTMLSelectElement>('revisions');
   revisions.replaceChildren();
-  for (const item of entries.filter((e) => e.manifest.assetId === entry.manifest.assetId)) {
+  for (const item of entries.filter((e) => assetIdentity(e) === assetIdentity(entry))) {
     const option = node(
       'option',
       `${new Date(item.manifest.createdAt).toLocaleString()} · ${item.manifest.description || item.manifest.revisionId.slice(0, 10)}`,
@@ -253,8 +329,7 @@ async function openDetail(entry: Entry) {
   }
   revisions.onchange = () => {
     const next = entries.find(
-      (e) =>
-        e.manifest.assetId === entry.manifest.assetId && e.manifest.revisionId === revisions.value,
+      (e) => assetIdentity(e) === assetIdentity(entry) && e.manifest.revisionId === revisions.value,
     );
     if (next) void openDetail(next).catch(showError);
   };
@@ -347,18 +422,33 @@ async function openDetail(entry: Entry) {
   const animation = el<HTMLSelectElement>('animation');
   animation.replaceChildren(new Option('Rest pose', ''));
   el<HTMLButtonElement>('play').disabled = true;
+  const level = el<HTMLSelectElement>('level');
+  level.replaceChildren();
+  level.hidden = true;
+  el('library-lod').replaceChildren();
+  el('library-lod').hidden = true;
   try {
     stage ??= createAssetStage(el('stage'));
     const data = await bytes(entry, 'asset.glb');
     if (generation !== detailGeneration) return;
-    const info = await stage.load(data);
+    const info = await stage.load(data, {
+      isCurrent: () => generation === detailGeneration,
+      onCommit: () => {
+        loadedEntry = entry;
+      },
+    });
     if (!info || generation !== detailGeneration) return;
+    loadedEntry = entry;
     stage.wire(false);
+    stage.navigation(el<HTMLSelectElement>('library-navigation').value);
     stage.lighting(el<HTMLSelectElement>('lighting').value);
+    bindLodControls(level, el('library-lod'), stage);
     for (const [value, label] of [
-      [info.triangles.toLocaleString(), 'triangles'],
-      [info.meshes, 'meshes'],
-      [info.materials, 'materials'],
+      ...(info.levels
+        ? info.levels.map((count, i) => [count.toLocaleString(), `LOD${i} triangles`])
+        : [[info.triangles.toLocaleString(), 'triangles']]),
+      [info.meshes, info.levels ? 'LOD0 meshes' : 'meshes'],
+      [info.materials, info.levels ? 'LOD0 materials' : 'materials'],
       [`${(data.length / 1024).toFixed(0)} KB`, 'GLB'],
     ]) {
       const item = node('div');
@@ -438,9 +528,11 @@ el<HTMLInputElement>('open').onchange = async (event) => {
 };
 el('refresh').onclick = () => void loadCollection(currentCollection).catch(showError);
 el('search').oninput = renderCards;
+el('library-project').onchange = () => void loadCollection('all').catch(showError);
 el('close-detail').onclick = () => el<HTMLDialogElement>('detail').close();
 el<HTMLDialogElement>('detail').addEventListener('close', () => {
   detailGeneration++;
+  loadedEntry = undefined;
   stage?.dispose();
   stage = undefined;
   for (const url of urls.splice(0)) URL.revokeObjectURL(url);
@@ -454,6 +546,14 @@ el('wire').onclick = () => {
 };
 el<HTMLSelectElement>('lighting').onchange = (event) =>
   stage?.lighting((event.target as HTMLSelectElement).value);
+el<HTMLSelectElement>('library-navigation').onchange = (event) => {
+  const value = (event.target as HTMLSelectElement).value;
+  stage?.navigation(value);
+  el('library-navigation-help').textContent =
+    value === 'explore'
+      ? 'Focus the viewport, then W A S D to move · Q / E down / up · Shift faster · Drag to look around · No collision simulation.'
+      : 'Drag to orbit · Scroll to zoom · Right-drag to pan';
+};
 el<HTMLSelectElement>('animation').onchange = (event) => {
   const value = (event.target as HTMLSelectElement).value;
   stage?.clip(value === '' ? -1 : Number(value));
@@ -500,13 +600,7 @@ el('export-selection').onclick = () => {
 async function start() {
   collections = (await json('/api/collections')).collections;
   const requested = assetViewerSelection(location.search);
-  const remembered = recalled('kiln.collection');
-  await loadCollection(
-    collections.find((c) => c.id === requested?.collection)?.id ??
-      collections.find((c) => c.id === remembered)?.id ??
-      collections[0]?.id ??
-      'project',
-  );
+  await loadCollection(collections.find((c) => c.id === requested?.collection)?.id ?? 'all', false);
   if (requested) {
     const exact = entries.find(
       (entry) =>
@@ -529,4 +623,44 @@ async function start() {
     if (opened.length === 1) await openDetail(opened[0]!);
   }
 }
+const dashboard = mountDashboard(
+  (asset) => {
+    void (async () => {
+      await loadCollection(asset.collectionId);
+      const entry = entries.find(
+        (item) =>
+          item.manifest.assetId === asset.assetId && item.manifest.revisionId === asset.revisionId,
+      );
+      if (!entry) throw new Error('The linked saved revision is not available in this collection.');
+      await openDetail(entry);
+    })().catch(showError);
+  },
+  (value) => {
+    projects = value;
+    const select = el<HTMLSelectElement>('library-project'),
+      previous = select.value;
+    select.replaceChildren(
+      new Option('All projects and standalone', ''),
+      new Option('Standalone assets', 'standalone'),
+    );
+    for (const project of projects) select.append(new Option(project.name, project.projectId));
+    if (previous === 'standalone' || projects.some((p) => p.projectId === previous))
+      select.value = previous;
+    renderCards();
+  },
+);
+mountPerformanceControl(
+  el<HTMLButtonElement>('measure-library'),
+  el('library-performance'),
+  () => stage,
+  () =>
+    loadedEntry && chosen && key(loadedEntry) === key(chosen)
+      ? {
+          collection: loadedEntry.collection,
+          assetId: loadedEntry.manifest.assetId,
+          revisionId: loadedEntry.manifest.revisionId,
+          glbSha256: loadedEntry.manifest.files['asset.glb']?.sha256,
+        }
+      : undefined,
+);
 void start().catch(showError);

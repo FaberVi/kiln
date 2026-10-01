@@ -1,9 +1,216 @@
 # Changelog
 
-Changes to `@kiln/engine`. Source and installable packages are distributed through
-GitHub. The package is not published on the npm registry.
+Changes to `@kiln/engine`. Source releases and installable package publication are
+separate milestones. The package is not published on the npm registry.
 
-## 0.8.0 (source update; official package pending)
+## 0.9.0
+
+**Source and site preview for dogfooding.** The v0.9 work is integrated for the
+Cloudflare site rollout. Package publication remains deferred to v1.0 after feedback.
+Individual asset review status is recorded on its page; deployment does not change it.
+
+Kiln 0.9.0 adds optional projects, a material library and Live Review to standalone
+authoring, makes the calibrated `review-neutral-v1` rig the default for review views,
+exports declared levels of detail as `MSFT_lod` chains, and fixes the defects authors
+reported while using 0.8. Standalone assets need no project. The [migration notes](docs/migration.md#changes-in-090) list every change an
+existing author will notice; the [foundation checkpoint](docs/plans/2026-09-26-project-foundation.md)
+records how projects, materials and Live Review were qualified.
+
+### Projects, materials and Live Review
+
+- **Optional projects.** `kiln_project` and `node kiln.mjs project` create, read and
+  update immutable, versioned project records: brief, inventory, design profile,
+  references, delivery intent and an exact material dependency lock. Updates name the
+  expected revision and report conflicts. Work stays standalone unless an operation
+  selects a project (`--project`, MCP `projectId`) or the host configures
+  `KILN_PROJECT`; `--no-project` and `projectId: null` override that default. The
+  collection named `project` remains only a save destination.
+- **Material library.** `kiln_material` and `node kiln.mjs material` keep immutable
+  material revisions with creator, license, recipe, seed and source provenance. Five
+  offline procedural presets (`warm-brick`, `wood-grain`, `brushed-metal`,
+  `woven-fabric`, `coarse-soil`) each produce base colour, normal and packed
+  metallic/roughness maps. Custom procedural drafts, normal-from-height derivation and
+  complete payload import and export are supported. Source compiles a returned
+  `portableSpec` with `compilePortableMaterialSpecV2`; the exact pins travel as
+  `materialDependencies` or `--materials`.
+- **Live Review.** `node kiln.mjs view` opens the local dashboard: Library, Materials,
+  Projects and Live Review. Live Review shows the exact retained artifacts, captures
+  and fidelity of CLI and MCP operations, with iterations, errors, pinning, comparison
+  and reconnection. `kiln_review` lists, gets and pins observed operations and saves an
+  exact reviewed operation. `KILN_WORK_ITEM` optionally groups one authoring item across
+  sessions. The Measure control records a bounded browser load and frame sample.
+- **Delivery.** `project export --profile editable|runtime` packages a project's linked
+  saved revisions; editable packages rebuild offline from source, settings and
+  complete material resources, and `asset ... --rebuild` reports artifact hash equality.
+  The Library aggregates configured collections with collection-qualified IDs.
+- **Seventeen MCP tools.** The packaged stdio server lists the fourteen program tools
+  plus `kiln_project`, `kiln_material` and `kiln_review`. Embeddings advertise those
+  three only when their host services are supplied.
+
+### Review lighting and provenance
+
+- **`review-neutral-v1` is the default review rig**: a calibrated white rig with
+  Review Neutral, a Khronos PBR Neutral variant. A key-facing matte `#C0362C` panel
+  reads `(193,51,40)` instead of `(255,177,147)`; mean CIEDE2000 over the ColorChecker
+  chart falls from 28.09 to 0.51. `neutral-studio-v1` and `gallery-studio-v1` stay
+  selectable by explicit lighting ID, captures without one re-render after the upgrade,
+  and composer's unsupported `neutral-studio-v2` default becomes `review-neutral-v1`.
+  Do not darken albedo for review lighting.
+- The CLI honours `KILN_RENDER` on every renderer-selecting path: an explicit
+  `--render` wins, then `KILN_RENDER`, then auto.
+- Saved builds record the installed engine under every build-cache policy, and an
+  absent optional peer is fingerprinted as peer-absent instead of erasing the runtime
+  identity.
+
+### Levels of detail
+
+- **One tier unless the brief asks.** The authoring skills say so. Tiers are sibling
+  groups named with one stem and a level token (`Body_LOD0`, `Body_LOD1`), LOD0 the
+  full-detail tier, and each set is declared once with
+  `defineLod(levels, { screenCoverage })`: one screen fraction per level, 0 to 1,
+  strictly decreasing, where a last value of 0 never culls. `createPart` is unchanged.
+  Two or more sibling tiers without a declaration, a gap, a missing LOD0 or a set
+  declared inside another tier fail the build with the closed diagnostic `LOD_SET`.
+- **Exported as `MSFT_lod`.** Every GLB Kiln writes from source (the saved `asset.glb`,
+  `kiln_export`, `kiln export`, `render --out`, both export profiles, both converters)
+  carries each set as one chain: LOD0 stays in the scene with `extensions.MSFT_lod.ids`
+  and `extras.MSFT_screencoverage`, the lower levels leave the scene with their subtrees
+  and transforms, and materials are untouched. A loader without the extension draws
+  LOD0.
+- **LOD0 is the headline.** Triangles and bounds count LOD0 and the parts outside every
+  set; `levelsOfDetail` in render results, the integration manifest and CLI receipts
+  lists each level's path and triangles.
+- **Review views.** Default sheets in `kiln_render`, `kiln_inspect` and the `kiln_save`
+  preview draw LOD0. A shot whose subject is a lower level's `path` draws that level in
+  LOD0's place (`visibility: "isolate"` shows it alone), the CPU and GPU views agree,
+  and each chain's `drawn` says which level every view drew. No tool input changed.
+- **Viewer.** Library and Live Review show a Level control (LOD0 to the last level,
+  LOD0 by default) and every level's triangles for a GLB with chains, imported or
+  authored. Expand **Per-part levels** to choose each independent chain, such as a
+  medium tractor body with detailed wheels. Mixed selections report the triangles
+  actually displayed. Current and pinned Live Review artifacts have their own part
+  controls; the current artifact's global selector still sets both views. Selecting
+  another observation of identical bytes retains geometry statistics and updates
+  the observation identity.
+- **Revision comparison** reads chains: each lower level is compared at the path it
+  takes beside LOD0. Switch thresholds are not compared.
+
+### Authoring and review contracts
+
+- Part listings include world position, quaternion, scale, mirrored orientation and
+  world bounds, including compact results.
+- Node and material `userData` round-trips through glTF extras: plain JSON, at most
+  4 KiB per object and 64 KiB per asset. `kiln*` keys remain engine-owned. Validation
+  reports literal problems; builds report omitted dynamic values. Optimization keeps
+  metadata-bearing nodes and materials instead of merging away their identities.
+- `visible = false` survives export as `KHR_node_visibility`. Headline metrics and
+  category QA exclude hidden subtrees; `hiddenNodes` reports their triangle counts.
+  Instancing and flattening preserve the flag and its ancestor scope.
+- `markOpenShell(part, reason)` acknowledges an intentionally unmeasurable open shell
+  without suppressing measured overlap or other failures. Overlapping closed components
+  use union volume; unsupported inward shells and component budgets remain unmeasured.
+- `CUBICSPLINE`, `EASE_IN`, `EASE_OUT` and `EASE_IN_OUT` tracks export standard cubic
+  samplers with computed tangents and play consistently in review. Quaternion loop
+  closure treats `q` and `-q` as the same rotation.
+- Source exports index unindexed primitives by welding exact complete vertices.
+  `indexPolicy: 'asBuilt'` (local host: `KILN_INDEX_POLICY=asBuilt`) retains helper
+  buffers and requires optimization off. Render results and CLI receipts report the
+  index pass's accessor payload bytes before/after, separately from GLB file size.
+- Sweep and loft helpers observe tight curvature and intersecting consecutive rings
+  with station evidence. The bounded local check replaces unconditional unchecked
+  warnings; budget-limited checks remain explicitly partial. Distant segments are
+  outside this check.
+- `kiln.capture.v2` adds shot-level `hide` with exact paths or unique names. Version 1
+  and legacy captures remain valid. CPU and GPU derivatives apply the same hide list;
+  post-loop CPU captures resolve subjects from the exported hierarchy.
+- Instanced capture derivatives and canonical bounds retain every instance transform.
+  Overlap QA excludes alternate levels only within the same LOD chain, and category
+  diagnostic sheets show the default LOD0 scene. Render-service startup tolerates a
+  concurrent winner's bounded warmup; completed captures verify the service instance.
+
+### Fixes from author reports
+
+- **Smaller results.** MCP `kiln_render` and `kiln_screenshot_animation` are compact by
+  default; `detail: "full"` returns every finding and rule. On the carousel example a
+  render result falls from 34,904 to 7,706 characters. `kiln_view_interior`,
+  `kiln_inspect` and `kiln_edit` are compact too; the CLI, retained artifacts and Live
+  Review keep complete reports.
+- **Sizes and files.** Animation composites take a frame `size` of 128 to 1024 px
+  (default 256). Versioned capture shots go up to 2048 px. `--capture` with
+  `output: "separate"` writes `<stem>.shot-01.png` and onward.
+- **Animation.** `createClip(name, duration, tracks, { loop })` records loop intent,
+  exported as the animation extra `kilnLoopIntent` and checked by review
+  (`LOOP_NOT_CLOSED`). GLBs no longer duplicate every clip as the `kilnReviewClipsV1`
+  scene extra.
+- **Views.** Saved previews drawn from the persisted GLB record `exactArtifact: true`.
+  Isolated capture shots send the GPU only the subject. CPU views draw translucent
+  surfaces after opaque ones, farthest first, so glass shows what is behind it. An
+  explicit perspective camera without `near` sets it from the nearest geometry.
+- **Geometry and export.** `extrudeProfile` adds no side rings unless `divisions` asks
+  (16 by default when twisted). `sweepProfile` keeps hard corners (`creaseAngle` 60)
+  and can cap one end. Emissive intensity survives export, above 1 through
+  `KHR_materials_emissive_strength`. An imported GLB's `MSFT_lod` chains survive
+  import, save, optimisation and export.
+- **Diagnostics.** A build that throws names a closed cause with advice and a
+  `Source check:`; `kiln_validate` reports `TEMPORAL_DEAD_ZONE`,
+  `MATERIAL_RECIPE_OVERRIDE` and `MATERIAL_RECIPE_ID`. Overlap QA skips LOD
+  alternates, tests the likeliest pairs first and groups unmeasurable parts;
+  connectivity leaves out LOD1+ parts. Repeated helper notes appear once with a mesh
+  count. The instanceability grade says it is informational, the blend-area budget
+  names its largest materials, and `kiln_inspect` evaluates without optimisation.
+- **Errors that name candidates.** Ambiguous and missing subjects, unknown camera keys
+  (`fovDeg` for `fov`) and missing or shared `surfacePairs` names list what would have
+  matched. `surfacePairs` take exact paths or unambiguous node names, as `measure` does.
+  Animation `measureParts` entries carry each node's world origin.
+- **Setup and CLI.** A workspace's `kiln.mjs` re-executes under the Node recorded at
+  setup, so CLI exports equal `kiln_save` bytes. `.kiln/workspace.json` names the
+  bundle `buildIdentity`, apart from the installed `runtimeIdentity`. The viewer
+  accepts `localhost` and `[::1]`; Git Bash collection roots are refused on Windows.
+  `kiln edit` and `kiln source` accept `--json`, `kiln service start` joins or starts
+  the shared renderer, and a render URL naming the shared local socket takes the local
+  route.
+
+### Fixes from the 0.9 dogfood runs
+
+Three blind setup-and-author runs on the packaged build, two in OpenCode and one in Agy,
+found these before release.
+
+- **`kiln_edit` results** lead with `programRef` and `parentRef` and carry a compact
+  render; `kiln_render({ programRef, detail: "full" })` returns the complete report.
+- **Discovery.** `ids` take a recipe's bare slug (`material-wood-v1`) as well as
+  `recipe:material-wood-v1`, and a material recipe's summary names its
+  `materialRecipe("kiln.material.wood.v1")` call. Reviewed aliases let `bench`, `table`
+  and `cast iron` find the joined-frame recipe, `arrayLinear` and the painted-metal
+  material.
+- **One `--json` rule.** `render`, `source`, `export`, `discover`, `inspect`, `animation`
+  and `service status`/`reprobe` print a receipt; commands that print JSON already accept
+  the flag; `generate`, `view`, `collections add` and `service start`/`stop` refuse it
+  and name the commands that take it. `export --json` names each file with its `bytes`
+  and `sha256`.
+- **Exports never replace a file.** `export` and `source --out` fail and name the existing
+  file; `render --out` still replaces its own working output.
+- **Setup.** `kiln discover --capabilities` reports the collections and source storage the
+  MCP server has, and `kiln-init` creates the `.kiln/programs` store it configures.
+- **Guidance.** The OpenCode configuration check, npm 11's `install-scripts` warning for
+  `webgpu`, the part rotation convention and which way an object faces, searching with
+  `kiln_discover` rather than a harness's own search, observe findings on intended joins,
+  suffixed names for repeated sub-assemblies, a user-level `kiln` server beside
+  `kiln_workspace`, and where agy's `--print` prompt goes.
+
+### Output that changes on upgrade
+
+Review colours under the new rig (assets darkened for the old rig look too dark);
+untwisted `extrudeProfile` triangle counts; `sweepProfile` shading of triangular, square and
+pentagonal profiles (pass `creaseAngle: 180` for the old smooth look); GLB bytes
+of emissive and animated assets; images from explicit perspective cameras without
+`near`; CPU images through glass; GPU isolated shots; MCP result size and shape
+(`detail: "full"` restores the complete report), including `kiln_edit`, which leads with
+its refs; the wording of refused exports; Discovery ranking for `bench`, `table` and
+`cast iron`. A program with two or more sibling `LOD<n>` tiers fails with `LOD_SET`
+until it declares them with `defineLod` or keeps one tier; once declared, its GLB bytes,
+headline triangles and bounds, and default sheets (LOD0 only) change.
+
+## 0.8.0 (source update)
 
 The 0.8.0 source update exposes Original GLB and Runtime GLB downloads in the local
 viewer and public gallery, with companion runtime metadata and unchanged canonical
@@ -55,7 +262,7 @@ remaining limits are recorded in the [progress checkpoint](docs/plans/2026-09-22
 The development entries below retain earlier changes and may describe intermediate
 interfaces superseded by this version; use the current tool and migration guides.
 
-## Unreleased: Test suite holds under a loaded runner
+### Test suite holds under a loaded runner
 
 - The test scripts and CI set a 20 s per-test budget instead of Bun's 5 s default. Tests that take
   under a second locally (a cold CLI spawn, the first `sharp` decode in a file) had timed out at 5 s
@@ -67,7 +274,7 @@ interfaces superseded by this version; use the current tool and migration guides
   directories that a just-killed process tree still holds are removed with retries instead of
   failing the run with `EBUSY`.
 
-## Unreleased: Neutral view backdrop, and a named backdrop per capture
+### Neutral view backdrop, and a named backdrop per capture
 
 - **Every contact sheet is now painted on the neutral studio grey `#aab1bc` instead of near-black
   `#1a1a1a`.** The old value was pinned in PR #13 for CPU/GPU parity and never revisited; a dark
@@ -115,7 +322,7 @@ interfaces superseded by this version; use the current tool and migration guides
   preview used to be painted on the default whatever sheet had been accepted, so a grey asset
   reviewed on `dark` was stored merging with the grey it had just been moved off.
 
-## Unreleased: Experimental community exporter and engine handoff
+### Experimental community exporter and engine handoff
 
 - The established GLB exporter remains the default. Builds containing this integration also
   provide an experimental Three.js exporter for explicit comparison; no separate repository
@@ -127,7 +334,7 @@ interfaces superseded by this version; use the current tool and migration guides
   [qualification report](docs/evaluation/community-exporter.md). The candidate is not yet
   qualified to replace the default for all supported workflows.
 
-## Unreleased: Saved-asset export profiles
+### Saved-asset export profiles
 
 - Keep byte-preserving `editable` exports as the default. Opt-in `runtime` exports
   move Kiln's duplicated scene review clips to a versioned, hash-linked sidecar,

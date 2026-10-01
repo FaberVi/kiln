@@ -57,79 +57,12 @@ const outcomes = new Map<string, Outcome>(
   ),
 );
 
-const loftAdvisory =
-  'LOFT_SELF_INTERSECTION_UNCHECKED Corresponding profiles are connected directly. Caps and closed boundaries do not prove the loft is free of self-intersections.';
-const sweepAdvisory =
-  'SWEEP_SELF_INTERSECTION_UNCHECKED Transported frames and caps do not prove a sweep is free of self-intersections. Review tight turns and nearby path segments.';
-// Exact reviewed advisory lists. New meshes, warnings or changed warning text still fail.
+// Completed local sweep/loft checks no longer emit unconditional unchecked warnings.
+// Exact remaining advisory groups are still asserted, without a blanket filter.
 const documentedAdvisories: Record<string, string[]> = {
-  'mechanical-peacock': [
-    'Mesh_SpineStrip: SWEEP_SELF_INTERSECTION_UNCHECKED Transported frames and caps do not prove a sweep is free of self-intersections. Review tight turns and nearby path segments.',
-    'Mesh_BellyKeel: SWEEP_SELF_INTERSECTION_UNCHECKED Transported frames and caps do not prove a sweep is free of self-intersections. Review tight turns and nearby path segments.',
-    'Mesh_Neck: SWEEP_SELF_INTERSECTION_UNCHECKED Transported frames and caps do not prove a sweep is free of self-intersections. Review tight turns and nearby path segments.',
-    'Mesh_NeckCollar1: SWEEP_SELF_INTERSECTION_UNCHECKED Transported frames and caps do not prove a sweep is free of self-intersections. Review tight turns and nearby path segments.',
-    'Mesh_NeckCollar2: SWEEP_SELF_INTERSECTION_UNCHECKED Transported frames and caps do not prove a sweep is free of self-intersections. Review tight turns and nearby path segments.',
-    'Mesh_NeckCollar3: SWEEP_SELF_INTERSECTION_UNCHECKED Transported frames and caps do not prove a sweep is free of self-intersections. Review tight turns and nearby path segments.',
-    'Mesh_NeckCollar4: SWEEP_SELF_INTERSECTION_UNCHECKED Transported frames and caps do not prove a sweep is free of self-intersections. Review tight turns and nearby path segments.',
-    'Mesh_NeckCollar5: SWEEP_SELF_INTERSECTION_UNCHECKED Transported frames and caps do not prove a sweep is free of self-intersections. Review tight turns and nearby path segments.',
-  ],
-  'alpine-cable-terminal': [
-    ...['CableReturnLoop', 'GondolaHangerArm'].map((name) => `Mesh_${name}: ${sweepAdvisory}`),
-  ],
-  'kestrel-rescue-craft': [
-    ...['PortNacelle', 'StarboardNacelle'].map((name) => `Mesh_${name}: ${loftAdvisory}`),
-  ],
-  'nautilus-habitat': Array.from({ length: 7 }, (_, i) => `Mesh_CurvedRib_${i}: ${sweepAdvisory}`),
-  'ribbon-tea-pavilion': [
-    ...Array.from({ length: 17 }, (_, i) => `Mesh_GlulamRib_${i}: ${sweepAdvisory}`),
-    ...Array.from({ length: 13 }, (_, i) => `Mesh_CrossRib_${i}: ${sweepAdvisory}`),
-    ...['FasciaLeft', 'FasciaRight', 'CurlingProwBeam'].map(
-      (name) => `Mesh_${name}: ${sweepAdvisory}`,
-    ),
-  ],
-  'bench-refractor': [
-    ...['BasePlate', 'Pier', 'Barrel'].map((name) => `Mesh_${name}: ${loftAdvisory}`),
-    ...Array.from({ length: 4 }, (_, i) => `Mesh_Rib${i}: ${sweepAdvisory}`),
-    `Mesh_BellShroud: ${loftAdvisory}`,
-  ],
-  'twisting-canopy': [
-    ...Array.from({ length: 12 }, (_, i) => `Mesh_StructuralRib_${i + 1}: ${sweepAdvisory}`),
-    `Mesh_CentralSpine: ${sweepAdvisory}`,
-  ],
-  'demo-argent-aircraft-carrier': [
-    'Mesh_SculptedHull',
-    'Mesh_RedLowerHull',
-    'Mesh_FlightDeckRim',
-    'Mesh_FlightDeck',
-    ...Array.from({ length: 7 }, (_, i) => `Mesh_DeckBracket_-1_${i}`),
-    ...Array.from({ length: 7 }, (_, i) => `Mesh_DeckBracket_1_${i}`),
-    'Mesh_IslandFoundation',
-    'Mesh_IslandMainTower',
-    'Mesh_IslandOrangeRecognitionBand',
-    'Mesh_NavigationBridge',
-    'Mesh_BridgeRoof',
-    ...Array.from({ length: 4 }, () => [
-      'Mesh_AerodynamicFuselage',
-      'Mesh_SweptWing-1',
-      'Mesh_Tailplane-1',
-      'Mesh_SweptWing1',
-      'Mesh_Tailplane1',
-    ]).flat(),
-  ].map((name) => `${name}: ${loftAdvisory}`),
   'demo-floating-observatory': [
     'Floating parts (no mesh overlap with any sibling, 2cm tol): Mesh_WaterfallSprayDroplet_3 — Fix: shift "Mesh_WaterfallSprayDroplet_3" by [0.000, 0.000, -0.024] toward "Mesh_ContinuousWaterCurtain", or call snapTo(part, hostPart) to do it automatically. | Mesh_WaterfallSprayDroplet_5 — Fix: shift "Mesh_WaterfallSprayDroplet_5" by [0.000, 0.000, -0.026] toward "Mesh_ContinuousWaterCurtain", or call snapTo(part, hostPart) to do it automatically. | Mesh_WaterfallSprayDroplet_9 — Fix: shift "Mesh_WaterfallSprayDroplet_9" by [0.000, 0.000, -0.046] toward "Mesh_ContinuousWaterCurtain", or call snapTo(part, hostPart) to do it automatically. | Mesh_WaterfallSprayDroplet_11 — Fix: shift "Mesh_WaterfallSprayDroplet_11" by [0.000, 0.000, -0.059] toward "Mesh_ContinuousWaterCurtain", or call snapTo(part, hostPart) to do it automatically.',
   ],
-  'demo-noctilus-nuclear-submarine': [
-    ...[
-      'Streamlined_Sail',
-      'Sail_Crown',
-      'Port_Bow_Diving_Plane',
-      'Starboard_Bow_Diving_Plane',
-    ].map((n) => `Mesh_${n}: ${loftAdvisory}`),
-    ...Array.from({ length: 4 }, (_, i) => `Mesh_Cruciform_Stern_Plane_${i}: ${loftAdvisory}`),
-    ...Array.from({ length: 7 }, (_, i) => `Mesh_Swept_Brass_Blade_${i}: ${loftAdvisory}`),
-  ],
-  'demo-ocean-salvage-tug': [...['Hull', 'BootStripe'].map((n) => `Mesh_${n}: ${loftAdvisory}`)],
 };
 
 describe('examples', () => {
@@ -147,17 +80,16 @@ describe('examples', () => {
       // exact advisory visible; unexpected attribute loss or defects still fail.
       const expected =
         name === 'lighthouse'
-          ? Array.from(
-              { length: 8 },
-              (_, i) =>
-                `Mesh_Rock${i + 1}: SUBDIVIDE_PROVENANCE_DROPPED Subdivision changed triangle topology. Source face/range provenance was discarded rather than guessed.`,
-            )
+          ? [
+              'SUBDIVIDE_PROVENANCE_DROPPED (8 meshes: Mesh_Rock1, Mesh_Rock2, Mesh_Rock3, +5 more): Subdivision changed triangle topology. Source face/range provenance was discarded rather than guessed.',
+            ]
           : (documentedAdvisories[name] ?? []);
       // Conversion cleanup is a defined, visible engine event, not a newly
       // accepted asset defect. Its topology/attribute guarantees have independent
       // numeric regressions; every other warning retains the exact check here.
+      // Meshes that removed the same number of faces share one grouped line.
       const precisionNotice =
-        /^.+: SOLID_FLOAT32_CANONICALIZED Removed [1-9]\d* zero-area Float32 faces and rebuilt their topology with Manifold\. Source runs and properties were retained; this is precision cleanup, not general mesh repair\.$/;
+        /^(?:.+: SOLID_FLOAT32_CANONICALIZED|SOLID_FLOAT32_CANONICALIZED \(\d+ meshes: .+\):) Removed [1-9]\d* zero-area Float32 faces and rebuilt their topology with Manifold\. Source runs and properties were retained; this is precision cleanup, not general mesh repair\.$/;
       expect(out.warnings.filter((warning) => !precisionNotice.test(warning))).toEqual(expected);
     });
   }

@@ -170,6 +170,7 @@ interface DuckMesh {
 }
 interface DuckObject3D {
   visible?: boolean;
+  children?: DuckObject3D[];
   updateMatrixWorld?(force?: boolean): void;
   traverse?(cb: (obj: unknown) => void): void;
 }
@@ -180,6 +181,59 @@ interface Tri {
   color: [number, number, number];
   alpha: number;
   doubleSided: boolean;
+}
+
+/**
+ * Opaque triangles first in scene order, then translucent ones farthest-first,
+ * as a GPU renderer composites them. Drawn in scene order, a translucent pane
+ * listed before the parts behind it wrote its depth first and hid them, so a
+ * glazed opening read as empty. `distance` grows away from the viewer; ties keep
+ * scene order, so the result stays deterministic.
+ */
+export function compositingOrder<T extends { v: ArrayLike<number>; alpha: number }>(
+  tris: readonly T[],
+  distance: (x: number, y: number, z: number) => number,
+): T[] {
+  const opaque: T[] = [];
+  const translucent: Array<{ tri: T; key: number; index: number }> = [];
+  for (const [index, tri] of tris.entries()) {
+    if (tri.alpha >= 1) {
+      opaque.push(tri);
+      continue;
+    }
+    const v = tri.v;
+    const key = distance(
+      (v[0]! + v[3]! + v[6]!) / 3,
+      (v[1]! + v[4]! + v[7]!) / 3,
+      (v[2]! + v[5]! + v[8]!) / 3,
+    );
+    translucent.push({ tri, key, index });
+  }
+  translucent.sort((a, b) => b.key - a.key || a.index - b.index);
+  return [...opaque, ...translucent.map((entry) => entry.tri)];
+}
+
+/**
+ * Visit every object under `root` that draws. Three's rule: a node with `visible = false`
+ * hides its subtree. The start node counts as shown, so a named part (an isolated subject, a
+ * measured part) keeps its geometry while the whole scene leaves hidden parts out. A duck root
+ * without `children` (the flat scene read from GLB bytes) is walked with `traverse`, each
+ * object by its own flag.
+ */
+function forEachDrawn(root: DuckObject3D, visit: (obj: DuckObject3D) => void): void {
+  if (!Array.isArray(root.children)) {
+    root.traverse?.((obj) => {
+      const node = obj as DuckObject3D;
+      if (node === root || node.visible !== false) visit(node);
+    });
+    return;
+  }
+  const walk = (obj: DuckObject3D, start: boolean) => {
+    if (!start && obj.visible === false) return;
+    visit(obj);
+    for (const child of obj.children ?? []) walk(child, false);
+  };
+  walk(root, true);
 }
 
 /** Collect world-space triangles + base colors from a (possibly cross-realm) scene. */
@@ -193,9 +247,9 @@ export function collectTriangles(root: DuckObject3D): {
   const min: Vec3 = [Infinity, Infinity, Infinity];
   const max: Vec3 = [-Infinity, -Infinity, -Infinity];
 
-  root.traverse?.((obj) => {
+  const drawMesh = (obj: unknown) => {
     const mesh = obj as DuckMesh;
-    if (!mesh.isMesh || mesh.visible === false) return;
+    if (!mesh.isMesh) return;
     const geo = mesh.geometry;
     const pos = geo?.getAttribute?.('position');
     if (!geo || !pos || pos.itemSize !== 3) return;
@@ -277,7 +331,8 @@ export function collectTriangles(root: DuckObject3D): {
         pushTri(i, i + 1, i + 2, materialAt(i));
       }
     }
-  });
+  };
+  forEachDrawn(root, drawMesh);
 
   if (!Number.isFinite(min[0])) {
     return { tris, bbox: { min: [0, 0, 0], max: [0, 0, 0] } };
@@ -356,7 +411,12 @@ export function rasterizeView(
   const sy = new Float64Array(3);
   const sz = new Float64Array(3);
 
-  for (const tri of tris) {
+  // Orthographic: distance from the viewer runs against the view axis `z`.
+  const ordered = compositingOrder(
+    tris,
+    (px, py, pz) => -((px - center[0]) * z[0] + (py - center[1]) * z[1] + (pz - center[2]) * z[2]),
+  );
+  for (const tri of ordered) {
     // World-space face normal (flat shading; robust under non-uniform scale).
     const e1: Vec3 = [tri.v[3]! - tri.v[0]!, tri.v[4]! - tri.v[1]!, tri.v[5]! - tri.v[2]!];
     const e2: Vec3 = [tri.v[6]! - tri.v[0]!, tri.v[7]! - tri.v[1]!, tri.v[8]! - tri.v[2]!];
@@ -458,6 +518,63 @@ export function measurePartBounds(root: unknown): ReturnType<typeof measureBound
 }
 
 /**
+ * `measurePartBounds` for many nodes of one scene: the same meshes (each node as it
+ * draws when shown, hidden descendants left out, every position vertex, null without a
+ * triangle), but each mesh is transformed once however many requested ancestors contain it.
+ */
+export function createPartBoundsReader(
+  root: unknown,
+): (node: unknown) => ReturnType<typeof measureBounds> | null {
+  (root as DuckObject3D).updateMatrixWorld?.(true);
+  const own = new Map<unknown, { min: Vec3; max: Vec3; tris: number } | null>();
+  const meshBounds = (obj: unknown) => {
+    if (own.has(obj)) return own.get(obj)!;
+    const mesh = obj as DuckMesh;
+    const pos = mesh.isMesh ? mesh.geometry?.getAttribute?.('position') : undefined;
+    const m = mesh.matrixWorld?.elements;
+    let result: { min: Vec3; max: Vec3; tris: number } | null = null;
+    if (pos && pos.itemSize === 3 && m) {
+      const min: Vec3 = [Infinity, Infinity, Infinity];
+      const max: Vec3 = [-Infinity, -Infinity, -Infinity];
+      const arr = pos.array;
+      for (let i = 0; i < pos.count; i++) {
+        const x = arr[i * 3]!,
+          y = arr[i * 3 + 1]!,
+          z = arr[i * 3 + 2]!;
+        const w: Vec3 = [
+          m[0]! * x + m[4]! * y + m[8]! * z + m[12]!,
+          m[1]! * x + m[5]! * y + m[9]! * z + m[13]!,
+          m[2]! * x + m[6]! * y + m[10]! * z + m[14]!,
+        ];
+        for (let k = 0; k < 3; k++) {
+          if (w[k]! < min[k]!) min[k] = w[k]!;
+          if (w[k]! > max[k]!) max[k] = w[k]!;
+        }
+      }
+      const count = mesh.geometry?.index ? mesh.geometry.index.count : pos.count;
+      result = { min, max, tris: Math.floor(count / 3) };
+    }
+    own.set(obj, result);
+    return result;
+  };
+  return (node) => {
+    const min: Vec3 = [Infinity, Infinity, Infinity];
+    const max: Vec3 = [-Infinity, -Infinity, -Infinity];
+    let tris = 0;
+    forEachDrawn(node as DuckObject3D, (obj) => {
+      const bounds = meshBounds(obj);
+      if (!bounds) return;
+      tris += bounds.tris;
+      for (let k = 0; k < 3; k++) {
+        if (bounds.min[k]! < min[k]!) min[k] = bounds.min[k]!;
+        if (bounds.max[k]! > max[k]!) max[k] = bounds.max[k]!;
+      }
+    });
+    return tris ? { min, max } : null;
+  };
+}
+
+/**
  * Fraction of non-background pixels — used by tests and occupancy checks. The
  * raster must be measured against the backdrop it was painted with, so pass the
  * same `backdrop` the render used (omitted on both sides means the default).
@@ -473,11 +590,9 @@ export function coverage(rgb: Uint8Array, size: number, backdrop?: BackdropId): 
 
 /**
  * Hide a named subtree from the rasterizer so a view can see past it (lift a roof,
- * cut away a near wall). CRITICAL: `collectTriangles` culls per-MESH on `.visible`
- * and does NOT honor ancestor-group visibility — but kiln parts/walls/roofs are
- * nested GROUPS, so hiding only the matched group would leave its child meshes
- * drawn. This therefore sets `.visible = false` on each matched node AND every
- * descendant.
+ * cut away a near wall). `collectTriangles` hides a hidden node's subtree, but a flat
+ * duck scene (no `children`) culls per mesh, so this sets `.visible = false` on each
+ * matched node AND every descendant.
  *
  * `match` is either a string (case-insensitive exact match OR startsWith — so
  * "Roof" also lifts "Roof_Ridge") or a predicate over the node name. Returns the

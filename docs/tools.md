@@ -6,6 +6,8 @@ Use these tools through your connected agent. Supply `code` once, then pass the 
 
 Call `kiln_discover({capabilities:true})` for the current host limits and export/camera support. The schema below describes inputs; actual image replies include fidelity and capture metadata. Source reads return exact text, edits return a new revision, and failed builds return their errors.
 
+The packaged local host additionally injects kiln_project, kiln_material and kiln_review. Projects are optional. Authoring tools there accept projectId, projectRevision and independent materialDependencies; projectId:null explicitly selects standalone work. These optional schemas come from the same registry and are advertised only when their host stores are available; connected tools/list is authoritative. See [projects and live review](projects-and-live-review.md) for CLI equivalents, project packages and exact reviewed saves. The base schemas below remain available to embeddings without workspace services.
+
 Renderer capabilities distinguish configured routing, dependency readiness, endpoint health and unverified authentication. Use kiln_renderer with action=reprobe after renderer setup or repair to refresh the current session. Material capabilities list approved texture IDs by allowed slot for the selected evaluator. Capability inspection never starts a renderer, requests an image or fetches texture bytes; ordinary catalog search is offline. See [renderer readiness and resources](rendering.md).
 
 ## kiln_discover
@@ -117,7 +119,7 @@ Inspect status, or reprobe after renderer setup/repair to refresh this session a
 
 ## kiln_validate
 
-Check program syntax, sandbox rules and retired globals before building. Returns findings with codes, lines and repair hints where available; use kiln_render to evaluate geometry and see the asset. Supply code OR a retained programRef. Even invalid drafts return a ref; read it with kiln_source.
+Check program syntax, sandbox rules and retired globals before building. Returns findings with codes, lines and repair hints where available; use kiln_render to evaluate geometry and see the asset. Supply code OR programRef. Invalid drafts retain a ref; read with kiln_source.
 
 <details>
 <summary>Input JSON Schema</summary>
@@ -146,7 +148,7 @@ Check program syntax, sandbox rules and retired globals before building. Returns
 
 ## kiln_render
 
-Build a program and return geometry metrics, a bounded part-path preview and images. If partsTruncated, use kiln_inspect listParts for remaining paths. Omit capture for six views; choose preset/cells for orbit grids or version kiln.capture.v1 plus shots for part-local framing, perspective and separate images. Check viewFidelity before judging materials. Failed builds return errors without an image. Supply code OR a retained programRef. Even invalid drafts return a ref; read it with kiln_source.
+Build and return metrics, part paths and images. If partsTruncated, use kiln_inspect listParts. Omit capture for six views, preset/cells for orbit grids, or kiln.capture.v1/v2 shots for exact orthographic/perspective cameras; v2 adds hide. Check viewFidelity before judging materials. Failed builds return errors without images. Supply code OR programRef. Invalid drafts retain a ref; read with kiln_source.
 
 <details>
 <summary>Input JSON Schema</summary>
@@ -162,14 +164,17 @@ Build a program and return geometry metrics, a bounded part-path preview and ima
       "type": "string"
     },
     "capture": {
-      "description": "Use legacy preset/cells for an orbit sheet, or version kiln.capture.v1 with 1..9 shots for exact part framing, local axes, perspective and separate images. Omit for six default views.",
+      "description": "Omit for six views; preset/cells for orbit sheets. Use kiln.capture.v1 or v2 with 1..9 shots for exact cameras. v2 adds hide: exact paths or unique names. Framing retains subject bounds.",
       "anyOf": [
         {
           "type": "object",
           "properties": {
             "version": {
               "type": "string",
-              "const": "kiln.capture.v1"
+              "enum": [
+                "kiln.capture.v1",
+                "kiln.capture.v2"
+              ]
             },
             "shots": {
               "minItems": 1,
@@ -199,6 +204,15 @@ Build a program and return geometry metrics, a bounded part-path preview and ima
                       "context",
                       "isolate"
                     ]
+                  },
+                  "hide": {
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    }
                   },
                   "camera": {
                     "oneOf": [
@@ -362,7 +376,7 @@ Build a program and return geometry metrics, a bounded part-path preview and ima
             "size": {
               "type": "integer",
               "minimum": 128,
-              "maximum": 1024
+              "maximum": 2048
             },
             "output": {
               "type": "string",
@@ -372,7 +386,7 @@ Build a program and return geometry metrics, a bounded part-path preview and ima
               ]
             },
             "backdrop": {
-              "description": "Neutral grey unless a sheet shows merging: light if the part is darker, dark if lighter.",
+              "description": "neutral (default); light for dark parts, dark for light parts.",
               "type": "string",
               "enum": [
                 "neutral",
@@ -391,7 +405,7 @@ Build a program and return geometry metrics, a bounded part-path preview and ima
           "type": "object",
           "properties": {
             "preset": {
-              "description": "Grid shape as COLSxROWS. Default 3x2. Choose fewer views for simple shapes, up to 3x3 for more angles.",
+              "description": "COLSxROWS; default 3x2. Fewer views for simple shapes, up to 3x3.",
               "type": "string",
               "enum": [
                 "1x1",
@@ -404,7 +418,7 @@ Build a program and return geometry metrics, a bounded part-path preview and ima
               ]
             },
             "cells": {
-              "description": "One camera per cell, in row-major order. Omit to use the preset default cameras. Must not exceed the preset capacity (max 9 overall).",
+              "description": "Row-major cameras; omit for preset defaults. Count cannot exceed preset capacity (max 9).",
               "type": "array",
               "items": {
                 "type": "object",
@@ -415,14 +429,14 @@ Build a program and return geometry metrics, a bounded part-path preview and ima
                   },
                   "elevationDeg": {
                     "type": "number",
-                    "description": "0 = eye level, positive looks down, negative from below. Clamped to -89..89."
+                    "description": "0 eye level; positive above, negative below. Clamped -89..89."
                   },
                   "zoom": {
-                    "description": "Padding multiplier around the asset bounds for this cell only. Omit for the default framing; below 1 crops in, above 1 pulls back.",
+                    "description": "Bounds padding: below 1 crops, above 1 pulls back; omit for auto-framing.",
                     "type": "number"
                   },
                   "name": {
-                    "description": "Cell label. Auto-derived from the angles if omitted.",
+                    "description": "Label; defaults to angles.",
                     "type": "string"
                   }
                 },
@@ -434,7 +448,7 @@ Build a program and return geometry metrics, a bounded part-path preview and ima
               }
             },
             "backdrop": {
-              "description": "Neutral grey unless a sheet shows merging: light if the part is darker, dark if lighter.",
+              "description": "neutral (default); light for dark parts, dark for light parts.",
               "type": "string",
               "enum": [
                 "neutral",
@@ -445,6 +459,14 @@ Build a program and return geometry metrics, a bounded part-path preview and ima
           },
           "additionalProperties": false
         }
+      ]
+    },
+    "detail": {
+      "description": "compact (default) counts repeated findings; full returns every finding and rule",
+      "type": "string",
+      "enum": [
+        "compact",
+        "full"
       ]
     },
     "programRef": {
@@ -461,7 +483,7 @@ Build a program and return geometry metrics, a bounded part-path preview and ima
 
 ## kiln_screenshot_animation
 
-Review animation images, poseBounds and loopClosure endpoint evidence. An open endpoint is valid for one-shot motion; closed endpoints do not prove smooth velocity. Check motion, attachments and requested clearance; sampled bounds do not certify continuous contact or collision safety. Use shot for camera/subject, frameTimes for phases, and framing locked (default) or follow. Add phases when symmetry hides motion. The program must define animate(). Check viewFidelity before judging materials. Supply code OR a retained programRef. Even invalid drafts return a ref; read it with kiln_source.
+Review animation images, poseBounds and loopClosure endpoint evidence. loopIntent is createClip({loop}); open is valid for one-shots; closed endpoints do not prove smooth velocity. Check motion, attachments and requested clearance; sampled bounds do not certify continuous contact or collision safety. Use shot for camera/subject, frameTimes for phases, and framing locked (default) or follow. Add phases when symmetry hides motion. The program must define animate(). Check viewFidelity before judging materials. Supply code OR programRef. Invalid drafts retain a ref; read with kiln_source.
 
 <details>
 <summary>Input JSON Schema</summary>
@@ -496,6 +518,15 @@ Review animation images, poseBounds and loopClosure endpoint evidence. An open e
             "context",
             "isolate"
           ]
+        },
+        "hide": {
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
         },
         "camera": {
           "oneOf": [
@@ -691,6 +722,20 @@ Review animation images, poseBounds and loopClosure endpoint evidence. An open e
         "follow"
       ]
     },
+    "size": {
+      "description": "Frame size in px; default 256.",
+      "type": "integer",
+      "minimum": 128,
+      "maximum": 1024
+    },
+    "detail": {
+      "description": "compact (default) counts repeated findings; full returns every finding and rule",
+      "type": "string",
+      "enum": [
+        "compact",
+        "full"
+      ]
+    },
     "code": {
       "description": "New source. Supply code OR programRef.",
       "type": "string"
@@ -724,7 +769,7 @@ Review animation images, poseBounds and loopClosure endpoint evidence. An open e
 
 ## kiln_view_interior
 
-Render roof-off floor-plan, dollhouse, and eye-level cutaway views. Optional versioned capture selects custom roof-off shots. Select a roof by nodeName or let Kiln resolve its role/name. Review roofsHidden and warnings for unresolved occlusion. Supply code OR a retained programRef. Even invalid drafts return a ref; read it with kiln_source.
+Render roof-off floor-plan, dollhouse, and eye-level cutaway views. Optional versioned capture selects custom roof-off shots. Select a roof by nodeName or let Kiln resolve its role/name. Review roofsHidden and warnings for unresolved occlusion. Supply code OR programRef. Invalid drafts retain a ref; read with kiln_source.
 
 <details>
 <summary>Input JSON Schema</summary>
@@ -740,7 +785,10 @@ Render roof-off floor-plan, dollhouse, and eye-level cutaway views. Optional ver
       "properties": {
         "version": {
           "type": "string",
-          "const": "kiln.capture.v1"
+          "enum": [
+            "kiln.capture.v1",
+            "kiln.capture.v2"
+          ]
         },
         "shots": {
           "minItems": 1,
@@ -770,6 +818,15 @@ Render roof-off floor-plan, dollhouse, and eye-level cutaway views. Optional ver
                   "context",
                   "isolate"
                 ]
+              },
+              "hide": {
+                "maxItems": 64,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                }
               },
               "camera": {
                 "oneOf": [
@@ -933,7 +990,7 @@ Render roof-off floor-plan, dollhouse, and eye-level cutaway views. Optional ver
         "size": {
           "type": "integer",
           "minimum": 128,
-          "maximum": 1024
+          "maximum": 2048
         },
         "output": {
           "type": "string",
@@ -943,7 +1000,7 @@ Render roof-off floor-plan, dollhouse, and eye-level cutaway views. Optional ver
           ]
         },
         "backdrop": {
-          "description": "Neutral grey unless a sheet shows merging: light if the part is darker, dark if lighter.",
+          "description": "neutral (default); light for dark parts, dark for light parts.",
           "type": "string",
           "enum": [
             "neutral",
@@ -980,7 +1037,7 @@ Render roof-off floor-plan, dollhouse, and eye-level cutaway views. Optional ver
 
 ## kiln_inspect
 
-List part paths and inspect joints, clearances and edit preservation. listParts filters names/paths with query; follow partListing.nextOffset on the same programRef/query. measure/surfacePairs return distances, not fit certificates. compare reports static changes and separate animation channel changes; paths adds complete static subtree summaries. image:false skips rendering. Otherwise use part/orbit or exact shot; check viewFidelity for materials. Supply code OR a retained programRef. Even invalid drafts return a ref; read it with kiln_source.
+List part paths and inspect joints, clearances and edit preservation. listParts filters names/paths with query; follow partListing.nextOffset on the same programRef/query. measure/surfacePairs return distances, not fit certificates. compare reports static changes and separate animation channel changes; paths adds complete static subtree summaries. image:false skips rendering. Otherwise use part/orbit or exact shot; check viewFidelity for materials. Supply code OR programRef. Invalid drafts retain a ref; read with kiln_source.
 
 <details>
 <summary>Input JSON Schema</summary>
@@ -1018,7 +1075,7 @@ List part paths and inspect joints, clearances and edit preservation. listParts 
       "additionalProperties": false
     },
     "surfacePairs": {
-      "description": "[fromPath,toPath] pairs; check surfaceMeasurements.status and each result.",
+      "description": "[from,to] pairs of exact listParts paths or unambiguous node names; check surfaceMeasurements.status and each result.",
       "minItems": 1,
       "maxItems": 12,
       "type": "array",
@@ -1167,6 +1224,15 @@ List part paths and inspect joints, clearances and edit preservation. listParts 
             "context",
             "isolate"
           ]
+        },
+        "hide": {
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
         },
         "camera": {
           "oneOf": [
@@ -1411,14 +1477,17 @@ Atomically apply ordered exact-string replacements and render. Copy anchors from
       "type": "boolean"
     },
     "capture": {
-      "description": "Use legacy preset/cells for an orbit sheet, or version kiln.capture.v1 with 1..9 shots for exact part framing, local axes, perspective and separate images. Omit for six default views.",
+      "description": "Omit for six views; preset/cells for orbit sheets. Use kiln.capture.v1 or v2 with 1..9 shots for exact cameras. v2 adds hide: exact paths or unique names. Framing retains subject bounds.",
       "anyOf": [
         {
           "type": "object",
           "properties": {
             "version": {
               "type": "string",
-              "const": "kiln.capture.v1"
+              "enum": [
+                "kiln.capture.v1",
+                "kiln.capture.v2"
+              ]
             },
             "shots": {
               "minItems": 1,
@@ -1448,6 +1517,15 @@ Atomically apply ordered exact-string replacements and render. Copy anchors from
                       "context",
                       "isolate"
                     ]
+                  },
+                  "hide": {
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    }
                   },
                   "camera": {
                     "oneOf": [
@@ -1611,7 +1689,7 @@ Atomically apply ordered exact-string replacements and render. Copy anchors from
             "size": {
               "type": "integer",
               "minimum": 128,
-              "maximum": 1024
+              "maximum": 2048
             },
             "output": {
               "type": "string",
@@ -1621,7 +1699,7 @@ Atomically apply ordered exact-string replacements and render. Copy anchors from
               ]
             },
             "backdrop": {
-              "description": "Neutral grey unless a sheet shows merging: light if the part is darker, dark if lighter.",
+              "description": "neutral (default); light for dark parts, dark for light parts.",
               "type": "string",
               "enum": [
                 "neutral",
@@ -1640,7 +1718,7 @@ Atomically apply ordered exact-string replacements and render. Copy anchors from
           "type": "object",
           "properties": {
             "preset": {
-              "description": "Grid shape as COLSxROWS. Default 3x2. Choose fewer views for simple shapes, up to 3x3 for more angles.",
+              "description": "COLSxROWS; default 3x2. Fewer views for simple shapes, up to 3x3.",
               "type": "string",
               "enum": [
                 "1x1",
@@ -1653,7 +1731,7 @@ Atomically apply ordered exact-string replacements and render. Copy anchors from
               ]
             },
             "cells": {
-              "description": "One camera per cell, in row-major order. Omit to use the preset default cameras. Must not exceed the preset capacity (max 9 overall).",
+              "description": "Row-major cameras; omit for preset defaults. Count cannot exceed preset capacity (max 9).",
               "type": "array",
               "items": {
                 "type": "object",
@@ -1664,14 +1742,14 @@ Atomically apply ordered exact-string replacements and render. Copy anchors from
                   },
                   "elevationDeg": {
                     "type": "number",
-                    "description": "0 = eye level, positive looks down, negative from below. Clamped to -89..89."
+                    "description": "0 eye level; positive above, negative below. Clamped -89..89."
                   },
                   "zoom": {
-                    "description": "Padding multiplier around the asset bounds for this cell only. Omit for the default framing; below 1 crops in, above 1 pulls back.",
+                    "description": "Bounds padding: below 1 crops, above 1 pulls back; omit for auto-framing.",
                     "type": "number"
                   },
                   "name": {
-                    "description": "Cell label. Auto-derived from the angles if omitted.",
+                    "description": "Label; defaults to angles.",
                     "type": "string"
                   }
                 },
@@ -1683,7 +1761,7 @@ Atomically apply ordered exact-string replacements and render. Copy anchors from
               }
             },
             "backdrop": {
-              "description": "Neutral grey unless a sheet shows merging: light if the part is darker, dark if lighter.",
+              "description": "neutral (default); light for dark parts, dark for light parts.",
               "type": "string",
               "enum": [
                 "neutral",
@@ -1782,7 +1860,7 @@ Save a completed source revision into the user-requested collection, or project 
       "default": "project",
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]{0,79}$",
-      "description": "Destination collection ID. Discover available IDs with kiln_assets action=collections. Follow an explicit user destination; otherwise use project."
+      "description": "Collection ID (list with kiln_assets action=collections): the user destination, else project."
     },
     "programRef": {
       "type": "string"
@@ -1857,7 +1935,7 @@ Save a completed source revision into the user-requested collection, or project 
 
 ## kiln_assets
 
-Discover collections; list/search saved asset revisions; get a build record and downloads; or restore exact editable source into the current program store for kiln_source/kiln_edit. List is paginated. Binary-only imports cannot restore source.
+collections discovers storage; catalog searches all configured collections; list searches one. Both searches paginate. get returns a build record/downloads; restore loads exact source for kiln_source/kiln_edit. Collection is not project membership. Binary-only assets cannot restore source.
 
 <details>
 <summary>Input JSON Schema</summary>
@@ -1873,6 +1951,7 @@ Discover collections; list/search saved asset revisions; get a build record and 
       "type": "string",
       "enum": [
         "collections",
+        "catalog",
         "list",
         "get",
         "restore"
@@ -1882,7 +1961,7 @@ Discover collections; list/search saved asset revisions; get a build record and 
       "default": "project",
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]{0,79}$",
-      "description": "Destination collection ID. Discover available IDs with kiln_assets action=collections. Follow an explicit user destination; otherwise use project."
+      "description": "Collection ID (list with kiln_assets action=collections): the user destination, else project."
     },
     "assetId": {
       "type": "string",
@@ -1938,7 +2017,7 @@ Present one exact saved revision. Supporting MCP App clients show an interactive
       "default": "project",
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]{0,79}$",
-      "description": "Destination collection ID. Discover available IDs with kiln_assets action=collections. Follow an explicit user destination; otherwise use project."
+      "description": "Collection ID (list with kiln_assets action=collections): the user destination, else project."
     },
     "assetId": {
       "type": "string",
@@ -1977,7 +2056,7 @@ Export one saved revision. Default editable returns exact GLB, source, preview, 
       "default": "project",
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]{0,79}$",
-      "description": "Destination collection ID. Discover available IDs with kiln_assets action=collections. Follow an explicit user destination; otherwise use project."
+      "description": "Collection ID (list with kiln_assets action=collections): the user destination, else project."
     },
     "assetId": {
       "type": "string",
@@ -2026,7 +2105,7 @@ Copy a pinned asset revision between configured collections, preserving identity
       "default": "project",
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]{0,79}$",
-      "description": "Destination collection ID. Discover available IDs with kiln_assets action=collections. Follow an explicit user destination; otherwise use project."
+      "description": "Collection ID (list with kiln_assets action=collections): the user destination, else project."
     },
     "assetId": {
       "type": "string",
@@ -2040,7 +2119,7 @@ Copy a pinned asset revision between configured collections, preserving identity
       "default": "project",
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]{0,79}$",
-      "description": "Destination collection ID. Discover available IDs with kiln_assets action=collections. Follow an explicit user destination; otherwise use project."
+      "description": "Collection ID (list with kiln_assets action=collections): the user destination, else project."
     }
   },
   "required": [

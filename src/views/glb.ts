@@ -1,5 +1,9 @@
 /** GLB-native input adapter for the deterministic CPU geometry-flat renderer. */
+import { useCubicSpline } from '../animation-cubic';
 import { createGltfIO } from '../gltf-io';
+import { listLodChainNodes } from '../lod-export';
+import { isHiddenGltfNode } from '../metrics';
+import { registerReviewLodChains } from './lod';
 
 import {
   Primitive,
@@ -7,6 +11,7 @@ import {
   type Material,
   type Texture as GltfTexture,
 } from '@gltf-transform/core';
+import type { EmissiveStrength } from '@gltf-transform/extensions';
 import {
   BufferAttribute,
   BufferGeometry,
@@ -84,6 +89,8 @@ interface FlatMaterial {
   alphaMode: 'OPAQUE' | 'MASK' | 'BLEND';
   alphaCutoff: number;
   emissive: [number, number, number];
+  /** KHR_materials_emissive_strength, as Three.js `emissiveIntensity`. */
+  emissiveIntensity: number;
 }
 
 interface FlatMesh {
@@ -120,12 +127,27 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Declared loop intent carried by animation extras or the review copy. */
+function withLoopIntent(clip: AnimationClip, intent: unknown): AnimationClip {
+  if (intent === 'loop' || intent === 'once') clip.userData.kilnLoopIntent = intent;
+  return clip;
+}
+
+/** Values per key of a CUBICSPLINE track: [in-tangent, value, out-tangent]. */
+const cubicTuple = (property: string) => (property === 'quaternion' ? 12 : 9);
+
+/** The review copy: version 1, or version 2 when a clip has a CUBICSPLINE track. */
 function reviewClipsFromExtras(extras: unknown): AnimationClip[] | undefined {
   if (!record(extras)) return undefined;
   const envelope = extras[REVIEW_CLIPS_EXTRAS_KEY];
-  if (!record(envelope) || envelope.version !== 1 || !Array.isArray(envelope.clips)) {
+  if (
+    !record(envelope) ||
+    (envelope.version !== 1 && envelope.version !== 2) ||
+    !Array.isArray(envelope.clips)
+  ) {
     return undefined;
   }
+  const cubicAllowed = envelope.version === 2;
   if (envelope.clips.length > REVIEW_CLIP_LIMITS.clips) {
     throw new GlbGeometryFlatError(
       'GLB_FLAT_PARSE_FAILED',
@@ -156,7 +178,8 @@ function reviewClipsFromExtras(extras: unknown): AnimationClip[] | undefined {
         !Array.isArray(track.values) ||
         (track.interpolation !== undefined &&
           track.interpolation !== 'LINEAR' &&
-          track.interpolation !== 'STEP') ||
+          track.interpolation !== 'STEP' &&
+          !(cubicAllowed && track.interpolation === 'CUBICSPLINE')) ||
         track.times.length > REVIEW_CLIP_LIMITS.samplesPerTrack ||
         track.values.length > REVIEW_CLIP_LIMITS.valuesPerTrack ||
         !track.times.every((value) => typeof value === 'number' && Number.isFinite(value)) ||
@@ -166,6 +189,18 @@ function reviewClipsFromExtras(extras: unknown): AnimationClip[] | undefined {
       }
       const property = track.name.slice(track.name.lastIndexOf('.') + 1);
       const Track = property === 'quaternion' ? QuaternionKeyframeTrack : VectorKeyframeTrack;
+      if (track.interpolation === 'CUBICSPLINE') {
+        if (
+          track.times.length < 2 ||
+          track.values.length !== track.times.length * cubicTuple(property)
+        ) {
+          throw new GlbGeometryFlatError(
+            'GLB_FLAT_PARSE_FAILED',
+            'Invalid animation review track.',
+          );
+        }
+        return useCubicSpline(new Track(track.name, track.times, track.values));
+      }
       return new Track(
         track.name,
         track.times,
@@ -173,7 +208,10 @@ function reviewClipsFromExtras(extras: unknown): AnimationClip[] | undefined {
         track.interpolation === 'STEP' ? InterpolateDiscrete : InterpolateLinear,
       );
     });
-    return new AnimationClip(candidate.name, candidate.duration, tracks);
+    return withLoopIntent(
+      new AnimationClip(candidate.name, candidate.duration, tracks),
+      candidate.loopIntent,
+    );
   });
 }
 
@@ -241,6 +279,7 @@ function flatMaterial(material: Material | null): FlatMaterial {
       alphaMode: 'OPAQUE',
       alphaCutoff: 0.5,
       emissive: [0, 0, 0],
+      emissiveIntensity: 1,
     };
   }
   const [r, g, b, factorAlpha] = material.getBaseColorFactor();
@@ -260,6 +299,10 @@ function flatMaterial(material: Material | null): FlatMaterial {
     alphaMode,
     alphaCutoff: material.getAlphaCutoff(),
     emissive: material.getEmissiveFactor(),
+    emissiveIntensity:
+      material
+        .getExtension<EmissiveStrength>('KHR_materials_emissive_strength')
+        ?.getEmissiveStrength() ?? 1,
   };
 }
 
@@ -379,8 +422,9 @@ export async function loadGlbGeometryFlatScene(
   const meshes: FlatMesh[] = [];
   let instanceCount = 0;
   const sceneNodes = new Set<import('@gltf-transform/core').Node>();
+  // A subtree `KHR_node_visibility` hides does not draw, so the flat view leaves it out.
   const visit = (node: import('@gltf-transform/core').Node): void => {
-    if (sceneNodes.has(node)) return;
+    if (sceneNodes.has(node) || isHiddenGltfNode(node)) return;
     sceneNodes.add(node);
     for (const child of node.listChildren()) visit(child);
   };
@@ -511,6 +555,8 @@ export async function loadGlbReviewScene(bytes: Uint8Array): Promise<LoadedGlbRe
     target.quaternion.fromArray(source.getRotation());
     target.scale.fromArray(source.getScale());
     target.userData = { ...source.getExtras() };
+    // KHR_node_visibility: the flag stays on the node it was written on, as three draws it.
+    if (isHiddenGltfNode(source)) target.visible = false;
     nodeMap.set(source, target);
     const sourceMesh = source.getMesh();
     if (sourceMesh) {
@@ -568,7 +614,9 @@ export async function loadGlbReviewScene(bytes: Uint8Array): Promise<LoadedGlbRe
         });
         threeMaterial.color.setRGB(flat.color.r, flat.color.g, flat.color.b);
         threeMaterial.emissive.fromArray(flat.emissive);
+        threeMaterial.emissiveIntensity = flat.emissiveIntensity;
         if (material) {
+          threeMaterial.userData = { ...material.getExtras() };
           threeMaterial.map = preserveTexture(
             material.getBaseColorTexture(),
             'color',
@@ -624,12 +672,24 @@ export async function loadGlbReviewScene(bytes: Uint8Array): Promise<LoadedGlbRe
       'GLB_FLAT_NO_RENDERABLE_GEOMETRY',
       'Final GLB contains no renderable geometry.',
     );
+  // Lower levels of detail are built beside the scene, detached, for shots that name them.
+  // Counts and reason codes stay those of the scene a loader draws.
+  const sceneMeshCount = meshCount;
+  const sceneInstanceCount = instanceCount;
+  const sceneReasons = new Set(reasons);
+  registerReviewLodChains(
+    root,
+    listLodChainNodes(document).map(({ levels: [base, ...lower] }) => ({
+      base: nodeMap.get(base!)!,
+      levels: lower.some((level) => nodeMap.has(level)) ? [] : lower.map(buildNode),
+    })),
+  );
 
   const nativeClips = document
     .getRoot()
     .listAnimations()
-    .map(
-      (animation) =>
+    .map((animation) =>
+      withLoopIntent(
         new AnimationClip(
           animation.getName(),
           -1,
@@ -642,14 +702,27 @@ export async function loadGlbReviewScene(bytes: Uint8Array): Promise<LoadedGlbRe
             const property =
               path === 'translation' ? 'position' : path === 'rotation' ? 'quaternion' : path;
             if (!node || !property || property === 'weights' || !input || !output) return [];
-            const interpolation = sampler!.getInterpolation();
-            if (interpolation !== 'STEP' && interpolation !== 'LINEAR') {
+            const interpolation: string = sampler!.getInterpolation();
+            if (
+              interpolation !== 'STEP' &&
+              interpolation !== 'LINEAR' &&
+              interpolation !== 'CUBICSPLINE'
+            ) {
               throw new GlbGeometryFlatError(
                 'GLB_FLAT_PARSE_FAILED',
-                `Animation review does not support ${interpolation} interpolation; use LINEAR or STEP.`,
+                `Animation review does not support ${interpolation} interpolation; use LINEAR, STEP or CUBICSPLINE.`,
               );
             }
             const Track = path === 'rotation' ? QuaternionKeyframeTrack : VectorKeyframeTrack;
+            if (interpolation === 'CUBICSPLINE') {
+              if (input.length < 2 || output.length !== input.length * cubicTuple(property)) {
+                throw new GlbGeometryFlatError(
+                  'GLB_FLAT_PARSE_FAILED',
+                  `Animation sampler for ${node.getName()}.${property} is not a valid CUBICSPLINE sampler: it needs at least two keys and three values per key.`,
+                );
+              }
+              return [useCubicSpline(new Track(`${node.getName()}.${property}`, input, output))];
+            }
             return [
               new Track(
                 `${node.getName()}.${property}`,
@@ -660,13 +733,15 @@ export async function loadGlbReviewScene(bytes: Uint8Array): Promise<LoadedGlbRe
             ];
           }),
         ),
+        (animation.getExtras() as { kilnLoopIntent?: unknown }).kilnLoopIntent,
+      ),
     );
   const clips = reviewClipsFromExtras(sourceScene.getExtras()) ?? nativeClips;
   return {
     root,
     clips,
-    reasonCodes: REASON_ORDER.filter((reason) => reasons.has(reason)),
-    meshCount,
-    instanceCount,
+    reasonCodes: REASON_ORDER.filter((reason) => sceneReasons.has(reason)),
+    meshCount: sceneMeshCount,
+    instanceCount: sceneInstanceCount,
   };
 }

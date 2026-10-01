@@ -56,7 +56,9 @@ target path and property, with its own summary, changes and `nextOffset`. Exact
 keyframe and interpolation data are compared; equivalent motion encoded with
 different keys still counts as changed. Neither comparison proves visual
 equivalence, continuous clearance or physical fit. Ambiguous/unnamed siblings, skins, morph targets,
-instancing and unsupported structural extensions fail explicitly. The bounded
+instancing and other structural extensions fail explicitly. An `MSFT_lod` chain's lower levels are
+compared at the path each takes beside LOD0; the headline bounds are LOD0's, and switch
+thresholds are not compared. The bounded
 comparison supports 64 MiB per GLB, 10,000 nodes, 128 hierarchy levels and two
 million placed vertex visits. No result silently omits unsupported geometry.
 
@@ -83,7 +85,7 @@ For multiple subjects in one call, use `kiln_render` or edit `capture`:
 ] }
 ```
 
-Versioned capture has 1–9 shots, columns 1–3, and a square per-shot `size` from 128–1024; output is `grid` or `separate`. It has no request fields named `width` or `height`; those are returned image dimensions. Legacy presets use `COLSxROWS`, and each optional cell has `azimuthDeg`, `elevationDeg`, `zoom`, and `name`. Do not combine the two capture shapes. Orbit shots derive target and distance from the selected subject bounds: use `subject` and `padding`, not `target` or `distance`.
+Versioned capture has 1–9 shots, columns 1–3, and a square per-shot `size` from 128–2048; output is `grid` or `separate`. It has no request fields named `width` or `height`; those are returned image dimensions. Legacy presets use `COLSxROWS`, and each optional cell has `azimuthDeg`, `elevationDeg`, `zoom`, and `name`. Do not combine the two capture shapes. Orbit shots derive target and distance from the selected subject bounds: use `subject` and `padding`, not `target` or `distance`.
 
 Explicit cameras use `{ type: 'explicit', projection: 'perspective', position, target, up?, fovDeg? }` or `projection: 'orthographic'` with optional `halfHeight`. Their vectors are world-space. Orbit `relativeTo` supports world/asset/part frames. Use returned camera records to verify how a request resolved.
 
@@ -101,7 +103,9 @@ kiln_screenshot_animation({ programRef: REF, clip: 'Open',
 `loopClosure` compares local position, rotation and scale at both clip endpoints.
 An open endpoint may be valid for a one-shot action. For a requested loop, review
 the reported gaps; closed endpoints alone do not prove smooth velocity or freedom
-from collisions. An incomplete result lists unassessed tracks.
+from collisions. An incomplete result lists unassessed tracks. `loopIntent` is the
+intent declared with `createClip(..., { loop: true | false })`; a declared loop
+that stays open adds a `LOOP_NOT_CLOSED` warning.
 
 Choose phases for the geometry and clip, not only a regular grid. For a full turn
 with 16 repeated lugs, quarter/eighth turns all repeat the same tread alignment.
@@ -173,7 +177,9 @@ kiln_inspect({ programRef: REF, image: false,
 });
 ```
 
-Use up to 12 pairs of exact paths. Read every `surfaceMeasurements.results`
+Use up to 12 pairs. Each subject is an exact path from `listParts` or an
+unambiguous node name, as `measure` takes (`createPart("Seat", ...)` names its mesh
+`Mesh_Seat`). Read every `surfaceMeasurements.results`
 entry: it contains either `measurement` or an explicit `error`. Overall status
 is `partial` if any pair failed or remained incomplete; successful pairs are
 still returned. Each pair retains the single-measurement work limit. This batch

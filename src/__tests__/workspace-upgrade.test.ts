@@ -122,6 +122,44 @@ it('checks the recorded interpreter without treating another supported caller as
   }
 }, 30000);
 
+it('the CLI launcher runs under the pinned interpreter that the MCP server uses', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'kiln-launcher-node-'));
+  try {
+    const root = join(temp, 'workspace');
+    const pinned = join(temp, process.platform === 'win32' ? 'node.exe' : 'node');
+    const currentNode = spawnSync('node', ['-p', 'process.execPath'], { encoding: 'utf8' });
+    expect(currentNode.status).toBe(0);
+    await copyFile(currentNode.stdout.trim(), pinned);
+    expect(invoke(root, repo, {}, pinned).status).toBe(0);
+    // Another Node version can change float digits in exported GLB JSON, so a CLI
+    // export must run where kiln_save runs. A preload records every interpreter.
+    const probe = join(temp, 'probe.cjs');
+    const log = join(temp, 'interpreters.log');
+    await writeFile(
+      probe,
+      `require('node:fs').appendFileSync(${JSON.stringify(log)}, process.execPath + '\\n');`,
+    );
+    const env = { ...process.env, NODE_OPTIONS: `--require ${JSON.stringify(probe)}` };
+    const run = async (node: string) => {
+      await rm(log, { force: true });
+      const cli = spawnSync(node, [join(root, 'kiln.mjs'), 'discover', '--json'], {
+        encoding: 'utf8',
+        env,
+      });
+      expect(cli.status).toBe(0);
+      expect(JSON.parse(cli.stdout).version).toBe('kiln.discovery.v1');
+      return (await readFile(log, 'utf8')).trim().split(/\r?\n/);
+    };
+    const other = await run('node');
+    expect(other).toHaveLength(2);
+    expect(await realpath(other[1]!)).toBe(await realpath(pinned));
+    // The pinned interpreter itself runs the CLI in process.
+    expect(await run(pinned)).toHaveLength(1);
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+}, 30000);
+
 it('retires only tracked unchanged resources and refuses directory links before touching outside files', async () => {
   const temp = await mkdtemp(join(tmpdir(), 'kiln-upgrade-resources-'));
   try {
@@ -183,6 +221,34 @@ it('diagnoses and upgrades a same-version runtime and all skill copies without c
     expect(await readFile(asset, 'utf8')).toBe('// original asset');
     expect(await readFile(join(root, 'brief.md'), 'utf8')).toBe('Owner brief');
     expect(JSON.parse(invoke(root, runtime, { check: true }).stdout).status).toBe('current');
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+}, 30000);
+
+it('records the dist build identity under its own name and accepts the legacy field', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'kiln-build-identity-'));
+  try {
+    const runtime = join(temp, 'runtime'),
+      root = join(temp, 'workspace');
+    await fixture(runtime, 'before');
+    expect(invoke(root, runtime).status).toBe(0);
+    const manifestPath = join(root, '.kiln/workspace.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    // Discovery's execution.runtimeIdentity and a save's build.engine are the installed
+    // runtime identity, a different hash; this field names the dist build only.
+    expect(manifest.buildIdentity).toBe(`sha256:${sha('before')}`);
+    expect(manifest.runtimeIdentity).toBeUndefined();
+    // Manifests written before the rename carry the same value as runtimeIdentity.
+    const { buildIdentity, ...rest } = manifest;
+    await put(manifestPath, JSON.stringify({ ...rest, runtimeIdentity: buildIdentity }));
+    const check = JSON.parse(invoke(root, runtime, { check: true }).stdout);
+    expect(check.runtimeChanged).toBe(false);
+    expect(check.status).toBe('current');
+    expect(invoke(root, runtime, { upgrade: true }).status).toBe(0);
+    const upgraded = JSON.parse(await readFile(manifestPath, 'utf8'));
+    expect(upgraded.buildIdentity).toBe(buildIdentity);
+    expect(upgraded.runtimeIdentity).toBeUndefined();
   } finally {
     await rm(temp, { recursive: true, force: true });
   }

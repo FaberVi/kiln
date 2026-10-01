@@ -5,6 +5,11 @@ revision between a game project and your user library. Everything runs locally;
 viewing and exporting make no model calls. Collections are separate from source
 snapshots and disposable build caches.
 
+The packaged dashboard also provides Projects, Materials and Live Review. See
+[projects and live review](projects-and-live-review.md) for shared configuration,
+exact reviewed saves, material dependencies and editable/runtime project packages.
+Projects are optional: standalone assets use the same library, material and review facilities.
+
 ## Start in your asset workspace
 
 ```sh
@@ -13,8 +18,15 @@ node kiln.mjs assets
 node kiln.mjs view
 ```
 
-Open the printed loopback URL. The viewer shows one card per asset, supports search,
-tags, revision selection, animation playback, wireframe, lighting and downloads.
+CLI saves accept `--model`, `--harness` and `--author`, matching MCP's optional
+`attribution` fields. These are declared provenance, not provider attestation.
+Record requested versus independently confirmed thinking effort and later refiners
+in the description or accompanying production ledger; do not invent unknown values.
+
+Open the printed loopback URL; `localhost` on the same port also works. The viewer
+refuses other hostnames to prevent DNS rebinding. It shows one card per asset,
+supports search, tags, revision selection, animation playback, wireframe, lighting
+and downloads.
 It loads the saved GLB, never executes its JavaScript. Selecting a revision in the
 browser remembers that choice in that browser; it does not update other clients.
 Multiple branch tips are identified on the asset card.
@@ -36,6 +48,9 @@ An unconfigured workspace exposes two local destinations:
 - `library` — Kiln's folder in the operating system's user-data directory, for assets the user
   explicitly wants available across workspaces.
 
+The collection ID `project` predates versioned project configuration. It is only a
+save destination and does not require, create or select a project record.
+
 The gallery is the viewer for these collections, not a third storage destination. The user chooses
 where an asset belongs through their request or the CLI's `--collection`; the agent passes that ID
 to `kiln_save`. Remember another location with:
@@ -50,10 +65,22 @@ Paths are stored in the workspace's `.kiln/collections.json`. Restart an existin
 viewer or MCP process after changing this configuration. `KILN_COLLECTIONS` can
 override all defaults with a JSON map, such as `{"project":"/game/assets/kiln","library":"/my-library"}`.
 The configured directories are the only collection roots the server exposes.
+`kiln collections` prints each collection's directory, and `kiln import` prints the
+directory of every revision it copied.
+
+On Windows a configured root must name a drive or a network share, such as
+`C:/Users/you/game-assets` or `\\server\share\kiln`. A Git Bash path such as
+`/c/Users/you/game-assets` has no drive, so Windows would read it as
+`C:\c\Users\you\game-assets` and saving would create that folder silently. Kiln
+refuses such a root, naming the collection, where it was configured, where it would
+have landed and the drive form to write instead. A relative directory given to
+`collections add` resolves against the current directory before it is stored.
 The CLI and MCP derive their workspace from the shared `KILN_PROGRAM_STORE` when set.
 
 An asset directory contains `revisions/<revisionId>/manifest.json`, `asset.glb`, and,
-when available, `source.kiln.js` and `preview.png`. Copy the whole collection to move it.
+when available, `source.kiln.js` and `preview.png`. Resource-dependent editable revisions
+also retain `materials.kiln.json` with exact normalized maps and procedural recipes.
+Copy the whole collection to move it.
 Source/manifest files are suitable for Git; decide whether generated binaries belong
 in Git, LFS, or ordinary backups. The generated workspace ignores GLB and PNG files
 by default. There is no automatic deletion or disk quota for saved collections.
@@ -107,7 +134,15 @@ node kiln.mjs import workbench.zip --collection library
 node kiln.mjs asset ASSET_ID REVISION_ID --collection library --restore
 ```
 
-Exports refuse to overwrite existing files. ZIPs are ordinary archives containing
+An export never replaces an existing file. It hands off one exact saved revision, so a
+second export to the same path fails and names the file; choose a new `--out`. This
+differs from `render --out`, which replaces its own working output on every run. Add
+`--json` for a receipt naming each written file with its `bytes` and `sha256`.
+Across the CLI, `--json` prints a receipt from `render`, `source`, `export`, `discover`,
+`inspect`, `animation` and `service status`/`reprobe`; `edit`, `save`, `collections`,
+`assets`, `asset`, `import`, `project`, `material`, `review` and `migrate` print JSON
+already and accept it; `generate`, `view`, `collections add` and `service start`/`stop`
+refuse it with a message naming these commands. ZIPs are ordinary archives containing
 one or more complete revisions. Source restore needs no original program store.
 Source is capped at 1 MiB; normal evaluator limits can be lower. Bundles are bounded,
 filenames are allowlisted and hashes are verified on import/read. GLBs must embed
@@ -130,15 +165,28 @@ committed earlier revisions if a later filesystem operation fails. Retrying is s
 
 The manifest records source/GLB/preview hashes, parent revision, build warnings,
 integration/QA information, effective host options and runtime identity when verified.
-Source-development or unverified hosts are labelled explicitly. Briefs and model
+Packaged Node subprocess saves record that identity in `build.engine` with disk,
+memory or disabled build reuse. Missing transitive peers in `--omit=peer`
+installations are identifiable absence states; missing regular dependencies or
+unidentified inputs still prevent verification. Memory/off hosts compute provenance
+on their first save, retaining any failure reason in `localExecution.cacheReason`.
+See [runtime identity](runtime.md#what-a-build-identity-covers) for the exact scope.
+Source-development, Bun, in-process or unverified hosts are labelled explicitly. Briefs and model
 attribution are supplied context, not authenticated authorship claims.
 
 The source depends on Kiln: preserve the indicated engine installation/version for
-rebuilding. Approved packaged textures travel with that engine. A host-only runtime
-texture dependency is recorded as `external-dependencies-required`; its bytes are
-not silently claimed to be in the ZIP. The GLB itself remains self-contained.
+rebuilding. Approved packaged textures travel with that engine. The local host resolves
+recorded library material dependencies into the editable ZIP, including for standalone
+assets. Missing or unsupported external dependencies prevent a complete editable export
+instead of producing a misleading rebuild claim. Older ZIPs can lack these resources.
+The GLB itself remains self-contained. After importing the editable asset, use
+`node kiln.mjs asset ASSET_ID REVISION --rebuild --out rebuilt.glb` to build with its
+saved material revisions and exporter settings; it reports whether the GLB hash matches.
 CPU preview fidelity is recorded; use the interactive material rendering to inspect
 appearance, and the structural report for geometry checks. GPU pixels are not QA evidence.
+`preview.fidelity` describes the saved preview. A preview drawn from the saved
+`asset.glb` bytes records `exactArtifact: true` and an `inputGlbSha256` equal to the
+manifest's GLB hash; a derivative review surface stays `exactArtifact: false`.
 
 The local browser host binds to loopback, serves only configured collections and
 bundled viewer files, and rejects cross-origin requests and writes. It has no remote

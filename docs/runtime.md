@@ -2,6 +2,8 @@
 
 Kiln stores source revisions separately from evaluated builds and rendered images. A reference saves the model from repeating source. A compatible build cache saves the engine from evaluating it again.
 
+The packaged local host also supplies optional project, material-library and review capabilities through the shared registry. These add `kiln_project`, `kiln_material` and `kiln_review` to the fourteen base MCP tools; custom embeddings only advertise capabilities they inject. Projects are optional: standalone calls can pin material dependencies directly, and omission does not infer project membership from nearby records. [Projects and Live Review](projects-and-live-review.md) describes explicit selection, shared CLI/MCP/dashboard records, exact-save delivery and portable resource closure. These host facilities do not change the native completion protocol.
+
 Compiled CLI/MCP commands share one Node compatibility check with workspace setup:
 20.x from 20.15.0, or 22.2.0 and later. Optional Strands generation requires 22.2.0+;
 the CLI checks this before loading its SDK or provider. These floors are separate
@@ -53,8 +55,8 @@ adapters have offline contract evidence; their model access, quotas, tool schema
 image delivery and cache behavior need qualification on the chosen route. Model
 call counts are observations, not recommended universal limits. The native skill
 and image-history policy do not replace geometry inspection or guarantee that
-every edit preserves the brief. The v0.8 reference-separation change has scripted SDK coverage; the live trial
-above predates that change. Cold native-provider installation remains separate.
+every edit preserves the brief. The separate native reference context described below has scripted SDK
+coverage; the live trial above predates it. Cold native-provider installation remains separate.
 
 Native authoring receives the brief, current tool definitions and explicitly
 supplied native skills or selected technical references. The tested clean workspace exposed no repository/gallery
@@ -76,6 +78,18 @@ writes: if the GLB was exported before a GPU failure, it remains listed while th
 failed image destination stays unchanged. The command is not a multi-file transaction.
 Human-readable output remains the default. In trusted in-process mode, authored
 console diagnostics go to stderr; the default subprocess ignores authored stdout.
+
+A program that throws in the subprocess or isolated evaluator is reported as
+`Generated asset execution was rejected.` No message, stack or identifier from the
+program crosses the worker boundary. The worker may add one closed cause, and the host
+turns it into engine-written advice. Causes include a binding read before its
+declaration ran, a `build()` that is missing or returns no Object3D, a `materialRecipe`
+override the recipe does not allow, and a TypeError or RangeError. The host still has
+the source it sent. `kiln_render`, `kiln_inspect`, `kiln_view_interior`,
+`kiln_screenshot_animation` and the CLI parse that source and append `Source check:`
+with up to three codes and lines that `kiln_validate` reports for it. Examples are
+`TEMPORAL_DEAD_ZONE`, `MATERIAL_RECIPE_OVERRIDE`, `UNSAFE_GLOBAL_ACCESS` and
+`SYNTAX_ERROR`. An unrecognised exception stays generic.
 
 ## Animation measurements
 
@@ -111,9 +125,50 @@ Advanced geometry callbacks also have operation-specific input limits. Those che
 
 ## What a build identity covers
 
-Disk reuse requires a verified packaged Node worker. At host startup Kiln checks the worker bytes against its build manifest, then fingerprints the actual installed dependency code and data, including WASM and native assets. The identity also includes the engine build, Node/platform/architecture, evaluation policy and requested build options. A dependency version range or lockfile alone does not identify an npm installation.
+Two hashes identify a local Kiln and they answer different questions. The **build
+identity** names the dist bundles built from one engine source (`dist/build.json`);
+`.kiln/workspace.json` records it as `buildIdentity` (workspaces created before 0.9
+called it `runtimeIdentity`) and discovery reports it as `execution.buildIdentity`.
+The **installed runtime identity** also covers the installed dependency closure and the
+Node version, platform and architecture that ran it; discovery reports it as
+`execution.runtimeIdentity` and saves record it as `build.engine`. Compare
+`buildIdentity` with the workspace manifest to confirm the server runs the build the
+workspace was set up against, and `build.engine` with `execution.runtimeIdentity` to
+tie a saved revision to the host that produced it.
 
-Unknown dependencies, an unverifiable installation or unsupported execution modes fall back to process memory. Hosts must restart after changing an installation while it is running. Programs intended for reuse must be deterministic; source that reads ambient time or external state cannot promise reproducible output. Function-bearing material resolvers bypass generic caching unless encapsulated by a host evaluator with a complete dependency identity.
+Packaged Node subprocess saves and migration rebuilds record the installed runtime
+identity in `build.engine` and `localExecution.runtimeIdentity`, independently of
+`KILN_BUILD_CACHE=disk|memory|off` or `cacheEvaluations: false`. Disk reuse checks the
+identity at host startup. Memory, off and host-disabled reuse defer that scan until
+the first save or migration needs provenance; ordinary reads and disposable renders
+do not trigger it. The host context retains one promise/result, including a failure,
+so concurrent or repeated saves do not rescan the installation.
+
+Kiln checks the packaged worker bytes against its build manifest, then fingerprints
+the actual installed dependency code and data, including WASM and native assets.
+That identity includes the engine build and Node/platform/architecture; the cache
+key additionally includes evaluation policy and requested build options. A dependency
+version range or lockfile alone does not identify an npm installation.
+
+An absent transitive `peerDependencies` entry is fingerprinted as `peer-absent`,
+whether required or optional. An absent `optionalDependencies` entry is separately
+recorded as `optional-absent`. Present packages contribute their installed bytes,
+so installing a previously absent peer changes the identity. Thus `--omit=peer`
+installations retain verified provenance when the remaining closure is identifiable.
+Missing regular dependencies, malformed installed packages and other unidentified
+inputs still prevent verification. The engine's own optional generation peers stay
+outside the worker closure.
+
+An unverifiable installation keeps `build.engine: "source-development:unverified"`
+and exposes the failure in `localExecution.cacheReason`, including with memory or
+off policies. Disk reuse then falls back to process memory; disabled reuse stays
+disabled. In-process, isolated, Bun and source-development execution do not claim
+the packaged Node worker's identity and retain the unverified label. Hosts must
+restart after changing an installation while it is running. Programs intended for
+reuse must be deterministic; source that reads ambient time or external state
+cannot promise reproducible output. Function-bearing material resolvers bypass
+generic caching unless encapsulated by a host evaluator with a complete dependency
+identity.
 
 The cache bypasses known ambient time and random APIs, including `Date`, `performance`, `crypto`, `Math.random` and Three.js random helpers. This conservative source check is not a proof that arbitrary JavaScript is pure. Prefer an explicit seed and ordinary deterministic functions when reproducible revisions matter.
 

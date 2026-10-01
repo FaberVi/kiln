@@ -2,6 +2,21 @@
 
 Search `kiln_discover` for the shape or operation you need, then fetch exact `ids` for unfamiliar helpers. An overview supplies current `family` and `tags` labels when a filter is useful; `{ kind: "recipe" }` browses optional construction recipes. Each example below lives in `build()` with a named root and suitable material. Adapt or combine recipes freely, including with custom equations and topology.
 
+Parts use the asset frame: metres, +X forward, +Y up, +Z right. Forward is the direction the object faces; a bench's sitter faces +X. Part `rotation` is in degrees and follows the right-hand rule in this frame: `[0, 90, 0]` turns forward (+X) toward -Z, the object's left; `[0, 0, 90]` tips +X up to +Y; `[90, 0, 0]` rolls +Y toward +Z.
+
+For a gripper or carrier, define the payload's occupied volume as well as its
+attachment marker. Check the complete gripper housing, palm and jaws against that
+volume; separated fingers do not prove the central body clears it. Size the open
+jaw gap for approach and release, then verify the closed contact surfaces. Mating
+pins and grooves must agree in count, spacing, orientation, depth and clearance in
+one shared frame. A locator proves a pose, not a physical fit. Keep these mating
+dimensions in the asset brief and shared source parameters.
+
+For moving attachments, inspect intermediate poses along approach, pickup, travel
+and release. Matching endpoints can still produce a path through the payload or
+support. Keep joints, contact markers and payload motion in the intended hierarchy;
+repair the geometry or path where the swept volumes collide.
+
 ## Surfaces from equations
 
 An asymmetric canopy or corrugated sheet can be much shorter as a function than as many primitives:
@@ -32,12 +47,68 @@ or other end boundaries. Inspect those joins from both sides after resizing; a
 correct bounding box and accepted structural QA do not prove closure. Leave
 surfaces open where the brief calls for them rather than capping every boundary.
 
+For a solid wall, gable or roof, review the outside and intended inside separately.
+Matching edge coordinates do not establish a visible join: reversed triangle winding
+can cull the connecting surface even when vertex normals point outward. Repair the
+winding or missing geometry rather than hiding the defect with double-sided shading;
+deliberate thin sheets may need it. Check ceiling and trim extents against the actual sloping roof, including
+the eaves, rather than its bounding box.
+
 For attached veins, ribs or seams, discover `recipe:surface-detail-v1`. Its strip
 shares the carrier mesh's sampled boundary vertices and rises along local normals.
 A shared equation followed by a separately interpolated curve does not establish
 contact with the actual mesh. Check both attachment and final dimensions after a
 shape edit; a normal offset can change height as well as depth. This recipe is an
 optional open-surface construction, not a requirement to turn every detail into a strip.
+
+For a decal or lamp following a faceted body, ray-projecting the detail's vertices
+outside the body does not prove its connecting triangles stay outside. Coarse detail
+triangles can cut through the host between those vertices. Where the detail must lie
+flush, clip the actual host triangles to the intended footprint and retain their
+facet boundaries before applying a small controlled offset. Check the exported
+surface head-on and obliquely at every promised detail level; preserve the
+footprint and overall dimensions rather than covering the defect with a larger patch.
+Check the entire intended footprint, including points where no detail triangles were
+emitted: sampling only existing triangles cannot detect clipped-away holes. Use the
+first hit on the outward-facing host to distinguish missing coverage from backfaces.
+Contrasting body/detail colours can expose gaps; keep that diagnostic tint separate
+from the saved material design.
+
+## Interfaces that must fit or move
+
+Derive mating surfaces from shared dimensions and local frames. Surface contact at
+one point does not establish a flush joint along an edge. For a continuous-looking
+body, align profiles and transitions at the intended seam; unrelated interpenetrating
+primitives may hide a gap in one view while exposing a ledge in another. Separate
+rigid pieces, welded surfaces and deforming joints are all valid when they match the
+requested style and motion.
+
+For usable doors or passages, establish the actor envelope, finished floor,
+threshold, clear width and headroom. Split plinths, caps, trim and braces around the
+opening when they would obstruct it. Check the closed position, the hinge sweep and
+the open passage against exported geometry. A wide visible door leaf is not evidence
+of a traversable opening.
+
+For a seated operator, fit the posed body as well as the seat marker: pelvis/seat,
+knees/controls, feet/deck and hands/reach. Check relevant steering or pedal travel
+and access for mounting. Keep application-specific poses separate from promised
+asset clips, and report which one was tested.
+
+For articulated limbs, place roots and joint transitions within the intended body
+silhouette and inspect the moving seam from several sides. Identify the anatomical
+joint each pivot represents before reversing its bend direction. Correct exposed
+attachment caps, gaps and snapping through the motion, without assuming every
+stylized creature needs one rigging or deformation technique.
+
+Before mirroring a hand, inspect its local frame, palm, thumb web and any tool grip.
+Weak anatomical cues can look reversed without a left/right frame error. Refine the
+shape while preserving a correct wrist pivot and attachment frame, then check hand
+clearance through the relevant motion and against the complete carried tool.
+
+When reducing draw calls, consolidate compatible geometry within the same rigid
+motion parent. Preserve independently moving nodes, attachment markers and names
+that the consumer uses. Recheck clip targets and intermediate poses after export;
+fewer meshes alone does not establish a successful optimization.
 
 ## Materials and directional UVs
 
@@ -85,7 +156,7 @@ const housing = loftProfiles([
 
 Profiles use local `[x,z]`; loft sections lie in local XZ planes. A sweep follows supplied polyline stations using transported frames. Sample a curve first if you need smooth curvature. `up` sets initial profile +Z and must not parallel the path.
 
-Caps default on. Closed sweeps omit the repeated path endpoint and require total twist to be a multiple of 360. Loft sections require matching point counts and deliberate index correspondence. These versions accept a simple outline without holes; use `extrudeProfile` for straight sections with holes. Review tight turns and nearby surfaces for self-intersections.
+Caps default on; `cap: 'start'` or `'end'` caps one end of an open path. `creaseAngle` (default 60 degrees) keeps a rectangular or triangular profile hard-edged; raise it to 180 to smooth everything. `extrudeProfile` adds side-wall rings only when `divisions` asks for them. Closed sweeps omit the repeated path endpoint and require total twist to be a multiple of 360. Loft sections require matching point counts and deliberate index correspondence. These versions accept a simple outline without holes; use `extrudeProfile` for straight sections with holes. Review tight turns and nearby surfaces for self-intersections.
 
 ## Preserve useful Boolean surfaces
 
@@ -112,7 +183,29 @@ attaching beneath a transformed parent.
 
 ## Reuse structure without a new language
 
-Put repeated assemblies in ordinary functions with JSDoc parameters and named return values. Pass parent/material explicitly; return the assembly root and attachment markers. Change one parameter at the call site for a variant. The runnable [reusable-frame recipe](reusable-frame.kiln.js) demonstrates this without imports or hidden dependencies.
+Node and material `userData` carries application metadata as glTF extras. Use plain
+JSON and stay within 4 KiB per object and 64 KiB per asset; keys beginning `kiln` are
+reserved. Build warnings name omitted values. `visible = false` preserves hidden
+subtrees in export through `KHR_node_visibility`; their triangles are listed apart
+from headline metrics. Verify visibility support in the target application.
+
+Use `markOpenShell(part, 'why the boundary is intentionally open')` for a sheet or
+open tube. This records an acknowledgment when solid overlap cannot be measured;
+it does not suppress a measured collision or certify topology.
+
+Track helpers accept `STEP`, `LINEAR`, `CUBICSPLINE`, `EASE_IN`, `EASE_OUT` and
+`EASE_IN_OUT` interpolation. The eased choices apply between each pair of keys and
+export standard cubic sampler tangents. For example,
+`rotationTrack('Joint_Lid', [{ time: 0, rotation: [0,0,0] }, { time: 1, rotation: [0,0,90] }], 'EASE_IN_OUT')`
+starts and ends a swing at rest. Discover the track helper for its exact key format
+before authoring other channels.
+
+Source export indexes unindexed geometry using exact full-vertex equality. The
+`indexBuffers` receipt measures accessor bytes before and after this pass. Host
+`KILN_INDEX_POLICY=asBuilt` preserves helper buffers with optimization off; this
+choice belongs to export settings, not asset source.
+
+Put repeated assemblies in ordinary functions with JSDoc parameters and named return values. Pass parent/material explicitly; return the assembly root and attachment markers. Change one parameter at the call site for a variant. Give such a function a name prefix or suffix and use it for every part it creates (`Leg_L`, `Leg_R`); calling it twice with the same names makes duplicate node names, which QA reports as `UNIVERSAL_DUPLICATE_NODE_NAME`. The runnable [reusable-frame recipe](reusable-frame.kiln.js) demonstrates this without imports or hidden dependencies.
 
 When components must move or be replaced together, parent them under a real root
 at the assembly's placement datum. Name suffixes alone leave independent siblings.
@@ -121,6 +214,50 @@ bracket beneath its retained connection root. Use `replicateAssembly(...).nodeMa
 to find copied nodes; do not guess their generated names. Shared resources need
 copying before independent buffer/material edits. Flat hierarchies are still useful
 for independent components.
+
+## Levels of detail only when the brief asks
+
+Build one tier unless the brief asks for level-of-detail tiers. When it does, build
+every tier from one routine parameterised by level and emit the tiers as sibling
+groups under one parent, named with one stem and a level token: `LOD0`, `LOD1`,
+`LOD2`, or `Body_LOD0`, `Body_LOD1`. LOD0 is the full-detail tier. Parts every level
+shares, such as wheels, stay outside the set. Then declare the set once, LOD0 first:
+
+```js
+// Screen fraction of a bounding sphere of radius r at distance d (50 degree vertical FOV, 16:9).
+const coverage = (r, d) => (Math.PI * (r / (2 * d * Math.tan((25 * Math.PI) / 180))) ** 2) / (16 / 9);
+const tiers = [0, 1, 2].map((lod) => {
+  const group = new THREE.Group();
+  group.name = `Body_LOD${lod}`;
+  root.add(group);
+  buildBody(group, lod); // your routine, less detail as lod rises
+  return group;
+});
+// LOD1 from 60 m, LOD2 from 250 m, culled beyond 1.5 km, for a body of radius 2.5 m.
+defineLod(tiers, { screenCoverage: [coverage(2.5, 60), coverage(2.5, 250), coverage(2.5, 1500)] });
+```
+
+`screenCoverage[i]` is the smallest fraction of the screen, 0 to 1, at which level
+`i` still draws; the values strictly decrease, the set is culled below the last
+one, and a last value of 0 never culls. Compute each set's values from the bounding
+radius of that set's LOD0 and the brief's switch distances, with the brief's field
+of view or the one above when it names none. To make a shared part vanish with the
+last body tier, give it its own set with an empty group as its last level, named for
+example `Wheel_FL_LOD0` and `Wheel_FL_LOD1`, and declare
+`defineLod([wheel, farWheel], { screenCoverage: [coverage(0.35, 250), 0] })`.
+
+Two or more sibling tiers without `defineLod`, a gap in the levels, a missing LOD0
+or a set declared inside another tier fail the build with `LOD_SET`, which names
+the fix. A lone token is only a label. QA treats tiers as alternates instead of
+overlapping or disconnected parts. Every GLB Kiln writes carries each set as one
+`MSFT_lod` chain: LOD0 stays in the scene, the lower levels leave it, and LOD0's
+`extras.MSFT_screencoverage` holds your thresholds. A loader without the extension
+draws LOD0, so reported triangles and bounds are LOD0's and the parts outside every
+set; `levelsOfDetail` in the render result lists each level's triangles and path. A
+default sheet draws LOD0. To review a lower level, make that level's `path` a shot's
+subject, with `visibility: "isolate"` to see it alone; the shot draws the level in
+LOD0's place, and each chain's `drawn` says which level every view drew. An imported
+GLB's chains are kept through save and export.
 
 ## Implicit fields are experimental
 

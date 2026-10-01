@@ -11,7 +11,7 @@ import {
   appendRequirementsFinalQa,
 } from './qa/requirements-run';
 import type { AssetRequirementsQaReportV2 } from './qa/requirements-report';
-import { rethrowAuthoringError } from './evaluator/authoring-diagnostic';
+import { AuthoringDiagnosticError, rethrowAuthoringError } from './evaluator/authoring-diagnostic';
 /**
  * Headless Kiln GLB Renderer
  *
@@ -25,9 +25,21 @@ import { rethrowAuthoringError } from './evaluator/authoring-diagnostic';
  */
 
 import * as THREE from 'three';
-import { createGltfIO } from './gltf-io';
+import { createGltfIO, MSFT_LOD } from './gltf-io';
+import { collectLodSets } from './lod';
+import { applyLodChains, summarizeLodChains } from './lod-export';
+import { applyNodeVisibility, drawnSceneBounds, summarizeHiddenNodes } from './node-visibility';
 import { communitySceneDocument, resolveGltfExporter } from './community-exporter';
+import { isCubicSplineTrack } from './animation-spline';
+import {
+  applyIndexPolicy,
+  resolveIndexPolicy,
+  type IndexPolicy,
+  type IndexBufferReceipt,
+} from './index-policy';
+import { openShellExtras } from './open-shell';
 import { rigExtrasForExport } from './rig-export';
+import { type AuthorExtras, collectAuthorExtras } from './user-data-extras';
 import {
   geometryAttributeValues,
   inspectGeometryExport,
@@ -35,7 +47,8 @@ import {
   type GeometryExportPolicy,
 } from './geometry-export';
 import { createHash } from 'node:crypto';
-import { Document, getBounds } from '@gltf-transform/core';
+import { Document } from '@gltf-transform/core';
+import { KHRMaterialsEmissiveStrength } from '@gltf-transform/extensions';
 import {
   dedup,
   instance,
@@ -94,6 +107,8 @@ import {
   type MaterialResourceProvenanceV1,
 } from './material-resources';
 import { DEFAULT_TEXTURE_RESOLVER, type TextureResolver } from './texture-resolver';
+import type { MaterialLibraryPayloadV1, MaterialManifestV1 } from './material-library';
+import type { RebuildOptions } from './rebuild-options';
 import { assertGeneratedSourceSafe } from './validation';
 import { applyKitContract, type KitPackOptions, type KitPackSummary } from './kit';
 import {
@@ -141,12 +156,27 @@ export async function measureGlbBounds(
   const root = doc.getRoot();
   const scene = root.getDefaultScene() ?? root.listScenes()[0];
   if (!scene) return undefined;
-  const { min, max } = getBounds(scene);
+  const { min, max } = drawnSceneBounds(scene);
   if (!min.every(Number.isFinite) || !max.every(Number.isFinite)) return undefined;
   return {
     min: [min[0]!, min[1]!, min[2]!],
     max: [max[0]!, max[1]!, max[2]!],
   };
+}
+
+/** Triangles a loader does not draw: hidden subtrees outside the lower LOD levels. */
+function hiddenTriangles(root: THREE.Object3D, lowerLevels: ReadonlySet<THREE.Object3D>): number {
+  let hidden = 0;
+  const visit = (node: THREE.Object3D): void => {
+    if (lowerLevels.has(node)) return;
+    if (node.visible === false) {
+      hidden += countTriangles(node);
+      return;
+    }
+    for (const child of node.children) visit(child);
+  };
+  visit(root);
+  return hidden;
 }
 
 // Gltf-transform type aliases for local readability.
@@ -208,7 +238,8 @@ export async function inspectGlbIntegration(
   const scene = explicitDefault ?? root.listScenes()[0];
   if (!scene) return undefined;
 
-  const { min, max } = getBounds(scene);
+  // What a loader draws: hidden subtrees are listed apart below.
+  const { min, max } = drawnSceneBounds(scene);
   const finiteBounds = min.every(Number.isFinite) && max.every(Number.isFinite);
   if (!finiteBounds) return undefined;
   const metrics = collectGlbMetrics(doc);
@@ -217,6 +248,8 @@ export async function inspectGlbIntegration(
   const minTuple: [number, number, number] = [min[0]!, min[1]!, min[2]!];
   const maxTuple: [number, number, number] = [max[0]!, max[1]!, max[2]!];
   const minY = minTuple[1];
+  const levelsOfDetail = summarizeLodChains(doc);
+  const hiddenNodes = summarizeHiddenNodes(doc);
 
   return {
     schemaVersion: 'kiln.integration-manifest.v1',
@@ -254,6 +287,8 @@ export async function inspectGlbIntegration(
       transparentMaterials: metrics.transparentMaterials,
       skinned: metrics.skinned,
     },
+    ...(levelsOfDetail.length ? { levelsOfDetail } : {}),
+    ...(hiddenNodes.length ? { hiddenNodes } : {}),
     structuralQa: {
       hasDefaultScene: explicitDefault !== null,
       finiteBounds,
@@ -265,6 +300,7 @@ export async function inspectGlbIntegration(
 }
 
 export interface KilnCodeMeta {
+  indexBuffers?: IndexBufferReceipt;
   name?: string;
   category?: string;
   /** Scene-placement role (agent-declared). Drives composer layout + city budgeting. */
@@ -368,7 +404,10 @@ export async function executeKilnCode(
     };
 
     if (typeof build !== 'function') {
-      throw new Error('executeKilnCode: generated code did not define `build`');
+      throw new AuthoringDiagnosticError(
+        'BUILD_RESULT',
+        'executeKilnCode: generated code did not define `build`',
+      );
     }
 
     const root = await build();
@@ -378,7 +417,10 @@ export async function executeKilnCode(
     // THREE imported here, so `instanceof THREE.Object3D` returns false.
     // Three.js sets `.isObject3D = true` on the prototype for exactly this case.
     if (!(root as { isObject3D?: boolean })?.isObject3D) {
-      throw new Error('executeKilnCode: build() did not return a THREE.Object3D');
+      throw new AuthoringDiagnosticError(
+        'BUILD_RESULT',
+        'executeKilnCode: build() did not return a THREE.Object3D',
+      );
     }
 
     const clips = animate ? ((await animate(root)) ?? []) : [];
@@ -393,16 +435,52 @@ export async function executeKilnCode(
 // Three.js -> gltf-transform Bridge
 // =============================================================================
 
+/**
+ * Write the emitted colour Three.js renders, `emissive * emissiveIntensity`.
+ * Core glTF clamps `emissiveFactor` to [0, 1], so a product within range is the
+ * factor alone; above 1 the factor is normalized by its largest channel and
+ * `KHR_materials_emissive_strength` carries that channel's value.
+ */
+function bridgeEmissive(
+  doc: Document,
+  target: GtMaterial,
+  source: { emissive?: THREE.Color; emissiveIntensity?: number },
+): void {
+  const color = source.emissive;
+  if (!color) return;
+  const intensity = source.emissiveIntensity ?? 1;
+  // Emission cannot be negative in glTF. A non-finite intensity is blocked by
+  // material QA; keep the authored colour rather than write a NaN factor.
+  const scale = Number.isFinite(intensity) ? Math.max(0, intensity) : 1;
+  const emitted: [number, number, number] = [color.r * scale, color.g * scale, color.b * scale];
+  const peak = Math.max(...emitted);
+  if (!(peak > 1)) {
+    target.setEmissiveFactor(emitted);
+    return;
+  }
+  target.setEmissiveFactor([emitted[0] / peak, emitted[1] / peak, emitted[2] / peak]);
+  target.setExtension(
+    'KHR_materials_emissive_strength',
+    doc
+      .createExtension(KHRMaterialsEmissiveStrength)
+      .createEmissiveStrength()
+      .setEmissiveStrength(peak),
+  );
+}
+
 function bridgeMaterial(
   doc: Document,
   threeMat: THREE.Material,
   cache: Map<THREE.Material, GtMaterial>,
   textureCache: Map<THREE.Texture, GtTexture>,
+  authorExtras?: AuthorExtras,
 ): GtMaterial {
   const cached = cache.get(threeMat);
   if (cached) return cached;
 
   const mat = doc.createMaterial(threeMat.name || undefined);
+  const author = authorExtras?.material(threeMat);
+  if (author) mat.setExtras(author);
 
   // Duck-typed material checks — see executeKilnCode for the rationale.
   // Sandbox-created materials are different class instances of the same
@@ -418,9 +496,7 @@ function bridgeMaterial(
     mat.setBaseColorFactor([stdMat.color.r, stdMat.color.g, stdMat.color.b, stdMat.opacity]);
     mat.setRoughnessFactor(stdMat.roughness);
     mat.setMetallicFactor(stdMat.metalness);
-    if (stdMat.emissive) {
-      mat.setEmissiveFactor([stdMat.emissive.r, stdMat.emissive.g, stdMat.emissive.b]);
-    }
+    bridgeEmissive(doc, mat, stdMat);
     if (stdMat.alphaTest > 0) {
       mat.setAlphaMode('MASK');
       mat.setAlphaCutoff(stdMat.alphaTest);
@@ -466,9 +542,7 @@ function bridgeMaterial(
     mat.setBaseColorFactor([lambMat.color.r, lambMat.color.g, lambMat.color.b, lambMat.opacity]);
     mat.setRoughnessFactor(1.0);
     mat.setMetallicFactor(0.0);
-    if (lambMat.emissive) {
-      mat.setEmissiveFactor([lambMat.emissive.r, lambMat.emissive.g, lambMat.emissive.b]);
-    }
+    bridgeEmissive(doc, mat, lambMat);
   } else if (matFlags.isMeshBasicMaterial) {
     const basicMat = threeMat as THREE.MeshBasicMaterial;
     mat.setBaseColorFactor([
@@ -659,16 +733,20 @@ function bridgeNode(
   nodeMap: Map<string, GtNode>,
   meshCache: Map<string, GtMesh>,
   texCache: Map<THREE.Texture, GtTexture>,
+  authorExtras?: AuthorExtras,
 ): GtNode {
   const gtNode = doc.createNode(threeObj.name || undefined);
 
-  // Only validated versioned Kiln semantic and rig payloads are promoted from Three.js
-  // userData into glTF extras. Arbitrary userData can contain encoded textures
-  // and other non-JSON values, so exporting it wholesale is intentionally
-  // forbidden. A malformed reserved payload is an authoring error rather than
+  // Author userData reaches extras only through `collectAuthorExtras` (plain JSON, no
+  // `kiln*` key, bounded); the engine's own reserved payloads are promoted here only
+  // after validation. A malformed reserved payload is an authoring error rather than
   // something the bridge may silently drop.
   const semanticValue = threeObj.userData[KILN_SEMANTIC_EXTRAS_KEY];
-  const extras = rigExtrasForExport(threeObj);
+  const extras = {
+    ...authorExtras?.node(threeObj),
+    ...rigExtrasForExport(threeObj),
+    ...openShellExtras(threeObj),
+  };
   let semanticForExport = semanticValue;
   if ((threeObj as THREE.Object3D & { isSprite?: boolean }).isSprite) {
     // glTF has no native Sprite primitive. The bridge emits a quad below and
@@ -719,11 +797,15 @@ function bridgeNode(
     threeObj.quaternion.w,
   ]);
   gtNode.setScale([threeObj.scale.x, threeObj.scale.y, threeObj.scale.z]);
+  // Review-loaded GPU instances carry an explicit local matrix, not authored TRS.
+  if (!threeObj.matrixAutoUpdate) gtNode.setMatrix(threeObj.matrix.toArray());
 
   if ((threeObj as { isMesh?: boolean }).isMesh) {
     const threeMesh = threeObj as THREE.Mesh;
     const threeMats = Array.isArray(threeMesh.material) ? threeMesh.material : [threeMesh.material];
-    const gtMats = threeMats.map((material) => bridgeMaterial(doc, material, matCache, texCache));
+    const gtMats = threeMats.map((material) =>
+      bridgeMaterial(doc, material, matCache, texCache, authorExtras),
+    );
     const gtMat = Array.isArray(threeMesh.material) ? gtMats : gtMats[0]!;
 
     // Key the mesh cache by (geometry ref, material ref) so createInstance
@@ -740,7 +822,7 @@ function bridgeNode(
   } else if ((threeObj as THREE.Object3D & { isSprite?: boolean }).isSprite) {
     const sprite = threeObj as THREE.Sprite;
     const threeMat = sprite.material;
-    const gtMat = bridgeMaterial(doc, threeMat, matCache, texCache);
+    const gtMat = bridgeMaterial(doc, threeMat, matCache, texCache, authorExtras);
     // Unit XY quad matches Three.js Sprite scale semantics. Non-default center
     // and material rotation are baked into the quad; camera-facing remains an
     // explicit semantic runtime behavior on the exported node.
@@ -766,18 +848,44 @@ function bridgeNode(
   }
 
   for (const child of threeObj.children) {
-    const childNode = bridgeNode(doc, buf, child, matCache, nodeMap, meshCache, texCache);
+    const childNode = bridgeNode(
+      doc,
+      buf,
+      child,
+      matCache,
+      nodeMap,
+      meshCache,
+      texCache,
+      authorExtras,
+    );
     gtNode.addChild(childNode);
   }
 
   return gtNode;
 }
 
-function animationInterpolation(track: THREE.KeyframeTrack): 'LINEAR' | 'STEP' {
+function animationInterpolation(track: THREE.KeyframeTrack): 'LINEAR' | 'STEP' | 'CUBICSPLINE' {
+  if (isCubicSplineTrack(track)) return 'CUBICSPLINE';
   const mode = track.getInterpolation();
   if (mode === THREE.InterpolateDiscrete) return 'STEP';
   if (mode === THREE.InterpolateLinear) return 'LINEAR';
-  throw new Error(`Unsupported animation interpolation on ${track.name}; use LINEAR or STEP.`);
+  throw new Error(
+    `Unsupported animation interpolation on ${track.name}; use LINEAR, STEP or CUBICSPLINE.`,
+  );
+}
+
+/** A track's values with its final value held to one more key. A cubic-spline key is
+ * [in-tangent, value, out-tangent]: the old last key leaves at rest and the held key arrives
+ * at rest, so the tail stays still. */
+function valuesWithHeldKey(track: THREE.KeyframeTrack): Float32Array {
+  const values = Array.from(track.values);
+  const tuple = track.getValueSize();
+  if (!isCubicSplineTrack(track)) return Float32Array.from([...values, ...values.slice(-tuple)]);
+  const size = tuple / 3;
+  values.fill(0, values.length - size);
+  const rest = new Array<number>(size).fill(0);
+  const held = values.slice(values.length - 2 * size, values.length - size);
+  return Float32Array.from([...values, ...rest, ...held, ...rest]);
 }
 
 /** glTF derives duration from sampler times. Encode a trailing hold so an explicit
@@ -791,9 +899,9 @@ function clipsWithDurationSamples(clips: THREE.AnimationClip[]): THREE.Animation
     const copied = clip.clone();
     for (const track of copied.tracks) {
       if (!needsHold(track)) continue;
-      const stride = track.getValueSize();
+      const values = valuesWithHeldKey(track);
       track.times = Float32Array.from([...track.times, end]);
-      track.values = Float32Array.from([...track.values, ...track.values.slice(-stride)]);
+      track.values = values;
     }
     return copied;
   });
@@ -872,6 +980,29 @@ function bridgeAnimations(
 }
 
 const REVIEW_CLIPS_EXTRAS_KEY = 'kilnReviewClipsV1';
+
+/** Declared loop intent from createClip({ loop }), exported as animations[].extras. */
+function clipLoopIntent(clip: THREE.AnimationClip): 'loop' | 'once' | undefined {
+  const intent = (clip.userData as { kilnLoopIntent?: unknown } | undefined)?.kilnLoopIntent;
+  return intent === 'loop' || intent === 'once' ? intent : undefined;
+}
+
+/** Record loop intent on each exported animation, and report whether every authored
+ * track became a native channel. Only then can review read the native animations
+ * alone, so the bounded review copy stays out of the artifact. */
+function finishNativeAnimations(doc: Document, clips: THREE.AnimationClip[]): boolean {
+  const animations = doc.getRoot().listAnimations();
+  let complete = true;
+  for (const clip of clips) {
+    const matches = animations.filter((animation) => animation.getName() === clip.name);
+    const animation = matches.length === 1 ? matches[0]! : undefined;
+    if (!animation || animation.listChannels().length !== clip.tracks.length) complete = false;
+    const intent = clipLoopIntent(clip);
+    if (animation && intent)
+      animation.setExtras({ ...animation.getExtras(), kilnLoopIntent: intent });
+  }
+  return complete && animations.length === clips.length;
+}
 const REVIEW_CLIP_LIMITS = {
   clips: 32,
   tracks: 256,
@@ -883,17 +1014,20 @@ const REVIEW_CLIP_LIMITS = {
  * unresolved tracks that glTF cannot encode as native channels. Review tools
  * use this bounded data only to reconstruct deterministic poses/warnings; it
  * is not executable source and native valid channels remain authoritative to
- * ordinary glTF consumers. */
+ * ordinary glTF consumers. Version 2 adds CUBICSPLINE tracks, whose values hold
+ * [in-tangent, value, out-tangent] per key as a glTF sampler does; it is written
+ * only when a clip has one, so every other copy stays version 1. */
 function reviewClipExtras(clips: THREE.AnimationClip[]): Record<string, unknown> {
   if (clips.length > REVIEW_CLIP_LIMITS.clips) {
     throw new Error(`Animation review clip limit exceeded (${REVIEW_CLIP_LIMITS.clips}).`);
   }
   let trackCount = 0;
   return {
-    version: 1,
+    version: clips.some((clip) => clip.tracks.some(isCubicSplineTrack)) ? 2 : 1,
     clips: clips.map((clip) => ({
       name: clip.name,
       duration: clip.duration,
+      ...(clipLoopIntent(clip) ? { loopIntent: clipLoopIntent(clip) } : {}),
       tracks: clip.tracks.map((track) => {
         trackCount++;
         if (trackCount > REVIEW_CLIP_LIMITS.tracks) {
@@ -921,6 +1055,8 @@ function reviewClipExtras(clips: THREE.AnimationClip[]): Record<string, unknown>
 // =============================================================================
 
 export interface RenderResult {
+  /** Effective exporter inputs, retained with exact reviewed artifacts for explicit rebuilds. */
+  rebuildOptions?: RebuildOptions;
   /** Host requirements receipt; generated metadata cannot establish or replace it. */
   requirements: RequirementsContext;
   /** Optional host cache receipt. This identifies evaluation reuse, not image fidelity. */
@@ -936,6 +1072,9 @@ export interface RenderResult {
   materialMetrics?: MaterialMetricsV1;
   materialRecipeApplications?: MaterialRecipeApplicationProvenanceV1[];
   materialResourceProvenance?: MaterialResourceProvenanceV1[];
+  /** Exact host-approved input dependencies, including licenses and procedural recipes.
+   * These are declared build inputs, not proof that every supplied map was used. */
+  materialLibraryDependencies?: MaterialManifestV1[];
   /** Textures baked into the returned GLB, including bounded procedural lineage. */
   bakedTextures?: BakedTextureProvenanceV1[];
   integrationManifest: IntegrationManifestV1;
@@ -993,6 +1132,7 @@ export interface InstancingSummary {
 }
 
 export interface RenderSceneResult {
+  indexBuffers: IndexBufferReceipt;
   /** Binary GLB bytes, platform-agnostic (Buffer-compatible in Node). */
   bytes: Uint8Array;
   /** SHA-256 identity of `bytes`. */
@@ -1024,6 +1164,8 @@ export interface RenderSceneResult {
 }
 
 export interface RenderSceneOptions {
+  /** Exact full-vertex welding by default; asBuilt skips the index pass. */
+  indexPolicy?: IndexPolicy;
   /** Host-only migration option; omitted keeps the established exporter. */
   gltfExporter?: 'legacy' | 'three';
   /** Warn about unsupported custom attributes (default), or reject before export. */
@@ -1211,6 +1353,29 @@ function hasJointPivots(doc: Document): boolean {
     .some((n) => /^joint[_-]/i.test(n.getName()));
 }
 
+/** True when any node carries an `MSFT_lod` chain. Its lower levels sit outside the
+ *  scene and stand in for that node under the same parent, so a pass that moves the node
+ *  (flatten), merges it into a sibling (join) or folds it into an instance batch would
+ *  leave the levels describing geometry that is no longer there. */
+function hasNodeLevelsOfDetail(doc: Document): boolean {
+  return doc
+    .getRoot()
+    .listNodes()
+    .some((n) => n.getExtension(MSFT_LOD) !== null);
+}
+
+/** These transforms cannot preserve per-node state when they remove or reparent nodes. */
+function hasPreservedNodeState(doc: Document): boolean {
+  return doc
+    .getRoot()
+    .listNodes()
+    .some(
+      (node) =>
+        node.getExtension('KHR_node_visibility') !== null ||
+        Object.keys(node.getExtras()).length > 0,
+    );
+}
+
 /**
  * Run the opt-in GPU-instancing pass (M1c) on a baked Document, in place.
  *
@@ -1227,6 +1392,7 @@ function hasJointPivots(doc: Document): boolean {
  *   - the Document carries animations or skins (the library no-ops on
  *     animated docs; skinned nodes are excluded per-mesh — we skip whole);
  *   - any node is named `Joint*` (city behaviors target pivots by name);
+ *   - any node carries an `MSFT_lod` chain (a batch would strip the levels' base node);
  *   - no mesh crosses the threshold (nothing to batch).
  */
 async function applyGpuInstancing(
@@ -1238,7 +1404,8 @@ async function applyGpuInstancing(
   if (mode === 'auto' && role !== 'fill') return undefined;
   const root = doc.getRoot();
   if (root.listAnimations().length > 0 || root.listSkins().length > 0) return undefined;
-  if (hasJointPivots(doc)) return undefined;
+  if (hasJointPivots(doc) || hasNodeLevelsOfDetail(doc) || hasPreservedNodeState(doc))
+    return undefined;
 
   const before = collectGlbMetrics(doc);
   await doc.transform(instance({ min: INSTANCE_MIN }));
@@ -1270,10 +1437,11 @@ async function applyGpuInstancing(
  * `palette` collapses distinct untextured flat-color materials into one palette
  * material + a small palette texture (textured materials pass through untouched);
  * `weld` + `prune` clean up. `full` adds `flatten → join` to also reduce draws,
- * but ONLY for static, semantics-free assets — animations, skins, or any reserved
- * semantic extras auto-degrade to `palette` so a rig, portal-clearance node,
- * socket, or separable role is never flattened away. `prune` keeps empty leaf
- * nodes + extras so named pivots that Kiln City behaviors target by name survive.
+ * but ONLY for static, semantics-free assets — animations, skins, `MSFT_lod`
+ * chains, or any reserved semantic extras auto-degrade to `palette` so a rig,
+ * LOD level, portal-clearance node, socket, or separable role is never flattened
+ * away. `prune` keeps empty leaf nodes + extras so named pivots that Kiln City
+ * behaviors target by name survive, and LOD levels that only a chain references.
  * palette groups by alpha mode, so opaque + the one glass slot stay distinct
  * materials (transparency is never flattened into opaque).
  *
@@ -1291,9 +1459,18 @@ async function consolidateMaterials(
     .listNodes()
     .some((node) => node.getExtras()[KILN_SEMANTIC_EXTRAS_KEY] !== undefined);
   const effective: 'palette' | 'full' =
-    mode === 'full' && (animatedOrSkinned || semanticGraph) ? 'palette' : mode;
+    mode === 'full' &&
+    (animatedOrSkinned || semanticGraph || hasNodeLevelsOfDetail(doc) || hasPreservedNodeState(doc))
+      ? 'palette'
+      : mode;
 
-  const steps = [palette({ min: PALETTE_MIN })];
+  // palette() groups by shading properties and copies only one material's extras.
+  // Keep authored material identities whenever those carry application metadata.
+  const steps = root
+    .listMaterials()
+    .some((material) => Object.keys(material.getExtras()).length > 0)
+    ? []
+    : [palette({ min: PALETTE_MIN })];
   if (effective === 'full') {
     // flatten() leaves skeletons + animation-targeted nodes in place, but it may
     // remove empty semantic clearance/socket nodes even when prune keeps leaves
@@ -1342,11 +1519,25 @@ export async function renderSceneToGLB(
   assertNoLegacyRuntimePolicy(opts);
   const requirements = resolveRequirementsContext(opts.requirements);
   const clips = opts.clips ?? [];
+  const indexPolicy = resolveIndexPolicy(opts.indexPolicy);
+  if (indexPolicy === 'asBuilt' && resolveOptimize(opts.optimize) !== 'off')
+    throw new Error('asBuilt indexPolicy requires optimize off to preserve authored buffers');
   if (opts.geometryPolicy !== undefined && !['warn', 'strict'].includes(opts.geometryPolicy))
     throw new Error('geometryPolicy must be warn or strict');
   const exporter = resolveGltfExporter(opts.gltfExporter);
+  // A set of LOD tiers needs its declared thresholds before anything is written. A
+  // derivative re-serializes a review scene that has no declarations, so it is not judged.
+  const lodSets = opts.derivative === true ? [] : collectLodSets(root);
   const warnings = inspectGeometryExport(root, opts.geometryPolicy, exporter);
-  const tris = countTriangles(root);
+  // The headline counts what a plain loader draws: LOD0 and the parts outside every set.
+  let tris = countTriangles(root);
+  for (const set of lodSets) for (const level of set.levels.slice(1)) tris -= countTriangles(level);
+  const hiddenTris = hiddenTriangles(root, new Set(lodSets.flatMap((set) => set.levels.slice(1))));
+  if (hiddenTris > 0 && hiddenTris === tris)
+    throw new Error(
+      'renderSceneToGLB: every triangle is hidden (visible = false on the root or on every part), so nothing draws. Hide parts inside the asset, not all of it.',
+    );
+  tris -= hiddenTris;
   const materialRecipeApplications = collectMaterialRecipeApplications(root);
   const materialResourceProvenance = collectMaterialResourceProvenance(root);
 
@@ -1384,12 +1575,16 @@ export async function renderSceneToGLB(
   }
 
   const nativeClips = clipsWithDurationSamples(clips);
+  // Author userData decided once, so both exporters write the same extras.
+  const authorExtras = collectAuthorExtras(root);
+  warnings.push(...authorExtras.warnings);
   const doc =
     exporter === 'three'
       ? await communitySceneDocument(
           root,
           nativeClips,
           (await import('./exporter-node')).nodeExportPlatform,
+          authorExtras,
         )
       : new Document();
   // `asset.generator` defaults to the serializer's own version string, which put
@@ -1409,20 +1604,40 @@ export async function renderSceneToGLB(
     const texCache = new Map<THREE.Texture, GtTexture>();
     const nodeMap = new Map<string, GtNode>();
 
-    const rootNode = bridgeNode(doc, buf, root, matCache, nodeMap, meshCache, texCache);
+    const rootNode = bridgeNode(
+      doc,
+      buf,
+      root,
+      matCache,
+      nodeMap,
+      meshCache,
+      texCache,
+      authorExtras,
+    );
     const gltfScene = doc.createScene(opts.sceneName ?? 'Scene').addChild(rootNode);
     doc.getRoot().setDefaultScene(gltfScene);
 
     if (clips.length > 0) {
-      gltfScene.setExtras({ [REVIEW_CLIPS_EXTRAS_KEY]: reviewClipExtras(clips) });
+      const review = reviewClipExtras(clips);
       bridgeAnimations(doc, buf, nativeClips, nodeMap, warnings);
+      if (!finishNativeAnimations(doc, nativeClips))
+        gltfScene.setExtras({ [REVIEW_CLIPS_EXTRAS_KEY]: review });
     }
   } else {
     const scene = doc.getRoot().getDefaultScene() ?? doc.getRoot().listScenes()[0];
     if (!scene) throw new Error('Community exporter produced no scene.');
     scene.setName(opts.sceneName ?? 'Scene');
-    if (clips.length > 0) scene.setExtras({ [REVIEW_CLIPS_EXTRAS_KEY]: reviewClipExtras(clips) });
+    if (clips.length > 0) {
+      const review = reviewClipExtras(clips);
+      if (!finishNativeAnimations(doc, nativeClips))
+        scene.setExtras({ [REVIEW_CLIPS_EXTRAS_KEY]: review });
+    }
   }
+  // Visibility flags and LOD chains are written before any pass merges or prunes nodes, so
+  // those passes see them and keep them; flags first, while every node is still in place.
+  applyNodeVisibility(root, doc);
+  applyLodChains(root, lodSets, doc);
+  const indexBuffers = applyIndexPolicy(doc, indexPolicy);
 
   // Dedupe accessors/materials/meshes so instanced parts (4 wheels, 10 posts,
   // 12 windows) share a single underlying resource in the GLB. Cuts file
@@ -1541,24 +1756,38 @@ export async function renderSceneToGLB(
 
   const diagnosticViews: CapturedDiagnosticV1[] = [];
   const rig = requirements.requirements.requirements.rig;
-  if (rig?.state === 'requested') {
-    const { captureCharacterDiagnosticViews } = await import('./views/character-capture');
-    diagnosticViews.push(
-      ...(await captureCharacterDiagnosticViews(
-        root,
-        clips as readonly DuckClip[],
-        rig.value,
-        Object.values(qaReport.dimensions).flatMap((d) => d.findings),
-      )),
-    );
-  }
-  if (requirements.requirements.requirements.mobility?.state === 'requested') {
-    const { captureVehicleDiagnosticViews } = await import('./views');
-    diagnosticViews.push(...captureVehicleDiagnosticViews(root));
+  // Category diagnostics inspect source semantics/rigs, but show the same default level
+  // as the exported scene. Detach alternates so bounds and semantic scans exclude them,
+  // then restore exact sibling order even if a capture fails.
+  const diagnosticParents = new Map(lodSets.map(({ parent }) => [parent, [...parent.children]]));
+  for (const { parent, levels } of lodSets)
+    for (const level of levels.slice(1)) parent.remove(level);
+  try {
+    if (rig?.state === 'requested') {
+      const { captureCharacterDiagnosticViews } = await import('./views/character-capture');
+      diagnosticViews.push(
+        ...(await captureCharacterDiagnosticViews(
+          root,
+          clips as readonly DuckClip[],
+          rig.value,
+          Object.values(qaReport.dimensions).flatMap((d) => d.findings),
+        )),
+      );
+    }
+    if (requirements.requirements.requirements.mobility?.state === 'requested') {
+      const { captureVehicleDiagnosticViews } = await import('./views');
+      diagnosticViews.push(...captureVehicleDiagnosticViews(root));
+    }
+  } finally {
+    for (const [parent, children] of diagnosticParents) {
+      parent.clear();
+      parent.add(...children);
+    }
   }
 
   return {
     bytes,
+    indexBuffers,
     requirements,
     artifactGlbSha256,
     tris,
@@ -1588,6 +1817,7 @@ export async function renderSceneToGLB(
  * Pure function: no file I/O, no globals, no WebGL.
  */
 export interface RenderGlbOptions {
+  indexPolicy?: IndexPolicy;
   requirements?: RequirementsBinding;
   /** Host-only migration option, transported explicitly to isolated workers. */
   gltfExporter?: 'legacy' | 'three';
@@ -1598,6 +1828,8 @@ export interface RenderGlbOptions {
   category?: AssetCategory;
   /** Trusted evaluator dependency; never derived from generated code. */
   textureResolver?: TextureResolver;
+  /** Host-approved portable material maps, transported as data to evaluator workers. */
+  materialResources?: MaterialLibraryPayloadV1;
   /** In-process host diagnostic sink; not serializable to evaluator workers. */
   diagnosticConsole?: DiagnosticConsole;
 }
@@ -1616,19 +1848,33 @@ export async function renderGLBInProcess(
   const requirements = resolveRequirementsContext(opts.requirements);
   if (opts.geometryPolicy !== undefined && !['warn', 'strict'].includes(opts.geometryPolicy))
     throw new Error('geometryPolicy must be warn or strict');
+  let textureResolver = opts.textureResolver ?? DEFAULT_TEXTURE_RESOLVER;
+  const rebuildOptions: RebuildOptions = {
+    indexPolicy: resolveIndexPolicy(opts.indexPolicy),
+    gltfExporter: resolveGltfExporter(opts.gltfExporter),
+    geometryPolicy: opts.geometryPolicy ?? 'warn',
+    optimize: resolveOptimize(opts.optimize),
+    instance: resolveInstance(opts.instance),
+  };
+  let materialLibraryDependencies: MaterialManifestV1[] | undefined;
+  if (opts.materialResources) {
+    const { decodeMaterialLibraryPayload, createMaterialLibraryTextureResolver } = await import(
+      './material-library-node'
+    );
+    const materialRecords = await decodeMaterialLibraryPayload(opts.materialResources);
+    materialLibraryDependencies = materialRecords.map((record) => structuredClone(record.manifest));
+    textureResolver = await createMaterialLibraryTextureResolver(materialRecords, textureResolver);
+  }
   const { meta, root, clips, primitiveUsage } = await executeKilnCode(code, {
-    textureResolver: opts.textureResolver ?? DEFAULT_TEXTURE_RESOLVER,
+    textureResolver,
     console: opts.diagnosticConsole,
   });
   const scene = await renderSceneToGLB(root, {
-    gltfExporter: opts.gltfExporter,
+    ...rebuildOptions,
     sceneName: meta.name || 'Scene',
-    geometryPolicy: opts.geometryPolicy,
     clips,
     requirements: requirements.binding,
     role: meta.role,
-    ...(opts.optimize ? { optimize: opts.optimize } : {}),
-    ...(opts.instance ? { instance: opts.instance } : {}),
   });
 
   const {
@@ -1642,11 +1888,14 @@ export async function renderGLBInProcess(
   } = meta;
   return {
     glb: Buffer.from(scene.bytes),
+    rebuildOptions,
+    ...(materialLibraryDependencies ? { materialLibraryDependencies } : {}),
     requirements: scene.requirements,
     artifactGlbSha256: scene.artifactGlbSha256,
     tris: scene.tris,
     meta: {
       ...modelMeta,
+      indexBuffers: scene.indexBuffers,
       ...(modelCategory !== undefined ? { modelCategory } : {}),
       tris: scene.tris,
       primitiveUsage,
@@ -1919,7 +2168,9 @@ export async function snapGlbToPalette(
       if (kind === 'glass') mat.setAlphaMode('BLEND');
       else if (mat.getAlphaMode() === 'BLEND') mat.setAlphaMode('OPAQUE');
       // Glow keeps a "lit" look by emitting its slot color; clear stray emissive otherwise.
+      // The slot color is the whole emission, so an authored strength must not scale it.
       mat.setEmissiveFactor(kind === 'glow' ? [lr, lg, lb] : [0, 0, 0]);
+      mat.setExtension('KHR_materials_emissive_strength', null);
       snapped++;
     }
     // Snapping made many materials value-identical — dedup merges those objects first
@@ -1985,6 +2236,8 @@ export interface SceneComposeOptions {
   optimize?: OptimizeMode;
   /** Keep each asset's animation clips. Default false (static dressing). */
   keepAnimations?: boolean;
+  /** Retained clip names: preserve source names (default), or disambiguate by placement and clip index. */
+  animationNaming?: 'preserve' | 'instance';
 }
 
 export interface SceneComposeResult {
@@ -2045,6 +2298,13 @@ export async function composeSceneGLB(
     const part = parts[i]!;
     try {
       const src = await io.readBinary(part.bytes);
+      if (opts.keepAnimations && opts.animationNaming === 'instance') {
+        for (const [clipIndex, animation] of src.getRoot().listAnimations().entries()) {
+          animation.setName(
+            `${i}:${part.name ?? 'part'}/${clipIndex}:${animation.getName() || 'clip'}`,
+          );
+        }
+      }
       const srcScene = src.getRoot().listScenes()[0];
       const map = mergeDocuments(master, src);
       const wrap = master
@@ -2192,7 +2452,7 @@ interface MeshStats {
 function collectMeshStats(root: THREE.Object3D): MeshStats[] {
   root.updateMatrixWorld(true);
   const out: MeshStats[] = [];
-  root.traverse((obj) => {
+  root.traverseVisible((obj) => {
     if (!(obj as { isMesh?: boolean }).isMesh) return;
     const meshObj = obj as THREE.Mesh;
     const geo = meshObj.geometry;
@@ -2201,7 +2461,23 @@ function collectMeshStats(root: THREE.Object3D): MeshStats[] {
     const idx = geo.getIndex();
     const tri = idx ? idx.count / 3 : (geo.getAttribute('position')?.count ?? 0) / 3;
 
-    const box = new THREE.Box3().setFromObject(obj);
+    // Measure this drawn mesh alone. setFromObject also includes descendants,
+    // including invisible children, and can make a visible body look connected
+    // to a hidden part or inflate the orientation advisory's bounds.
+    const bounded = meshObj as THREE.Mesh & {
+      boundingBox?: THREE.Box3 | null;
+      computeBoundingBox?: () => void;
+    };
+    let localBounds: THREE.Box3 | null;
+    if (bounded.boundingBox !== undefined) {
+      if (bounded.boundingBox === null) bounded.computeBoundingBox?.();
+      localBounds = bounded.boundingBox ?? null;
+    } else {
+      if (geo.boundingBox === null) geo.computeBoundingBox();
+      localBounds = geo.boundingBox;
+    }
+    if (!localBounds) return;
+    const box = localBounds.clone().applyMatrix4(meshObj.matrixWorld);
     if (!Number.isFinite(box.min.x) || !Number.isFinite(box.max.x)) {
       return;
     }

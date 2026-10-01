@@ -13,80 +13,86 @@ Kiln runs locally. It includes an MCP server, a CLI, a TypeScript library, and s
 for authoring, editing, animation review, and scene composition. Your agent supplies
 the model; Kiln does not require a separate model API key for its tools.
 
-https://github.com/user-attachments/assets/375327bc-58bc-4344-bbb4-985d92c6f63a
+Walk the [Farm](https://kilnstudio.tools/scenes/farm/), drive across
+[Golden Gate](https://kilnstudio.tools/scenes/golden-gate/), or explore the
+[Foundry Floor preview](https://kilnstudio.tools/scenes/foundry-floor/).
+The scenes put Kiln assets to work with animation, levels of detail and interactive controls.
 
-[![Kiln 27-asset collection](assets/gallery/gallery-grid-27.png)](https://kilnstudio.tools/#/gallery)
+| Farm | Golden Gate |
+| --- | --- |
+| [![Explore the Farm scene](assets/readme/farm-v09.png)](https://kilnstudio.tools/scenes/farm/) | [![Golden Gate over the water](assets/readme/golden-gate-v09.png)](https://kilnstudio.tools/scenes/golden-gate/) |
+| Crops, animals and working farm buildings. | Bridge, terrain, water and drivable traffic. |
 
-<sub>Click the gallery banner above or select an asset below to explore in interactive 3D:</sub><br>
-<sub>
-<a href="https://kilnstudio.tools/#/typewriter">Typewriter</a> &middot;
-<a href="https://kilnstudio.tools/#/solar-sail-courier">Solar Sail Courier</a> &middot;
-<a href="https://kilnstudio.tools/#/mechanical-peacock">Mechanical Peacock</a> &middot;
-<a href="https://kilnstudio.tools/#/kestrel-rescue-craft">Kestrel Rescue</a> &middot;
-<a href="https://kilnstudio.tools/#/anglerfish">Anglerfish</a> &middot;
-<a href="https://kilnstudio.tools/#/kinetic-wave">Kinetic Wave</a> &middot;
-<a href="https://kilnstudio.tools/#/orrery">Orrery</a> &middot;
-<a href="https://kilnstudio.tools/#/orbital-station">Orbital Station</a> &middot;
-<a href="https://kilnstudio.tools/#/deco-radio">Deco Radio</a> &middot;
-<a href="https://kilnstudio.tools/#/cathedral">Cathedral</a> &middot;
-<a href="https://kilnstudio.tools/#/steam-locomotive">Steam Locomotive</a> &middot;
-<a href="https://kilnstudio.tools/#/lighthouse">Lighthouse</a> &middot;
-<a href="https://kilnstudio.tools/#/alpine-cable-terminal">Alpine Cable Terminal</a> &middot;
-<a href="https://kilnstudio.tools/#/research-vessel">Research Vessel</a> &middot;
-<a href="https://kilnstudio.tools/#/sushi-store">Sushi Store</a> &middot;
-<a href="https://kilnstudio.tools/#/windmill">Windmill</a> &middot;
-<a href="https://kilnstudio.tools/#/tram">Tram</a> &middot;
-<a href="https://kilnstudio.tools/#/ribbon-tea-pavilion">Ribbon Tea Pavilion</a> &middot;
-<a href="https://kilnstudio.tools/#/demo-diesel-locomotive">Diesel Locomotive</a> &middot;
-<a href="https://kilnstudio.tools/#/demo-art-deco-conservatory">Art Deco Conservatory</a> &middot;
-<a href="https://kilnstudio.tools/#/demo-floating-observatory">Floating Observatory</a> &middot;
-<a href="https://kilnstudio.tools/#/demo-deep-sea-station">Deep Sea Station</a> &middot;
-<a href="https://kilnstudio.tools/#/demo-unfolding-dragonfly">Unfolding Dragonfly</a> &middot;
-<a href="https://kilnstudio.tools/#/demo-vintage-typewriter">Vintage Typewriter</a> &middot;
-<a href="https://kilnstudio.tools/#/demo-argent-aircraft-carrier">Argent Carrier</a> &middot;
-<a href="https://kilnstudio.tools/#/demo-noctilus-nuclear-submarine">Noctilus Submarine</a> &middot;
-<a href="https://kilnstudio.tools/#/demo-resolute-polar-fleet-flagship">Resolute Flagship</a>
-</sub>
+| Foundry Floor: the campus | Inside the fab |
+| --- | --- |
+| [![Foundry campus exterior](assets/readme/foundry-campus-v09.png)](https://kilnstudio.tools/scenes/foundry-floor/) | [![Container transport inside the Foundry Floor](assets/readme/foundry-floor-v09.png)](https://kilnstudio.tools/scenes/foundry-floor/) |
 
-| Mechanical peacock · Claude Opus 5 | Unfolding dragonfly · GPT-6 Astra | Solar sail courier · Gemini 3.8 Flash |
+The Foundry preview pairs a factory campus with a representative floor in its southwest
+building. AMRs, robot arms and overhead transport move containers through the fab.
+This scene is still in production.
+
+Six reusable vehicles, shown with the gallery's live body-paint controls:
+
+| Hatchback · yellow | Sedan · blue | SUV · green |
 | --- | --- | --- |
-| [![Mechanical peacock with articulated jewel fan](assets/gallery/mechanical-peacock.gif)](https://kilnstudio.tools/#/mechanical-peacock) | [![Clockwork dragonfly with unfolding wings and gears](assets/gallery/demo-unfolding-dragonfly.gif)](https://kilnstudio.tools/#/demo-unfolding-dragonfly) | [![Solar sail courier deploying origami gold sails](assets/gallery/solar-sail-courier.gif)](https://kilnstudio.tools/#/solar-sail-courier) |
+| [![Yellow hatchback](assets/readme/hatchback-yellow.png)](https://kilnstudio.tools/gallery/hatchback/) | [![Blue sedan](assets/readme/sedan-blue.png)](https://kilnstudio.tools/gallery/sedan/) | [![Green SUV](assets/readme/suv-green.png)](https://kilnstudio.tools/gallery/suv/) |
+| Pickup · red | Box truck · silver | Transit bus · blue |
+| [![Red pickup](assets/readme/pickup-red.png)](https://kilnstudio.tools/gallery/pickup/) | [![Silver box truck](assets/readme/box-truck-silver.png)](https://kilnstudio.tools/gallery/box-truck/) | [![Blue transit bus](assets/readme/transit-bus-blue.png)](https://kilnstudio.tools/gallery/transit-bus/) |
 
-[Browse the interactive gallery](https://kilnstudio.tools/#/gallery)
-· [All examples and model credits](docs/examples.md)
+[Browse the current assets](https://kilnstudio.tools/gallery/) ·
+[Farm pack](https://kilnstudio.tools/packs/farm/) ·
+[Vehicles pack](https://kilnstudio.tools/packs/vehicles/) ·
+[Scenes](https://kilnstudio.tools/scenes/)
 
-These are saved examples from different authoring runs, not a model ranking.
-They are historical showcases from earlier Kiln versions, with unvetted modeling
-issues; they are not golden outputs or reference solutions.
-[Credits, review conditions and build records](docs/example-provenance.md).
+Downloads include GLBs and editable sources where listed. The vehicle viewer includes
+live paint colours; asset and pack pages record the exact revision, licence and review status.
+The [Blender and Unity guide](https://kilnstudio.tools/docs/engine-handoff/)
+describes the tested import workflows and their limits.
 
-Version **0.8.0** unifies authoring around Discovery and optional requirements,
-with updated geometry helpers, edit evidence and separate native-agent context.
-The tagged GitHub archive includes the built runtimes and is installable with npm.
-An official 0.8.0 package release has not been published. The [qualification report](docs/reviews/2026-09-23-v08-candidate.md)
-records checks and support limits; the [progress checkpoint](docs/plans/2026-09-22-progress-checkpoint.md)
-retains the detailed work history.
+Kiln's local dashboard adds [optional projects, a material library and Live Review](docs/projects-and-live-review.md).
+Standalone assets remain a complete workflow; projects add shared briefs, inventories,
+art direction and material pins when useful.
 
+Earlier examples remain in the gallery and [example provenance](docs/example-provenance.md).
+They are historical showcases, not golden outputs or a model ranking.
+Screenshots above show the v0.9 review builds; [image provenance](assets/readme/README.md).
+
+Version **0.9.0** adds optional projects, a curated and procedural material library
+and Live Review of CLI/MCP work to standalone authoring. Review views use the calibrated
+`review-neutral-v1` lighting rig, so a lit surface reads back close to its authored
+colour. Results are compact by default, and the release fixes the defects authors
+reported against 0.8. [CHANGELOG.md](CHANGELOG.md) lists the changes and the
+[migration notes](docs/migration.md#changes-in-090) list what an existing author will
+notice. The [foundation checkpoint](docs/plans/2026-09-26-project-foundation.md) records
+how projects, materials and Live Review were qualified.
+
+**0.9.0 is the source and site preview for dogfooding.** Package publication is
+deferred to v1.0 after feedback. Build a local tarball from this checkout to try
+the current engine; the site deployment does not publish a package to npm.
 
 ## Install and start an asset workspace
 
 Use Node.js **20.15.0+ on the 20.x line**, or **22.2.0 and later**, with npm.
-Bun and a separate model API key are not required for this installation:
+For this candidate, [build a local package](docs/install.md#install-a-local-package)
+from the exact checkout, including its runtime build. If using a published release,
+use only a tarball actually attached to that release and its matching documentation;
+the release page does not imply that this candidate is available. Bun and a separate
+model API key are not required to install an already-built tarball:
 
 ```sh
 mkdir kiln-install
 cd kiln-install
 npm init -y
-npm install "https://github.com/matthew-kissinger/kiln/archive/refs/tags/v0.8.0.tar.gz" --omit=dev --include=optional
-npm exec --offline -- kiln-init ../my-assets --harness opencode
+npm install /absolute/path/to/kiln-engine-VERSION.tgz --omit=dev --include=optional
+npm exec --offline -- kiln-init ../my-assets --harness opencode  # or claude, codex, hermes, agy, copilot, cursor-agent
 cd ../my-assets
 # Follow START.md for your harness
 ```
 
 The installation stays separate from your asset workspace. Choose `claude`, `codex`,
 `opencode`, `hermes`, `agy`, `copilot`, or `cursor-agent` for `--harness`.
-The [installation guide](docs/install.md#use-the-08-source-release) covers local
-archive files, existing-workspace upgrades and platform qualification. For a new
+The [installation guide](docs/install.md#install-the-package) covers checksums,
+local package builds, existing-workspace upgrades and platform qualification. For a new
 installation, a maintained Node 22 or 24 LTS release is recommended; Node 20
 compatibility accommodates existing distribution-managed installations.
 
@@ -162,7 +168,10 @@ source revision workflow in plain text.
 
 The installation commands above create a separate asset workspace, register MCP
 and copy the Kiln skills. Follow its START.md to launch your harness. Setup writes
-project-local configuration and leaves your global settings unchanged.
+project-local configuration and leaves your global settings unchanged. A user-level server
+named `kiln` from another installation can still load beside the workspace's
+`kiln_workspace`; author with `kiln_workspace`, and disable the other server for these
+sessions when the harness lists both ([how to tell them apart](docs/harnesses.md)).
 
 If you are developing Kiln from a source checkout, create that workspace with:
 
@@ -230,7 +239,9 @@ For application delivery, export with `--profile runtime --out asset.glb` to mov
 Kiln's animation review metadata into a hash-linked JSON sidecar. Native glTF animation
 still plays without that sidecar. The default `editable` profile preserves saved files
 exactly; keep its ZIP for source and build records. The delivery profile is independent
-of the established/experimental converter selected during generation.
+of the established/experimental converter selected during generation. An export never
+replaces an existing file, unlike `render --out`, because it hands off one exact saved
+revision; `--json` prints a receipt with each file's `bytes` and `sha256`.
 [Which options to use, why they exist, and examples](docs/export-profiles.md#which-option-should-i-use)
 are also included in the authoring and QA skills installed into new asset workspaces.
 
@@ -339,8 +350,11 @@ Use `kiln_discover` to find operations, assemblies and optional recipes in ordin
 modeling language. An empty request returns a compact overview with starting
 signatures and six summaries. For example, search with `{ query: "curved hollow tube" }`,
 then request `{ ids: ["sweepProfile"] }` for a complete contract and example. Exact
-batches accept up to six distinct IDs or executable names. Search is local and needs
-no separate model, network call, or asset-category selection.
+batches accept up to six distinct IDs or executable names. Recipes take the id the
+search prints, with or without its prefix: `{ ids: ["recipe:material-wood-v1"] }` or
+`{ ids: ["material-wood-v1"] }`. A material recipe's summary names the call it stands
+for, `await materialRecipe("kiln.material.wood.v1")`. Search is local and needs no
+separate model, network call, or asset-category selection.
 
 The same workflow is available from your asset workspace in the CLI:
 

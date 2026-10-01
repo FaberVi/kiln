@@ -14,6 +14,7 @@
  * `root.traverse` + `.name`, and transforms are written by calling the node's own
  * `.position/.quaternion/.scale .set()` methods — no `instanceof`, no THREE import.
  */
+import { cubicSegment, isCubicSplineTrack, normalizeQuaternion } from '../animation-spline';
 
 /** Minimal duck-typed view of a Three.js node we pose. */
 interface DuckNode {
@@ -31,6 +32,8 @@ interface DuckTrack {
   times?: ArrayLike<number>;
   values?: ArrayLike<number>;
   getInterpolation?(): number;
+  /** Carries three's glTF cubic-spline flag on a CUBICSPLINE track. */
+  createInterpolant?: unknown;
 }
 
 /** Minimal duck-typed view of a Three.js AnimationClip. */
@@ -38,6 +41,7 @@ export interface DuckClip {
   name?: string;
   duration?: number;
   tracks?: DuckTrack[];
+  userData?: { kilnLoopIntent?: unknown };
 }
 
 type Prop = 'position' | 'quaternion' | 'scale';
@@ -47,8 +51,9 @@ interface PreparedTrack {
   prop: Prop;
   stride: number;
   times: number[];
+  /** One value of `stride` per key; a CUBICSPLINE key is [in-tangent, value, out-tangent]. */
   values: number[];
-  interpolation: 'LINEAR' | 'STEP';
+  interpolation: 'LINEAR' | 'STEP' | 'CUBICSPLINE';
 }
 
 /** A clip prepared for repeated time-sampling: parsed tracks + a derived duration. */
@@ -110,11 +115,15 @@ export function prepareClip(root: DuckNode, clip: DuckClip): PreparedClip {
 
     // Three's stable interpolation constants, read without importing its module or
     // relying on class identity across realms. Plain historical duck tracks are linear.
-    const mode = track.getInterpolation?.();
+    // A glTF cubic-spline track reports no constant; its interpolant factory is flagged.
+    const cubic = isCubicSplineTrack(track);
+    const mode = cubic ? undefined : track.getInterpolation?.();
     if (mode !== undefined && mode !== 2300 && mode !== 2301) {
-      throw new Error(`Unsupported animation interpolation on ${raw}; use LINEAR or STEP.`);
+      throw new Error(
+        `Unsupported animation interpolation on ${raw}; use LINEAR, STEP or CUBICSPLINE.`,
+      );
     }
-    const interpolation = mode === 2300 ? 'STEP' : 'LINEAR';
+    const interpolation = cubic ? 'CUBICSPLINE' : mode === 2300 ? 'STEP' : 'LINEAR';
 
     if (!nodeNames.has(nodeName)) unresolved.push(raw);
     if (times[times.length - 1]! > maxTime) maxTime = times[times.length - 1]!;
@@ -197,20 +206,29 @@ function slerpFlat(
 
 const quatTmp: number[] = [0, 0, 0, 1];
 
+/** Where key `k`'s own value starts in a prepared track's values. */
+function keyValueOffset(track: PreparedTrack, k: number): number {
+  return track.interpolation === 'CUBICSPLINE'
+    ? k * track.stride * 3 + track.stride
+    : k * track.stride;
+}
+
 /** Sample one prepared track at time `t` into `out` (length = stride). STEP holds
  *  the previous key until the exact next time. LINEAR uses vector lerp/quaternion
- *  slerp. Both clamp outside the keyframe range. */
+ *  slerp. CUBICSPLINE evaluates the glTF Hermite segment (rotations normalized),
+ *  as three.js plays it. All clamp outside the keyframe range. */
 function sampleTrack(track: PreparedTrack, t: number, out: number[]): void {
   const { times, values, stride } = track;
   const i = keyframeIndexAtOrBefore(times, t);
 
-  if (i < 0) {
-    for (let s = 0; s < stride; s++) out[s] = values[s]!;
+  if (i < 0 || i >= times.length - 1) {
+    const base = keyValueOffset(track, i < 0 ? 0 : times.length - 1);
+    for (let s = 0; s < stride; s++) out[s] = values[base + s]!;
     return;
   }
-  if (i >= times.length - 1) {
-    const base = (times.length - 1) * stride;
-    for (let s = 0; s < stride; s++) out[s] = values[base + s]!;
+  if (track.interpolation === 'CUBICSPLINE') {
+    cubicSegment(values, stride, i, times[i]!, times[i + 1]!, t, out);
+    if (stride === 4) normalizeQuaternion(out);
     return;
   }
   if (track.interpolation === 'STEP') {
@@ -240,7 +258,8 @@ function sampleTrack(track: PreparedTrack, t: number, out: number[]): void {
 export interface LoopClosureEvidence {
   version: 'kiln.loop-closure.v1';
   status: 'closed' | 'open' | 'incomplete';
-  loopIntent: 'unspecified';
+  /** From createClip({ loop }): 'loop' should close, 'once' may stay open. */
+  loopIntent: 'loop' | 'once' | 'unspecified';
   scope: string;
   tolerances: { positionDistance: number; rotationDegrees: number; scaleDistance: number };
   checkedTracks: number;
@@ -253,6 +272,27 @@ export interface LoopClosureEvidence {
   detailsTruncated: boolean;
 }
 
+function declaredLoopIntent(clip: DuckClip): LoopClosureEvidence['loopIntent'] {
+  const intent = clip.userData?.kilnLoopIntent;
+  return intent === 'loop' || intent === 'once' ? intent : 'unspecified';
+}
+
+/** A declared loop whose end pose differs from its start, as one warning line. */
+export function loopIntentWarning(
+  clipName: string,
+  evidence: LoopClosureEvidence,
+): string | undefined {
+  if (evidence.loopIntent !== 'loop' || evidence.status !== 'open') return undefined;
+  const worst = evidence.mismatches.reduce<LoopClosureEvidence['mismatches'][number] | undefined>(
+    (max, entry) => (!max || entry.delta > max.delta ? entry : max),
+    undefined,
+  );
+  const gap = worst
+    ? ` (${worst.track} differs by ${Number(worst.delta.toPrecision(4))} ${worst.unit})`
+    : '';
+  return `LOOP_NOT_CLOSED: clip "${clipName}" is declared loop: true but its end pose differs from its start${gap}; close the loop or declare loop: false.`;
+}
+
 /** Endpoint C0 continuity, without assuming the clip was intended to loop.
  * Uses the same clamping/interpolation as preview, independent of chosen frames.
  * Quaternion distance is invariant to sign. Does not mutate the scene. */
@@ -261,9 +301,9 @@ export function measureLoopClosure(root: DuckNode, clip: DuckClip): LoopClosureE
   const result: LoopClosureEvidence = {
     version: 'kiln.loop-closure.v1',
     status: 'incomplete',
-    loopIntent: 'unspecified',
+    loopIntent: declaredLoopIntent(clip),
     scope:
-      'Local transform values at time 0 and clip duration; endpoint continuity only. Loop intent, velocity continuity, contacts and collision are not assessed. An open one-shot clip is valid.',
+      'Local transform values at time 0 and clip duration; endpoint continuity only. loopIntent comes from createClip({ loop }): a declared loop should close, a one-shot (once) may stay open, and unspecified intent cannot tell them apart. Velocity continuity, contacts and collision are not assessed.',
     tolerances,
     checkedTracks: 0,
     unassessedTracks: 0,
@@ -291,13 +331,17 @@ export function measureLoopClosure(root: DuckNode, clip: DuckClip): LoopClosureE
     const name = `${track.nodeName}.${track.prop}`;
     const valid =
       !prepared.unresolved.includes(name) &&
-      track.values.length === track.times.length * track.stride &&
+      track.values.length ===
+        track.times.length * track.stride * (track.interpolation === 'CUBICSPLINE' ? 3 : 1) &&
       track.values.every(Number.isFinite) &&
       track.times.every(
         (t, i) => Number.isFinite(t) && t >= 0 && (i === 0 || t > track.times[i - 1]!),
       ) &&
       (track.prop !== 'quaternion' ||
-        track.times.every((_, i) => Math.hypot(...track.values.slice(i * 4, i * 4 + 4)) > 1e-12));
+        track.times.every((_, i) => {
+          const at = keyValueOffset(track, i);
+          return Math.hypot(...track.values.slice(at, at + 4)) > 1e-12;
+        }));
     if (!valid) {
       result.unassessedTracks++;
       continue;

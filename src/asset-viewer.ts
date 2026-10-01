@@ -1,14 +1,32 @@
-/** Read-only loopback host. Only configured collection resources are routable. */
-import { createServer } from 'node:http';
+/** Loopback host. Only explicitly configured library/workspace resources are routable. */
+import { createServer, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { encodeAssetBundle, type AssetLibrary } from './assets';
-import { readAssetResource } from './assets-resources';
+import type { AssetLibrary } from './assets';
+import { listAssetCatalog } from './asset-catalog';
+import { exportLibraryAssetBundle, readAssetResource } from './assets-resources';
+import { LOOPBACK_HOSTNAMES } from './loopback';
+import {
+  serveWorkspaceRequest,
+  WorkspaceHttpError,
+  type WorkspaceHttpServices,
+} from './workspace-http';
+
+/** A bounded, escaped echo of a request header for a refusal message. */
+function quoted(value: string | undefined): string {
+  if (value === undefined) return '(none)';
+  return JSON.stringify(value.length > 80 ? `${value.slice(0, 80)}...` : value);
+}
+
+function refuse(res: ServerResponse, message: string): void {
+  res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end(`${message}\n`);
+}
 
 export async function startAssetViewer(
   library: AssetLibrary,
-  options: {
+  options: WorkspaceHttpServices & {
     port?: number;
     staticDirectory?: string;
     standalone?: { name: string; bytes: Uint8Array };
@@ -24,18 +42,23 @@ export async function startAssetViewer(
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'no-store');
     const address = server.address();
-    const origin = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
-    if (
-      req.headers.host !== origin.slice(7) ||
-      (req.headers.origin && req.headers.origin !== origin)
-    ) {
-      res.writeHead(403);
-      res.end('Forbidden origin');
+    const port = typeof address === 'object' && address ? address.port : 0;
+    // DNS-rebinding guard: answer only a loopback Host on this port. Serve under the
+    // origin that Host names, so a page opened as localhost can also write.
+    const host = req.headers.host?.toLowerCase();
+    if (!host || !LOOPBACK_HOSTNAMES.some((name) => host === `${name}:${port}`)) {
+      refuse(
+        res,
+        `This Kiln viewer only answers requests addressed to a loopback host on port ${port}; other hostnames are refused to prevent DNS rebinding. Open http://127.0.0.1:${port}/ instead. (Host: ${quoted(req.headers.host)})`,
+      );
       return;
     }
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      res.writeHead(405);
-      res.end('Read-only viewer');
+    const origin = `http://${host}`;
+    if (req.headers.origin && req.headers.origin !== origin) {
+      refuse(
+        res,
+        `This Kiln viewer only accepts requests from its own page at ${origin}/. (Origin: ${quoted(req.headers.origin)})`,
+      );
       return;
     }
     const send = (bytes: Uint8Array | string, mime = 'application/json', name?: string) => {
@@ -45,8 +68,16 @@ export async function startAssetViewer(
     };
     try {
       const url = new URL(req.url ?? '/', origin);
+      if (await serveWorkspaceRequest(req, res, url, { ...options, assetLibrary: library })) return;
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        res.writeHead(405);
+        res.end('Method not available');
+        return;
+      }
       if (url.pathname === '/api/collections')
         return send(JSON.stringify({ collections: library.collections() }));
+      if (url.pathname === '/api/library')
+        return send(JSON.stringify(await listAssetCatalog(library)));
       if (url.pathname === '/api/assets')
         return send(
           JSON.stringify({
@@ -68,7 +99,11 @@ export async function startAssetViewer(
             return library.read(collection, asset, revision);
           }),
         );
-        return send(encodeAssetBundle(records), 'application/zip', 'kiln-assets.zip');
+        return send(
+          await exportLibraryAssetBundle(library, records),
+          'application/zip',
+          'kiln-assets.zip',
+        );
       }
       if (url.pathname.startsWith('/files/')) {
         const file = await readAssetResource(library, `kiln://assets/${url.pathname.slice(7)}`);
@@ -95,10 +130,19 @@ export async function startAssetViewer(
       );
       return send(await readFile(join(staticDirectory, file[0])), file[1]);
     } catch (error) {
-      res.statusCode = 400;
+      res.statusCode =
+        error instanceof WorkspaceHttpError
+          ? error.status
+          : error &&
+              typeof error === 'object' &&
+              'code' in error &&
+              error.code === 'PROJECT_CONFLICT'
+            ? 409
+            : 400;
       send(JSON.stringify({ error: error instanceof Error ? error.message : 'Asset unavailable' }));
     }
   });
+  server.requestTimeout = 15000;
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
     server.listen(options.port ?? 4318, '127.0.0.1', resolve);

@@ -1,5 +1,5 @@
-import { Vector3, Matrix4, Euler, type Object3D } from 'three';
-import { collectTriangles, measureBounds, orbitDir } from './raster';
+import { Vector3, Matrix4, Euler, Group, type Object3D } from 'three';
+import { collectTriangles, compositingOrder, measureBounds, orbitDir } from './raster';
 import { resolveBackdrop, type BackdropId } from './background';
 
 export type CameraVec3 = [number, number, number];
@@ -36,6 +36,8 @@ export interface CameraShotV1 {
   name?: string;
   subject?: CameraSubjectV1;
   visibility?: 'context' | 'isolate';
+  /** Capture v2: exact paths or unambiguous names, hidden after subject isolation. */
+  hide?: string[];
   camera?: AssetCameraRequestV1;
 }
 export interface ResolvedAssetCameraV1 {
@@ -55,12 +57,28 @@ export interface ResolvedCameraShotV1 {
   camera: ResolvedAssetCameraV1;
   subject: { path: string; name: string; bounds: CameraBounds };
   visibility: 'context' | 'isolate';
+  /** Exact paths hidden for this shot. Framing still uses the selected subject's bounds. */
+  hide?: string[];
 }
 const vec = (a: CameraVec3) => new Vector3(...a);
 const tuple = (v: Vector3): CameraVec3 => [v.x || 0, v.y || 0, v.z || 0];
+/** Common near-misses for camera keys, named in the unknown-key error. */
+const KEY_HINTS: Readonly<Record<string, string>> = {
+  fov: 'fovDeg',
+  fovY: 'fovDeg',
+  fieldOfView: 'fovDeg',
+  lookAt: 'target',
+  azimuth: 'azimuthDeg',
+  elevation: 'elevationDeg',
+};
 function strict(value: object, keys: string[], label: string) {
   for (const key of Object.keys(value))
-    if (!keys.includes(key)) throw new Error(`${label}.${key} is unknown`);
+    if (!keys.includes(key)) {
+      const hint = Object.hasOwn(KEY_HINTS, key) && keys.includes(KEY_HINTS[key]!);
+      throw new Error(
+        `${label}.${key} is unknown${hint ? `; use ${KEY_HINTS[key]}` : ''}; accepted keys: ${keys.join(', ')}`,
+      );
+    }
 }
 function finite(n: number, label: string) {
   if (!Number.isFinite(n)) throw new Error(`${label} must be finite`);
@@ -101,14 +119,75 @@ export function selectCameraSubject(root: unknown, subject?: CameraSubjectV1) {
     : all.filter((n) =>
         subject.path !== undefined ? n.path === subject.path : n.name === subject.name,
       );
-  if (matches.length !== 1)
-    throw new Error(
-      `${matches.length ? 'ambiguous' : 'missing'} camera subject; choose an exact path: ${all
-        .slice(0, 40)
-        .map((n) => n.path)
-        .join(', ')}`,
-    );
+  if (matches.length !== 1) throw new Error(subjectError(all, matches, subject));
   return matches[0]!;
+}
+function pathList(nodes: readonly { path: string }[], limit: number): string {
+  const shown = nodes.slice(0, limit).map((n) => n.path);
+  return `${shown.join(', ')}${nodes.length > limit ? `, and ${nodes.length - limit} more` : ''}`;
+}
+/** Name the candidates: every node sharing an ambiguous name, or similar names before the listing. */
+function subjectError(
+  all: readonly { path: string; name: string }[],
+  matches: readonly { path: string }[],
+  subject: CameraSubjectV1 | undefined,
+): string {
+  const query = subject?.name ?? subject?.path ?? '';
+  if (matches.length > 1)
+    return `ambiguous camera subject: ${matches.length} nodes are named ${JSON.stringify(query)}; choose one path: ${pathList(matches, 20)}`;
+  const wanted = (
+    subject?.name ?? decodeURIComponent(query.split('/').pop() ?? '').replace(/\[\d+\]$/, '')
+  ).toLowerCase();
+  const similar = wanted
+    ? all.filter((n) => {
+        const name = n.name.toLowerCase();
+        return name.length > 0 && (name.includes(wanted) || wanted.includes(name));
+      })
+    : [];
+  const rootPath = all[0]?.path;
+  const misrooted =
+    subject?.path !== undefined &&
+    rootPath !== undefined &&
+    query !== rootPath &&
+    !query.startsWith(`${rootPath}/`);
+  const missing =
+    subject?.name !== undefined
+      ? `no node is named ${JSON.stringify(query)}`
+      : `no node has path ${JSON.stringify(query)}${misrooted ? `; paths start with ${rootPath}` : ''}`;
+  // Similar names are the useful answer; the full listing only when there are none.
+  return `missing camera subject: ${missing}${similar.length ? `; similar: ${pathList(similar, 10)}` : `; choose an exact path: ${pathList(all, 40)}`}`;
+}
+/**
+ * Default near plane for an explicit perspective camera: half the distance from the
+ * camera to the nearest drawable triangle's box, which clips nothing, and never below
+ * 1 mm or above half the far plane. A 1 mm plane on a large asset wastes depth
+ * precision and shows false z-fighting between faces a few decimetres apart.
+ * Skinned or morphing geometry can move toward the camera after this measurement,
+ * so it keeps the 1 mm floor.
+ */
+export function defaultPerspectiveNear(root: unknown, position: CameraVec3, far: number): number {
+  const FLOOR = 0.001;
+  let deforms = false;
+  (root as Object3D).traverse((node) => {
+    const mesh = node as Object3D & {
+      isSkinnedMesh?: boolean;
+      geometry?: { morphAttributes?: Record<string, unknown[]> };
+    };
+    if (mesh.isSkinnedMesh || (mesh.geometry?.morphAttributes?.['position']?.length ?? 0) > 0)
+      deforms = true;
+  });
+  if (deforms) return FLOOR;
+  const [px, py, pz] = position;
+  let nearest = Number.POSITIVE_INFINITY;
+  for (const { v } of collectTriangles(root as Object3D).tris) {
+    const dx = Math.max(Math.min(v[0]!, v[3]!, v[6]!) - px, 0, px - Math.max(v[0]!, v[3]!, v[6]!));
+    const dy = Math.max(Math.min(v[1]!, v[4]!, v[7]!) - py, 0, py - Math.max(v[1]!, v[4]!, v[7]!));
+    const dz = Math.max(Math.min(v[2]!, v[5]!, v[8]!) - pz, 0, pz - Math.max(v[2]!, v[5]!, v[8]!));
+    nearest = Math.min(nearest, Math.sqrt(dx * dx + dy * dy + dz * dz));
+    if (nearest === 0) break;
+  }
+  if (!Number.isFinite(nearest)) return FLOOR;
+  return Math.max(FLOOR, Math.min(nearest / 2, far / 2));
 }
 /** Match the legacy CPU projected-bounds fit; no camera-dependent source execution. */
 export function cameraFromBounds(
@@ -206,7 +285,20 @@ export function validateResolvedAssetCamera(value: ResolvedAssetCameraV1): Resol
   return camera;
 }
 export function resolveAssetCamera(root: unknown, shot: CameraShotV1 = {}): ResolvedCameraShotV1 {
-  strict(shot, ['name', 'subject', 'visibility', 'camera'], 'shot');
+  strict(shot, ['name', 'subject', 'visibility', 'camera', 'hide'], 'shot');
+  if (
+    shot.hide !== undefined &&
+    (!Array.isArray(shot.hide) ||
+      shot.hide.length > 64 ||
+      shot.hide.some((value) => typeof value !== 'string' || !value.length || value.length > 1024))
+  )
+    throw new Error(
+      'shot.hide requires at most 64 exact paths or unambiguous names of 1..1024 characters',
+    );
+  const hide = shot.hide?.map(
+    (value) =>
+      selectCameraSubject(root, value.startsWith('/') ? { path: value } : { name: value }).path,
+  );
   const rootNode = root as Object3D;
   rootNode.updateMatrixWorld(true);
   const selected = selectCameraSubject(root, shot.subject);
@@ -333,6 +425,8 @@ export function resolveAssetCamera(root: unknown, shot: CameraShotV1 = {}): Reso
       camera.position = tuple(vec(camera.position).add(offset));
       camera.target = tuple(vec(camera.target).add(offset));
     }
+    if (request.projection === 'perspective' && request.near === undefined)
+      camera.near = defaultPerspectiveNear(rootNode, camera.position, camera.far);
   } else throw new Error('unknown camera type');
   if (shot.visibility !== undefined && !['context', 'isolate'].includes(shot.visibility))
     throw new Error('invalid visibility');
@@ -341,6 +435,7 @@ export function resolveAssetCamera(root: unknown, shot: CameraShotV1 = {}): Reso
     camera: validateResolvedAssetCamera(camera),
     subject: { path: selected.path, name: selected.name, bounds },
     visibility: shot.visibility ?? 'context',
+    ...(hide?.length ? { hide: [...new Set(hide)] } : {}),
   };
 }
 /** Temporary per-mesh isolation restored even if rendering fails; never mutate stored artifacts. */
@@ -349,21 +444,73 @@ export async function withCameraVisibility<T>(
   shot: ResolvedCameraShotV1,
   run: () => Promise<T>,
 ): Promise<T> {
-  if (shot.visibility === 'context') return run();
+  if (shot.visibility === 'context' && !shot.hide?.length) return run();
   const keep = new Set<Object3D>();
-  selectCameraSubject(root, { path: shot.subject.path }).node.traverse((n) => keep.add(n));
+  const subject = selectCameraSubject(root, { path: shot.subject.path }).node;
+  subject.traverse((n) => keep.add(n));
   const restore: Array<[Object3D, boolean]> = [];
+  // An isolated subject draws even when it, or an ancestor, is hidden (visible = false);
+  // hidden parts inside it stay hidden.
+  for (
+    let node: Object3D | null = shot.visibility === 'isolate' ? subject : null;
+    node;
+    node = node.parent
+  ) {
+    if (node.visible === false) {
+      restore.push([node, false]);
+      node.visible = true;
+    }
+  }
   (root as Object3D).traverse((n) => {
-    if ((n as Object3D & { isMesh?: boolean }).isMesh && !keep.has(n)) {
+    if (
+      shot.visibility === 'isolate' &&
+      (n as Object3D & { isMesh?: boolean }).isMesh &&
+      !keep.has(n)
+    ) {
       restore.push([n, n.visible]);
       n.visible = false;
     }
   });
+  for (const path of shot.hide ?? []) {
+    const node = selectCameraSubject(root, { path }).node;
+    restore.push([node, node.visible]);
+    node.visible = false;
+  }
   try {
     return await run();
   } finally {
-    for (const [node, visible] of restore) node.visible = visible;
+    for (const [node, visible] of restore.reverse()) node.visible = visible;
   }
+}
+/**
+ * Remove hidden subtrees from a shot derivative so every renderer receives the same geometry.
+ * A derivative GLB
+ * serialized from a scene with hidden nodes (authored, or isolated by
+ * {@link withCameraVisibility}) would ship them to the GPU. Every node with
+ * `visible = false` leaves with its subtree, which is what three draws. Returns the root
+ * itself when nothing is hidden, else a pruned clone; the caller's scene is never mutated and
+ * restores `.visible` itself.
+ */
+export function withoutHiddenMeshes(root: Object3D): Object3D {
+  if (root.visible === false) {
+    // A mesh root may itself carry geometry; use a plain empty group for this derivative.
+    const empty = new Group();
+    empty.name = root.name;
+    return empty;
+  }
+  const hidden = (node: Object3D) => node !== root && node.visible === false;
+  let any = false;
+  root.traverse((node) => {
+    if (hidden(node)) any = true;
+  });
+  if (!any) return root;
+  const copy = root.clone(true);
+  const drop: Object3D[] = [];
+  copy.traverse((node) => {
+    if (hidden(node)) drop.push(node);
+  });
+  for (const node of drop) node.removeFromParent();
+  return copy;
 }
 /** Flat geometry renderer with exact orthographic/perspective projection and near/far clipping. */
 export function rasterizeCamera(
@@ -398,7 +545,12 @@ export function rasterizeCamera(
   };
   const key = new Vector3(1.5, 2, 1).normalize();
   const srgb = (n: number) => (n <= 0.0031308 ? n * 12.92 : 1.055 * n ** (1 / 2.4) - 0.055);
-  for (const tri of collectTriangles(root as Object3D).tris) {
+  const ordered = compositingOrder(collectTriangles(root as Object3D).tris, (px, py, pz) =>
+    camera.projection === 'perspective'
+      ? Math.hypot(px - position.x, py - position.y, pz - position.z)
+      : (position.x - px) * z.x + (position.y - py) * z.y + (position.z - pz) * z.z,
+  );
+  for (const tri of ordered) {
     const world = [0, 1, 2].map(
       (i) => new Vector3(tri.v[i * 3]!, tri.v[i * 3 + 1]!, tri.v[i * 3 + 2]!),
     );

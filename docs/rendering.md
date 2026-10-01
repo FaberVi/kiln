@@ -25,9 +25,53 @@ safety. See `kiln animation --help` for the complete options.
 | `--render gpu` | Require GPU rendering; report failure if unavailable |
 | `--render-port URL` | Select a GPU render service |
 
-CPU views show silhouette, orientation, proportion, and contact. They do not reproduce the asset's PBR materials. Use GPU views to review textures, roughness, metalness, and normal relief. GPU output can vary by device and driver.
+CPU views show silhouette, orientation, proportion, and contact. They do not reproduce the asset's PBR materials. Translucent (opacity below 1) surfaces are composited after opaque geometry, farthest first, so parts behind glazing stay visible whatever order the scene lists them in. Use GPU views to review textures, roughness, metalness, and normal relief. GPU output can vary by device and driver.
 
-### Running the GPU renderer
+## Review lighting
+
+New GPU tool captures use **`review-neutral-v1`**. The rig uses the room PMREM
+environment at intensity 0.4352, white hemisphere light at 1.0879, and white
+key/fill/rim lights at 0.136/0.0204/0.0204. The directional positions remain
+`[4,7,5]`, `[-4,3,2]`, and `[-2,5,-5]`; shadows remain off. Exposure is 0.9.
+
+Review Neutral derives from the [Khronos PBR Neutral construction](https://github.com/KhronosGroup/ToneMapping/tree/main/PBR_Neutral),
+with glare compensation reduced from 0.04 to 0.015 for this measured rig,
+compression starting at 0.785 and highlight desaturation 0.15. It is a Kiln
+variant, not the unmodified Khronos mapper. The white lights and gentler display
+transform preserve base-colour hue while leaving orientation and specular cues.
+The analytic inverse keeps every named backdrop inside the tone-mapped pass,
+so clear pixels match the CPU table and silhouettes retain the existing MSAA path.
+
+In the calibrated D3D12 chart, a key-facing metalness-0, roughness-1 panel authored
+as sRGB `#C0362C` reads `(193,51,40)`, compared with `(255,177,147)` under
+`neutral-studio-v1`. Mean CIEDE2000 error over 24 ColorChecker sRGB patches plus
+that orange is 0.51 for the new rig, versus 28.09 for tool v1. This is a reference
+orientation calibration, not a promise that every shaded pixel equals its albedo.
+Roughness, surface orientation, reflections and the destination's lighting still
+change appearance. Review dark silhouettes on neutral or light when they merge
+with the dark backdrop. GPU images remain visual evidence only; QA receives no pixels.
+
+Author albedo for the material and its calibrated destination; do not darken it
+to compensate for bright review lighting. Existing assets compensated for v1 may
+look too dark in the new rig and need individual material review. There is no
+automatic albedo conversion.
+
+`neutral-studio-v1` and `gallery-studio-v1` retain their original lights and ACES
+exposures (1.38 and 0.9). Camera requests that already accept `lightingPresetId`
+can still select either ID; HTTP uses `lighting_preset_id`. Legacy direction-only
+requests use the new default. The website poster script continues to select
+`gallery-studio-v1`. Composer's former `neutral-studio-v2` default had no renderer
+definition; new presentation documents now use `review-neutral-v1`. Saved
+documents naming the unsupported ID require an explicit edit; it is not aliased.
+
+The tool input schemas and cache-key format are unchanged. An explicit lighting
+ID separates camera cache entries. Renderer source and dependency fingerprints
+also invalidate captures with an omitted lighting ID after this upgrade; old
+receipts retain their producer identity. Upgrade the host and renderer together.
+An incompatible service already on the shared socket is reported, never replaced
+automatically. Existing cached images remain historical evidence of their old rig.
+
+## Running the GPU renderer
 
 [`render-service/`](../render-service/) in this repository is the renderer: GLB bytes in, PBR PNG views
 out, headless three.js `WebGPURenderer` on Dawn. No browser and no X server.
@@ -55,8 +99,15 @@ own CLI process; it cannot refresh a different running session.
 
 `kiln discover --capabilities --json` and MCP `kiln_discover({capabilities:true})`
 report `renderer` readiness without starting a renderer or requesting an image.
-The CLI reads `KILN_RENDER` and `KILN_RENDER_PORT_URL`; MCP reports its session's
-selected route and attached port. `configured` describes routing, not successful
+Renderer selection uses an explicit `--render` first, then `KILN_RENDER`, then
+`auto`. The selected value must be `auto`, `cpu` or `gpu`; an invalid value names
+its source (`--render` or `KILN_RENDER`) in the error. An explicit valid option
+overrides even an invalid environment value. This applies to render/capture,
+generation, inspection, animation, saving and migration rebuilds. `edit` only edits
+retained source and never selects a renderer. With `KILN_RENDER=cpu` and no override,
+CLI commands neither discover nor start a render service. The CLI also reads
+`KILN_RENDER_PORT_URL`; MCP reports its session's selected route and attached port.
+`configured` describes routing, not successful
 rendering. `on-demand` means local dependencies are ready but no GPU has been tested;
 `available` means compatible health responded. `authentication-required` means a
 token is missing; `authentication-unverified` means one is configured but public
@@ -103,13 +154,22 @@ provenance and does not control the lifetime of other clients' work.
 
 ```bash
 bun run kiln service status   # installation, health, build identity and lifetime
+bun run kiln service start    # start a managed local service now, or report the current one
 bun run kiln service reprobe  # fresh check; nonzero unless a running service is verified compatible
 bun run kiln service stop     # explicitly stop the verified configured local service
 ```
 
-`status` and `reprobe` do not install packages or stop services. The old `service prune`
+`status --json` and `reprobe --json` print the same facts as one receipt (`url`,
+`installation`, `listener`) with the same exit codes. `status` and `reprobe` do not
+install packages or stop services. The old `service prune`
 command is removed. `stop` rechecks the configured loopback service's identity before
 signaling it; a remote service's reported PID never authorizes killing a local process.
+`start` uses the same launcher as an on-demand view and prints the port, renderer, process,
+lifetime and build fingerprint. It joins a current service rather than starting a second
+one, and exits nonzero without starting anything when the installation is not ready or a
+stale, foreign or unknown listener holds the socket; it never replaces a listener. The
+service it starts is managed, so it exits after its idle timeout and the next view that
+needs it starts it again; start one by hand, as above, for a service that stays running.
 
 **Either way it binds loopback, and widening that costs a token.** `POST /render` takes a 48 MB GLB
 and renders it on the GPU one frame at a time, so an exposed bind with no auth hands any caller on
@@ -119,12 +179,14 @@ warning. `RENDER_SERVICE_ALLOW_UNAUTHENTICATED=1` waives that when something in 
 already authenticates for it. The container image sets `HOST=0.0.0.0` itself, because a container
 binding loopback is unreachable through `-p`.
 
-For local render services, client sessions automatically inherit `RENDER_SERVICE_TOKEN` as a fallback when `KILN_RENDER_TOKEN` is unset, whether starting on demand or joining an existing local service sharing the same environment on port 8000. `KILN_RENDER_TOKEN` remains the explicit client credential: set it to override the local token or to authenticate against a remote service. Explicit remote endpoints (`--render-port URL` or `KILN_RENDER_PORT_URL`) never infer credentials from `RENDER_SERVICE_TOKEN` and require `KILN_RENDER_TOKEN` directly. See the service README for deployment and authentication options.
+For local render services, client sessions automatically inherit `RENDER_SERVICE_TOKEN` as a fallback when `KILN_RENDER_TOKEN` is unset, whether starting on demand or joining an existing local service sharing the same environment on port 8000. `KILN_RENDER_TOKEN` remains the explicit client credential: set it to override the local token or to authenticate against a remote service. Explicit remote endpoints (`--render-port URL` or `KILN_RENDER_PORT_URL`) never infer credentials from `RENDER_SERVICE_TOKEN` and require `KILN_RENDER_TOKEN` directly. An explicit URL with exactly the shared local socket's origin (`http://127.0.0.1:8000`, or the `KILN_RENDER_SERVICE_PORT` port) names that socket, not another device, so it is the local route with local credentials. See the service README for deployment and authentication options.
 
 `--render cpu` neither probes nor starts a service. Local `auto` and `gpu` can start one
 on demand; `gpu` requires a successful GPU result instead of accepting a CPU fallback.
 An explicitly selected remote URL stays remote on failure and never starts a local GPU
-as a substitute. Use the same compatible Kiln build on the renderer device.
+as a substitute. A URL naming the shared local socket takes the local route instead: it
+joins or starts the local service on demand, and starts it again after a managed service
+exits idle. Use the same compatible Kiln build on the renderer device.
 
 In `auto` mode, ordinary untextured scenes with zero metalness and no advanced
 material extensions select CPU views,

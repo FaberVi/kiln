@@ -56,7 +56,7 @@ export interface CaptureCell {
 }
 
 export interface CaptureConfig {
-  version?: 'kiln.capture.v1';
+  version?: 'kiln.capture.v1' | 'kiln.capture.v2';
   shots?: import('./camera').CameraShotV1[];
   cols?: number;
   size?: number;
@@ -153,6 +153,11 @@ export interface CaptureShape {
   cells: number;
   /** Echoed so the model never has to guess what colour it is looking at. */
   backdrop?: BackdropId;
+  /**
+   * Delivery of a versioned capture: one sheet (`grid`, laid out as `preset`)
+   * or one image per shot (`separate`). Absent for the default six-view sheet.
+   */
+  output?: 'grid' | 'separate';
 }
 
 export class CaptureConfigError extends Error {}

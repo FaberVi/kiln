@@ -113,8 +113,9 @@ Verified against the versions in the footer. The traps are not stylistic -- each
 
 The ones that cost real time:
 
-- **agy `--print` takes its prompt attached.** Passed with a space, Go's flag package reads
-  the next flag as the prompt and ignores what you typed.
+- **agy `--print` takes the next argument as its prompt.** Write `--print=TEXT`, or end the
+  command with `--print TEXT`; with a space and another flag after `--print`, Go's flag
+  package reads that flag as the prompt and ignores what you typed.
 - **cursor-agent needs three separate grants.** `--force` allows tool calls, `--approve-mcps`
   approves the server, `--trust` accepts the workspace. An unapproved MCP server is gated
   independently of tool permission, so `--force` alone leaves the Kiln tools unreachable.
@@ -125,6 +126,10 @@ The ones that cost real time:
   sandbox and moves approval to `on-request`.
 - **A bare temp directory is not a trusted directory.** codex needs `--skip-git-repo-check`;
   cursor-agent needs `--trust`.
+- **An older Claude Code does not know newer model ids.** On 29 September 2026 a driver's
+  pinned Claude Code 2.1.280 rejected the 5.5 models that 2.1.284 accepted. A driver that
+  installs its own copy must pin a release that knows the requested model; one short
+  `smoke:harness` turn shows the refusal before a batch spends time.
 
 ## Long-running sessions and compaction
 
@@ -233,7 +238,8 @@ leftovers rather than anything this repository ships, but both answer tool calls
 announcing what they are.
 
 Call `kiln_discover` with `{ capabilities: true }` and compare `capabilities.engine` --
-`version` and `installUrl` -- against `runtime` in `.kiln/workspace.json`. Workspaces also
+`version` and `installUrl` -- against `runtime` in `.kiln/workspace.json`, and
+`execution.buildIdentity` against its `buildIdentity` ([identities](runtime.md#what-a-build-identity-covers)). Workspaces also
 register under their own `kiln_workspace` name. Report a mismatch rather than silently
 substituting it.
 

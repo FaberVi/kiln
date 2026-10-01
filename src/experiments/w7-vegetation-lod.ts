@@ -5,6 +5,7 @@ import { WebIO, type Document } from '@gltf-transform/core';
 import * as THREE from 'three';
 
 import { createAssetIntentV1, stampSemanticMetadataV1, type AssetIntentV1 } from '../contracts';
+import { defineLod } from '../lod';
 import { renderSceneToGLB } from '../render';
 
 const EXPERIMENT_EXTRAS_KEY = 'kilnVegetationLodExperiment';
@@ -156,6 +157,12 @@ function buildScene(mode: 'baseline' | 'visible' | 'hidden'): ExperimentScene {
     const visible = mode === 'visible';
     groups.push(addCanopyGroup(root, 'lod1', 4, 6, 0.9, visible));
     groups.push(addCanopyGroup(root, 'lod2', 1, 4, 1.35, visible));
+    // Since 0.9.0 a set of tiers must declare its thresholds; these values are arbitrary
+    // because this experiment measures the root-extras record, not the switch points.
+    defineLod(
+      groups.map((group) => root.getObjectByName(group.node)!),
+      { screenCoverage: [0.1, 0.02, 0.004] },
+    );
     root.userData[EXPERIMENT_EXTRAS_KEY] = {
       schemaVersion: 1,
       groups,
@@ -316,8 +323,8 @@ export async function runW7VegetationLodExperiment(): Promise<W7VegetationLodExp
       disposition: 'DONE_GATE_CLOSED',
       rationale: [
         'The experimental root LOD extras do not survive the current final-byte pipeline, so recorded bounds/cost and target identity cannot round-trip.',
-        'All three groups are exported for ordinary consumers even when lower groups are marked hidden; triangle/visual parity remains 1.442857x the baseline.',
-        'No engine, Studio, or starter public consumer contract exists that can select exactly one level without a new schema/runtime expansion.',
+        'All three groups are still written to the file, since 0.9.0 with the lower two as MSFT_lod levels outside the scene; every mesh in the file totals 1.442857x the baseline triangles.',
+        'Selecting one level is the declared-tier MSFT_lod contract (defineLod) since 0.9.0, not this root extras record.',
       ],
     },
   };

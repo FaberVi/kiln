@@ -1,6 +1,7 @@
 import { expect, it } from 'bun:test';
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { localWorkspaceRoot } from '../workspace-location';
 
 it('renders retained source with a capture file and rejects invalid recipes before writing artifacts', async () => {
   const base = resolve(import.meta.dir, '../../tmp');
@@ -19,9 +20,11 @@ it('renders retained source with a capture file and rejects invalid recipes befo
       ...process.env,
       KILN_EVALUATOR_MODE: 'in-process',
       KILN_BUILD_CACHE: 'off',
+      KILN_WORKSPACE: directory,
       KILN_PROGRAM_STORE: join(directory, 'programs'),
       KILN_RENDER: 'cpu',
     };
+    expect(localWorkspaceRoot(env)).toBe(directory);
     const run = (args: string[]) =>
       Bun.spawnSync(['node', join(directory, 'cli.mjs'), ...args], {
         cwd: directory,
@@ -71,6 +74,9 @@ it('renders retained source with a capture file and rejects invalid recipes befo
     ]);
     expect(first.stderr.toString()).toBe('');
     expect(first.exitCode).toBe(0);
+    expect(
+      (await readdir(join(directory, '.kiln', 'review'))).filter((name) => name.startsWith('op_')),
+    ).toHaveLength(1);
     const png = await readFile(join(directory, 'chosen.png'));
     expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([332, 168]);
     recipe.shots[0]!.camera.azimuthDeg = 180;
@@ -95,9 +101,77 @@ it('renders retained source with a capture file and rejects invalid recipes befo
     expect(
       (await readdir(join(directory, 'programs'))).filter((name) => name.endsWith('.js')),
     ).toHaveLength(1);
+    // Separate output writes one PNG per shot beside the --views stem, like MCP's
+    // one image per shot; no composite sheet is written.
+    await writeFile(
+      join(directory, 'separate.json'),
+      JSON.stringify({ ...recipe, output: 'separate' }),
+    );
+    const separate = run([
+      'render',
+      ref,
+      '--render',
+      'cpu',
+      '--capture',
+      'separate.json',
+      '--views',
+      'separate.png',
+      '--out',
+      'separate.glb',
+      '--json',
+    ]);
+    expect(separate.stderr.toString()).toBe('');
+    expect(separate.exitCode).toBe(0);
+    const receipt = JSON.parse(separate.stdout.toString());
+    expect(receipt.ok).toBe(true);
+    expect(receipt.framesBase64).toBeUndefined();
+    expect(receipt.cameraShots.map((shot: { name: string }) => shot.name)).toEqual(['Side', 'Top']);
+    expect(await readdir(directory)).not.toContain('separate.png');
+    const shots = await Promise.all(
+      ['separate.shot-01.png', 'separate.shot-02.png'].map((name) =>
+        readFile(join(directory, name)),
+      ),
+    );
+    for (const shot of shots)
+      expect([shot.readUInt32BE(16), shot.readUInt32BE(20)]).toEqual([160, 160]);
+    expect(shots[0]).not.toEqual(shots[1]);
+    expect(receipt.files).toEqual([
+      {
+        kind: 'glb',
+        path: join(directory, 'separate.glb'),
+        bytes: (await readFile(join(directory, 'separate.glb'))).length,
+      },
+      {
+        kind: 'image',
+        path: join(directory, 'separate.shot-01.png'),
+        bytes: shots[0]!.length,
+        shot: 'Side',
+      },
+      {
+        kind: 'image',
+        path: join(directory, 'separate.shot-02.png'),
+        bytes: shots[1]!.length,
+        shot: 'Top',
+      },
+    ]);
+    const human = run([
+      'render',
+      ref,
+      '--render',
+      'cpu',
+      '--capture',
+      'separate.json',
+      '--views',
+      join('shots', 'part'),
+    ]);
+    expect(human.exitCode).toBe(0);
+    expect(human.stdout.toString()).toContain(join('shots', 'part.shot-02.png'));
+    expect((await readdir(join(directory, 'shots'))).sort()).toEqual([
+      'part.shot-01.png',
+      'part.shot-02.png',
+    ]);
     for (const [name, body] of [
       ['unknown', JSON.stringify({ ...recipe, unsupportedCameraOption: true })],
-      ['separate', JSON.stringify({ ...recipe, output: 'separate' })],
       ['oversized', ' '.repeat(1024 * 1024 + 1)],
       ['malformed', '{bad json'],
     ]) {

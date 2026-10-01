@@ -1,7 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
 import {
@@ -136,22 +136,56 @@ test('stale services survive owner exit and both auto and gpu explicitly report 
   expect((await inspectLocalRenderService(url, dir)).kind).toBe('service');
   expect(child.exitCode).toBeNull();
 });
-test('concurrent cold starts join one verified managed service on the shared socket', async () => {
-  const { dir, url } = await installation();
-  const [one, two] = await Promise.all([
-    startLocalRenderService(dir),
-    startLocalRenderService(dir),
-  ]);
-  expect(one).toBe(url);
-  expect(two).toBe(url);
-  const probe = await inspectLocalRenderService(url, dir);
-  expect(probe).toMatchObject({
-    kind: 'service',
-    stale: false,
-    instance: { mode: 'managed', ownerPid: process.pid },
-  });
-  if (probe.kind === 'service') ownedPids.push(probe.instance.pid);
-});
+test.each([0, 2000])(
+  'concurrent cold starts join one verified managed service with %dms health warmup',
+  async (healthDelay) => {
+    const { dir, url } = await installation();
+    const journal = join(dir, 'startup.jsonl');
+    const barrier = join(dir, 'release-startup');
+    const environment = {
+      ...process.env,
+      FAKE_STARTUP_JOURNAL: journal,
+      FAKE_STARTUP_BARRIER: barrier,
+      FAKE_HEALTH_DELAY_MS: String(healthDelay),
+    };
+    const pending = Promise.allSettled([
+      startLocalRenderService(dir, environment),
+      startLocalRenderService(dir, environment),
+    ]);
+    // Windows Start-Process may still be launching the second child when both
+    // host calls return from the first child's health. Own both children first,
+    // then release their listeners; teardown cannot leave a late launcher alive.
+    const deadline = Date.now() + 10000;
+    let starts: Array<{ pid: number }> = [];
+    while (starts.length < 2 && Date.now() < deadline) {
+      starts = await readFile(journal, 'utf8')
+        .then((text) =>
+          text
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line)),
+        )
+        .catch(() => []);
+      if (starts.length < 2) await new Promise((done) => setTimeout(done, 20));
+    }
+    ownedPids.push(...starts.map((start) => start.pid));
+    await writeFile(barrier, 'release');
+    const outcomes = await pending;
+    expect(starts).toHaveLength(2);
+    const [one, two] = outcomes.map((outcome) => {
+      if (outcome.status === 'rejected') throw outcome.reason;
+      return outcome.value;
+    });
+    expect(one).toBe(url);
+    expect(two).toBe(url);
+    const probe = await inspectLocalRenderService(url, dir);
+    expect(probe).toMatchObject({
+      kind: 'service',
+      stale: false,
+      instance: { mode: 'managed', ownerPid: process.pid },
+    });
+  },
+);
 
 test('a renderer that exits before health is reported as startup failure', async () => {
   const { dir } = await installation();
@@ -187,6 +221,56 @@ test('explicit local stop rechecks identity and never signals a remote-reported 
   expect(await terminateRenderService(url, probe)).toBe(true);
   expect(await exited(child)).toBe(true);
 });
+test.each([
+  ['auto', 'KILN_RENDER_PORT_URL'],
+  ['gpu', '--render-port'],
+] as const)(
+  '%s with %s naming the local socket starts the managed service and wakes it after an idle exit',
+  async (mode, selection) => {
+    const { dir, url } = await installation();
+    const oldUrl = process.env.KILN_RENDER_PORT_URL;
+    if (selection === 'KILN_RENDER_PORT_URL') process.env.KILN_RENDER_PORT_URL = `${url}/`;
+    try {
+      const context = await buildRenderPort(mode, selection === '--render-port' ? url : undefined, {
+        serviceDir: dir,
+      });
+      expect(await context.renderCapabilities!()).toMatchObject({
+        target: 'local',
+        status: 'on-demand',
+        autoStart: true,
+      });
+      const request = {
+        glb: new Uint8Array([1]),
+        viewDirs: [[1, 0, 0]] as [number, number, number][],
+        size: 128,
+      };
+      expect((await context.viewRenderPort!(request)).rendererId).toBe(FAKE_RENDERER_ID);
+      const first = await inspectLocalRenderService(url, dir);
+      if (first.kind !== 'service')
+        throw new Error(`expected a started service, got ${first.kind}`);
+      ownedPids.push(first.instance.pid);
+      expect(first.instance.mode).toBe('managed');
+      // A managed service exits after its idle timeout; stand in for that exit.
+      process.kill(first.instance.pid);
+      const deadline = Date.now() + 10_000;
+      while ((await inspectLocalRenderService(url, dir, 500)).kind !== 'absent') {
+        if (Date.now() > deadline) throw new Error('fixture service did not exit');
+        await new Promise((done) => setTimeout(done, 50));
+      }
+      expect((await context.viewRenderPort!(request)).rendererId).toBe(FAKE_RENDERER_ID);
+      const second = await inspectLocalRenderService(url, dir);
+      if (second.kind !== 'service')
+        throw new Error(`expected a restarted service, got ${second.kind}`);
+      ownedPids.push(second.instance.pid);
+      expect(second.instance.pid).not.toBe(first.instance.pid);
+    } finally {
+      if (oldUrl === undefined) delete process.env.KILN_RENDER_PORT_URL;
+      else process.env.KILN_RENDER_PORT_URL = oldUrl;
+    }
+  },
+  // Two fixture service cold starts; on Windows each goes through Start-Process (~2s measured).
+  40_000,
+);
 test('local lazy clients restart after a refused socket without retrying a render failure', async () => {
   let starts = 0;
   const port = makeLazyRenderPort(async () => {

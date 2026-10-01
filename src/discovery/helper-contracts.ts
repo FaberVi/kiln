@@ -618,12 +618,12 @@ const sweepFacts: Facts = {
   topology: [
     'Simple profiles without holes; supplied holes fields fail explicitly. Optional caps do not prove freedom from self-intersection or create wall thickness.',
     'Warped side panels use four triangles around a bilinear midpoint to avoid diagonal bias; planar panels use two. This is piecewise-linear sampling, not a smooth surface.',
-    'A corresponding edge that collapses between stations is rejected. Check matching starts/order or add intermediate stations for an intended twist. Other self-intersections remain unchecked.',
+    'A corresponding edge that collapses between stations is rejected. Check matching starts/order or add intermediate stations for an intended twist. Bounded local analysis observes tight station curvature and intersecting consecutive rings; distant segments remain unchecked.',
   ],
   preservation: [
-    'Generates UVs, normals and bounds; stamps geometry warnings where checks are incomplete.',
+    'Generates UVs, normals and bounds; SWEEP_SELF_INTERSECTION observes station radius or intersecting consecutive rings. Incomplete analysis keeps an unchecked warning and partial finding.',
   ],
-  cost: 'Grows with profile vertex count × station/section count. Each warped side panel adds one midpoint vertex and two triangles over a planar panel; no universal self-intersection check or hard allocation cap.',
+  cost: 'Geometry grows with profile points × stations; each warped side panel adds one midpoint and two triangles. Local analysis is capped at 4096 stations, 512 points per ring and 65536 segment/triangle tests; no global surface-intersection certification or geometry allocation cap.',
 };
 define(
   'sweepProfile',
@@ -634,6 +634,8 @@ define(
       'Profile and path checks use their respective extents, not fixed world-unit cutoffs; up specifies a direction regardless of its nonzero magnitude. Output positions remain Float32.',
       'Closed paths omit the repeated endpoint and require twist to be a multiple of 360 degrees.',
       'Transported frames and per-station positive scales define the cross-section.',
+      "cap is true (both ends, default), false, 'start' or 'end'; a one-ended cap needs an open path.",
+      'creaseAngle is degrees in [0, 180], default 60. Side panels meeting at more than it, across a profile corner or a path station, get separate vertices and a hard shading edge; hexagons and finer profiles stay smooth at the default.',
     ],
   },
   {
@@ -772,6 +774,86 @@ define(
     intents: ['turn geometry into a placed part'],
     limitations: [
       'Attach once using parent; do not separately add the returned node to another parent.',
+    ],
+  },
+);
+define(
+  'defineLod',
+  {
+    ...nodeFacts,
+    units: 'screenCoverage values are fractions of the screen area, 0..1; no lengths.',
+    origin: 'Each lower level keeps its own transform and replaces LOD0 under the same parent.',
+    ownership:
+      'Records the thresholds on the LOD0 node; creates no nodes and moves nothing until export.',
+    coordinates: 'Not a placement operation.',
+    parameters: [
+      'levels: two or more sibling tier nodes named with one stem and tokens LOD0, LOD1, ... in order.',
+      'screenCoverage: one value per level, each from 0 to 1, strictly decreasing, LOD0 first; the last may be 0, which never culls.',
+    ],
+    semantics: [
+      'Level i draws while the asset covers at least screenCoverage[i] of the screen; below the last value it is culled.',
+      'Export writes the set as one MSFT_lod chain: LOD0 stays in the scene and lists the lower levels, which leave it; LOD0 extras.MSFT_screencoverage holds the thresholds.',
+      'Reported triangles and bounds count LOD0; levelsOfDetail in render results lists each level with its triangles and path.',
+      'A set of two or more tiers without this declaration, with a gap, or without LOD0 is an LOD_SET build error.',
+    ],
+    cost: 'Metadata on one node; lower levels still cost file size.',
+  },
+  {
+    references: ['src/lod.ts', 'src/lod-export.ts'],
+    tags: ['hierarchy', 'lod', 'export'],
+    aliases: ['level of detail', 'LOD tiers', 'MSFT_lod', 'screen coverage'],
+    intents: ['export level-of-detail tiers as one chain'],
+    summary:
+      'Declares LOD tiers (sibling nodes named Body_LOD0, Body_LOD1, ...) and their screen-coverage thresholds. Use only when the brief asks for LOD tiers.',
+    limitations: [
+      'Tiers are authored, not generated: Kiln simplifies no geometry.',
+      'Sets cannot nest inside another tier; material LOD chains are not created.',
+    ],
+    related: [{ name: 'createPart', relation: 'companion' }],
+  },
+);
+define(
+  'markOpenShell',
+  {
+    ...nodeFacts,
+    units: 'No lengths; reason is text of 1 to 200 characters after trimming.',
+    origin: 'Not a placement operation.',
+    ownership:
+      'Writes one validated mark to part.userData.kilnOpenShell; creates no nodes and changes no geometry.',
+    coordinates: 'Not a placement operation.',
+    parameters: [
+      'part: a scene node, such as the mesh createPart returned or a group; a mark on a group covers the meshes under it.',
+      'reason: why the shell is open, 1 to 200 characters after trimming.',
+    ],
+    semantics: [
+      'QA reports a marked part that cannot be built as a closed solid as GEO_PART_SELF_INTERSECTION_ACKNOWLEDGED with the reason, instead of GEO_PART_SELF_INTERSECTION_UNMEASURED.',
+      'Overlapping pairs with the marked part stay unmeasured and are counted; overlap there is not ruled out. Overlap between other parts is still measured and reported.',
+      'A marked part that builds as a closed solid is measured like any other part. A part skipped for its size, draw range, instancing or invalid indices is still reported as unmeasured.',
+      'Both exporters write the mark as the node extras kilnOpenShell: { schemaVersion: 1, reason }; import restores it to userData.',
+      'Invalid arguments, or a kilnOpenShell value this helper did not write, are an OPEN_SHELL build error.',
+    ],
+    cost: 'Metadata on one node: about 50 bytes of extras plus the reason.',
+  },
+  {
+    references: ['src/open-shell.ts', 'src/qa/self-intersection.ts'],
+    tags: ['qa', 'hierarchy', 'export'],
+    aliases: [
+      'open shell',
+      'intentionally open',
+      'not manifold',
+      'single-sided sheet',
+      'acknowledge unmeasured part',
+    ],
+    intents: ['mark a part that is open on purpose'],
+    summary:
+      'Marks a part that is open on purpose (a C-channel closed by end plates, a single-sided sheet) with the reason, so QA reports it as acknowledged rather than unmeasured.',
+    limitations: [
+      'A mark states intent and measures nothing: overlap with the part stays unmeasured and part-volume coverage stays partial.',
+      'Close a part that is meant to be solid instead of marking it.',
+    ],
+    related: [
+      { name: 'createPart', relation: 'companion' },
+      { name: 'geometryDiagnostics', relation: 'companion' },
     ],
   },
 );
@@ -1324,6 +1406,7 @@ define(
     execution: 'async',
     parameters: [
       'Strict schemaVersion 2 pbrMetallicRoughness specification.',
+      'For workspace library materials, use the exact portableSpec returned by kiln_material and pin its material revision through per-call materialDependencies (CLI --materials) or an optional project lock. The host supplies verified map bytes; generated source cannot read library paths or fetch missing resources.',
       'baseColor and emissive are numeric color integers from 0x000000 to 0xffffff, for example baseColor: 0x8a867c. CSS strings and materialRecipe hex-string overrides are not accepted here.',
       'Texture references use typed procedural specs or approved resource IDs; arbitrary URLs, paths, callbacks and shaders are rejected.',
       'Each texture value is { kind: "resource", resourceId: "kiln.texture..." } or { kind: "procedural", spec: { schemaVersion: 2, ... } }. Bare ID strings are invalid; unlike materialRecipe.textureResources, this API requires the tagged object.',
@@ -1334,8 +1417,12 @@ define(
   },
   {
     ...materialMetadata,
-    references: ['src/portable-material-runtime.ts'],
-    aliases: ['portable material specification'],
+    references: [
+      'src/portable-material-runtime.ts',
+      'docs/material-library.md',
+      'docs/projects-and-live-review.md',
+    ],
+    aliases: ['portable material specification', 'project material library'],
     intents: ['compile a strict portable material definition'],
   },
 );
@@ -1350,7 +1437,7 @@ const animationFacts = {
   parameters: [
     'Exact nonempty node names; no property/path syntax or control characters. Existence and uniqueness require scene-aware inspection.',
     'Nonempty finite keyframes; nonnegative times must remain strictly increasing after float32 storage. Values must fit finite float32.',
-    'LINEAR and STEP survive native export and source/GLB review. Cubic interpolation is unsupported.',
+    'LINEAR, STEP, CUBICSPLINE and the EASE_IN, EASE_OUT and EASE_IN_OUT shorthands survive native export and source/GLB review; the last four are glTF CUBICSPLINE samplers with computed tangents and need at least two keys. three.js smooth and Bezier interpolants have no glTF form and are rejected.',
   ],
   topology: [noMesh],
   preservation: [
@@ -1362,9 +1449,14 @@ const animationFacts = {
   cost: 'Linear in keyframe/track count.',
 } satisfies Facts;
 const animationMetadata: Metadata = {
-  references: ['src/primitives.ts'],
+  references: ['src/primitives.ts', 'src/animation-spline.ts'],
   tags: ['animation', 'keyframes'],
 };
+/** How the cubic modes shape a track, shared by the three track constructors. */
+const easingSemantics = [
+  'CUBICSPLINE passes one smooth curve through every key with PCHIP slopes: monotone between keys, never overshooting a key, at rest where the value holds or turns; two keys give a straight line.',
+  'EASE_IN (s^2), EASE_OUT (2s - s^2) and EASE_IN_OUT (3s^2 - 2s^3) shape each segment between consecutive keys, s being the fraction of that segment; one key pair makes a smooth swing without sub-keys.',
+];
 define(
   'rotationTrack',
   {
@@ -1373,8 +1465,9 @@ define(
       'Times in seconds; Euler XYZ input rotations in degrees, converted to quaternion keyframes.',
     parameters: [
       ...animationFacts.parameters,
-      'rotation contains XYZ degree triples. LINEAR follows shortest quaternion arcs, not Euler turns; use quarter-turn samples for a full revolution.',
+      'rotation contains XYZ degree triples. LINEAR, the cubic modes and the eases follow shortest quaternion arcs between keys, not Euler turns; use quarter-turn samples for a full revolution.',
     ],
+    semantics: [...animationFacts.semantics, ...easingSemantics],
   },
   {
     ...animationMetadata,
@@ -1391,6 +1484,7 @@ define(
       ...animationFacts.parameters,
       'position contains absolute parent-local XYZ values, not value:.',
     ],
+    semantics: [...animationFacts.semantics, ...easingSemantics],
   },
   {
     ...animationMetadata,
@@ -1402,7 +1496,11 @@ define(
 );
 define(
   'scaleTrack',
-  { ...animationFacts, units: 'Times in seconds; XYZ scale factors are dimensionless.' },
+  {
+    ...animationFacts,
+    units: 'Times in seconds; XYZ scale factors are dimensionless.',
+    semantics: [...animationFacts.semantics, ...easingSemantics],
+  },
   {
     ...animationMetadata,
     aliases: ['scaling keyframes'],
@@ -1419,7 +1517,9 @@ define(
     parameters: [
       ...animationFacts.parameters,
       'Only position/scale vector and quaternion tracks, unique target/channel pairs, valid strides and unit quaternion samples (squared-length tolerance 1e-4). No silent repairs.',
+      'A cubic-spline track holds [in-tangent, value, out-tangent] per key, as a glTF CUBICSPLINE sampler does, and needs at least two keys; only its key values must be unit quaternions.',
       'Duration -1 derives from keys; explicit nonnegative seconds must include every key. Zero-duration time-zero static clips are valid. Longer duration is preserved by a held final native sample.',
+      'options.loop: true declares a cycle and false a one-shot; omitted is unspecified. Exported as animations[].extras.kilnLoopIntent (loop | once); three.js GLTFLoader exposes it as clip.userData.kilnLoopIntent. Animation review reports it in loopClosure.loopIntent and warns when a declared loop does not close.',
     ],
   },
   {
@@ -1679,7 +1779,7 @@ define(
     origin: 'center defaults true; center false starts depth at the selected-axis origin.',
     parameters: [
       'Finite closed outline, optional finite hole outlines, positive depth.',
-      'Twist is degrees; taper is dimensionless; divisions controls longitudinal sampling.',
+      'Twist is degrees; taper is dimensionless; divisions is a whole number >= 0 of intermediate rings, default 0 (16 when twisting).',
       'Bevel uses profile units. If its inward offset empties the section, execution rejects with repair advice: reduce bevel below half the narrowest width, disable it, or widen the section.',
     ],
   },

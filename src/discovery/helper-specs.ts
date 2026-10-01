@@ -13,6 +13,19 @@
  */
 
 import { geometryPrimitives } from '../geometry-catalog';
+import { MATERIAL_RECIPE_IDS, MATERIAL_RECIPE_LIBRARY_V1 } from '../material-recipes';
+
+/** Allowed overrides per recipe, generated from the library so the note cannot drift. */
+const RECIPE_OVERRIDES_NOTE = (() => {
+  const groups = new Map<string, string[]>();
+  for (const id of MATERIAL_RECIPE_IDS) {
+    const allowed = MATERIAL_RECIPE_LIBRARY_V1[id].allowedOverrides.join(', ');
+    groups.set(allowed, [...(groups.get(allowed) ?? []), id.split('.')[2]!]);
+  }
+  return `Overrides differ by recipe; any other key is rejected: ${[...groups]
+    .map(([allowed, names]) => `${names.join(', ')}: ${allowed}`)
+    .join('; ')}.`;
+})();
 
 export interface HelperSpec {
   /** Function name as it appears in the sandbox. */
@@ -133,6 +146,30 @@ const PRIMITIVES: HelperSpec[] = [
       "createPart('Barrel', cylinderGeo(0.1, 0.1, 1), gameMaterial(0x556b2f), { position: [0, 0.5, 0], rotation: [0, 0, 90], parent: root });",
     promptNotes:
       'AUTO-ADDS to opts.parent. NEVER call parent.add(createPart(...)) — pass { parent } instead. rotation is DEGREES — writing radians (e.g. 0.785 or Math.PI/4) silently produces ~zero rotation.',
+  },
+  {
+    name: 'defineLod',
+    signature: 'defineLod(levels: Object3D[], opts: { screenCoverage: number[] })',
+    returns: 'Object3D[] (levels, unchanged)',
+    category: 'structure',
+    description:
+      'Declares one set of level-of-detail tiers, LOD0 (full detail) first, and the minimum screen coverage (0..1) at which each level draws.',
+    example:
+      "const tiers = ['Body_LOD0', 'Body_LOD1', 'Body_LOD2'].map((name) => { const g = new THREE.Group(); g.name = name; root.add(g); return g; });\ndefineLod(tiers, { screenCoverage: [0.25, 0.06, 0.01] });",
+    promptNotes:
+      'Only when the brief asks for LOD tiers; otherwise build one tier. Tiers are sibling nodes named with one stem and consecutive LOD<n> tokens. screenCoverage has one value per level, strictly decreasing; below the last the asset is culled, and a last value of 0 never culls.',
+  },
+  {
+    name: 'markOpenShell',
+    signature: 'markOpenShell(part: Object3D, reason: string)',
+    returns: 'Object3D (part, unchanged)',
+    category: 'structure',
+    description:
+      'Marks a part that is open on purpose, such as a C-channel closed by separate end plates or a single-sided sheet, with the reason. QA reports it as an acknowledged open shell instead of an unexplained unmeasured part.',
+    example:
+      "const rail = createPart('Rail', new THREE.CylinderGeometry(0.2, 0.2, 2, 16, 1, true), steel, { parent: root });\nmarkOpenShell(rail, 'Tube closed by the end plates');",
+    promptNotes:
+      'Only for shells open by design; close a part meant to be solid instead. A mark on a group covers its meshes. Overlap with a marked part stays unmeasured, not clear.',
   },
   {
     name: 'beamBetween',
@@ -543,7 +580,8 @@ const PRIMITIVES: HelperSpec[] = [
     example:
       "const bark = await materialRecipe('kiln.material.bark.v1', { baseColor: '#6b4328' });",
     promptNotes:
-      'Use only listed kiln.material.*.v1 IDs and approved kiln.texture.* resource IDs. textureResources uses portable slots baseColor, normal, metallicRoughness, emissive and occlusion with ID string values; albedo is a pbrMaterial field, not a recipe slot. Check resource allowedSlots and recipeIds. All numeric overrides (including emissiveIntensity) are finite 0..1. Recipe emission is baked into the core glTF emissive factor. Leaf is MASK, glass is BLEND, and host file paths are forbidden.',
+      'Use only listed kiln.material.*.v1 IDs and approved kiln.texture.* resource IDs. textureResources uses portable slots baseColor, normal, metallicRoughness, emissive and occlusion with ID string values; albedo is a pbrMaterial field, not a recipe slot. Check resource allowedSlots and recipeIds. All numeric overrides (including emissiveIntensity) are finite 0..1. Recipe emission is baked into the core glTF emissive factor. Leaf is MASK, glass is BLEND, and host file paths are forbidden. ' +
+      RECIPE_OVERRIDES_NOTE,
   },
   {
     name: 'compilePortableMaterialSpecV2',
@@ -590,18 +628,18 @@ const PRIMITIVES: HelperSpec[] = [
   {
     name: 'rotationTrack',
     signature:
-      "rotationTrack(jointName: string, keyframes: Array<{ time, rotation: [xDeg, yDeg, zDeg] }>, interp?: 'LINEAR' | 'STEP')",
+      "rotationTrack(jointName: string, keyframes: Array<{ time, rotation: [xDeg, yDeg, zDeg] }>, interp?: 'LINEAR' | 'STEP' | 'CUBICSPLINE' | 'EASE_IN' | 'EASE_OUT' | 'EASE_IN_OUT')",
     returns: 'THREE.QuaternionKeyframeTrack',
     category: 'animation',
     description:
-      'Absolute local XYZ Euler degrees converted to quaternion keys. Use an exact node name; Joint_ is a convention. LINEAR follows shortest quaternion arcs; STEP holds until the next key.',
+      'Absolute local XYZ Euler degrees converted to quaternion keys. Use an exact node name; Joint_ is a convention. LINEAR follows shortest quaternion arcs; STEP holds until the next key. CUBICSPLINE is one smooth curve through the keys; EASE_IN, EASE_OUT and EASE_IN_OUT ease every segment, so one key pair is a smooth swing. The last four export as glTF CUBICSPLINE and need two or more keys.',
     example:
-      "rotationTrack('Joint_Lid', [{ time: 0, rotation: [0, 0, 0] }, { time: 1, rotation: [90, 0, 0] }]);",
+      "rotationTrack('Joint_Lid', [{ time: 0, rotation: [0, 0, 0] }, { time: 1, rotation: [90, 0, 0] }], 'EASE_IN_OUT');",
   },
   {
     name: 'positionTrack',
     signature:
-      "positionTrack(jointName: string, keyframes: Array<{ time, position: [x, y, z] }>, interp?: 'LINEAR' | 'STEP')",
+      "positionTrack(jointName: string, keyframes: Array<{ time, position: [x, y, z] }>, interp?: 'LINEAR' | 'STEP' | 'CUBICSPLINE' | 'EASE_IN' | 'EASE_OUT' | 'EASE_IN_OUT')",
     returns: 'THREE.VectorKeyframeTrack',
     category: 'animation',
     description:
@@ -612,7 +650,7 @@ const PRIMITIVES: HelperSpec[] = [
   {
     name: 'scaleTrack',
     signature:
-      "scaleTrack(jointName: string, keyframes: Array<{ time, scale: [x, y, z] }>, interp?: 'LINEAR' | 'STEP')",
+      "scaleTrack(jointName: string, keyframes: Array<{ time, scale: [x, y, z] }>, interp?: 'LINEAR' | 'STEP' | 'CUBICSPLINE' | 'EASE_IN' | 'EASE_OUT' | 'EASE_IN_OUT')",
     returns: 'THREE.VectorKeyframeTrack',
     category: 'animation',
     description: 'Uniform or per-axis scale track.',
@@ -621,12 +659,14 @@ const PRIMITIVES: HelperSpec[] = [
   },
   {
     name: 'createClip',
-    signature: 'createClip(name: string, duration: number, tracks: KeyframeTrack[])',
+    signature:
+      'createClip(name: string, duration: number, tracks: KeyframeTrack[], options?: { loop?: boolean })',
     returns: 'THREE.AnimationClip',
     category: 'animation',
     description:
-      'Validates supported position/quaternion/scale tracks and collects them into a named clip. Duration is seconds (-1 derives from keys); explicit duration must include every key. Returned from animate().',
-    example: "return [createClip('Open', 1, [rotationTrack('Joint_Lid', [...])])];",
+      'Validates supported position/quaternion/scale tracks and collects them into a named clip. Duration is seconds (-1 derives from keys); explicit duration must include every key. loop: true declares a cycle, false a one-shot; exported as the glTF animation extra kilnLoopIntent and reported by animation review. Returned from animate().',
+    example:
+      "return [createClip('Open', 1, [rotationTrack('Joint_Lid', [...])], { loop: false })];",
   },
 
   // ---------------------------------------------------------------------------
@@ -719,13 +759,13 @@ const PRIMITIVES: HelperSpec[] = [
   {
     name: 'extrudeProfile',
     signature:
-      "await extrudeProfile(profile: [number, number][], opts?: { depth?: 1, holes?: [number, number][][], bevel?: 0, bevelStyle?: 'round' | 'chamfer', segments?: 12, twist?: 0, taper?: number | [number, number], divisions?: number, axis?: 'x' | 'y' | 'z', center?: true, smooth?: false })",
+      "await extrudeProfile(profile: [number, number][], opts?: { depth?: 1, holes?: [number, number][][], bevel?: 0, bevelStyle?: 'round' | 'chamfer', segments?: 12, twist?: 0, taper?: number | [number, number], divisions?: 0, axis?: 'x' | 'y' | 'z', center?: true, smooth?: false })",
     returns: 'Promise<THREE.BufferGeometry>',
     category: 'csg',
     description:
       'Sweeps a closed 2D outline into a watertight solid, with optional holes, corner rounding/chamfering, twist, and taper. The way to build any cross-section that is not a box or a cylinder: L-brackets, I-beams, gaskets, washers, star and gear plates, signage, extruded trim.',
     promptNotes:
-      "Profile (u,v) maps to XYZ as axis x: (d,v,-u), axis y: (u,d,-v), axis z: (u,v,d), where d is extrusion depth. For a desired XZ footprint on axis y, pass [X,-Z]; positive profile v projects toward -Z. The bevel rounds the edges PARALLEL to the sweep axis (the profile corners) — the two flat caps stay sharp. For a box rounded on all twelve edges use roundedBoxGeo instead. Holes are subtracted, so their winding order does not matter. A bevel larger than half the outline's narrowest feature throws rather than silently returning an empty solid. Output is manifold, so it feeds straight into boolUnion / boolDiff / boolIntersect. Async — await it inside an async build().",
+      "Profile (u,v) maps to XYZ as axis x: (d,v,-u), axis y: (u,d,-v), axis z: (u,v,d), where d is extrusion depth. For a desired XZ footprint on axis y, pass [X,-Z]; positive profile v projects toward -Z. The bevel rounds the edges PARALLEL to the sweep axis (the profile corners) — the two flat caps stay sharp. For a box rounded on all twelve edges use roundedBoxGeo instead. Holes are subtracted, so their winding order does not matter. divisions is the whole number (>= 0) of intermediate rings between the caps: default 0, or 16 when twisting; a straight or tapered sweep needs none. A bevel larger than half the outline's narrowest feature throws rather than silently returning an empty solid. Output is manifold, so it feeds straight into boolUnion / boolDiff / boolIntersect. Async — await it inside an async build().",
     example:
       "// L-bracket, inner AND outer corners filleted\nconst outline = [[0, 0], [2, 0], [2, 0.4], [0.4, 0.4], [0.4, 2], [0, 2]];\nconst geo = await extrudeProfile(outline, { depth: 0.5, bevel: 0.06 });\ncreatePart('Bracket', geo, steel, { parent: root });",
   },

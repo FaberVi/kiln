@@ -4,6 +4,161 @@ Existing inline-code transport and the legacy capture format remain supported. T
 Discovery and authoring-helper changes below require explicit migration; retired
 names have no callable compatibility aliases.
 
+## Changes in 0.9.0
+
+Upgrade the installation and each workspace together: run the new installation's
+`kiln-init --check`, then `--upgrade`, and restart the harness/MCP session. The
+connected server then lists seventeen tools: the fourteen program tools plus the
+optional `kiln_project`, `kiln_material` and `kiln_review`. Projects stay opt-in;
+standalone work needs no change. See [projects and Live Review](projects-and-live-review.md).
+
+Changes that alter output an author already has:
+
+- **Review lighting.** GPU views default to the calibrated `review-neutral-v1` rig, so a
+  lit matte surface reads back close to its authored colour. Assets whose albedo was
+  darkened to suit the old rig look too dark and need individual review; there is no
+  automatic conversion. Authoring tools use the default rig; render-port callers and
+  composer documents can still select `neutral-studio-v1` through `lightingPresetId`.
+  See [rendering](rendering.md).
+- **`extrudeProfile`** adds no side rings by default: `divisions` defaults to 0, or 16
+  when the extrusion twists, and must be a whole number of at least 0. Untwisted
+  extrusions have fewer triangles, so their bytes change.
+- **`sweepProfile`** keeps hard corners: `creaseAngle` defaults to 60 degrees, so
+  triangles, squares and pentagons show hard edges. Pass `creaseAngle: 180` for the
+  old smooth shading. `cap` also accepts `'start'` or `'end'`.
+- **Emissive export.** The GLB `emissiveFactor` is now the colour Three.js renders,
+  colour times intensity; above 1 it is normalised and carries
+  `KHR_materials_emissive_strength`. Emissive assets export different bytes.
+- **Animated GLBs** drop the `kilnReviewClipsV1` scene extra unless a track could not
+  become a native channel, so their bytes change once. `createClip(name, duration,
+  tracks, { loop })` records loop intent as the animation extra `kilnLoopIntent`;
+  a declared loop whose end differs from its start warns `LOOP_NOT_CLOSED`.
+- **Perspective cameras** given without `near` set it to half the distance to the
+  nearest geometry (at least 0.001), so large assets lose false z-fighting and their
+  images change.
+- **CPU views** draw translucent surfaces after opaque ones, farthest first, so glass
+  shows what is behind it.
+- **Isolated capture shots** send the GPU only the subject; hidden meshes no longer
+  appear in the GPU image.
+- **Workspace CLI** (`node kiln.mjs`) re-executes under the Node recorded in
+  `.kiln/workspace.json`, so a CLI export equals `kiln_save` bytes for the same
+  reference. A workspace whose recorded Node is missing needs `--repair`.
+- **Levels of detail.** Sibling groups named with one stem and a `LOD<n>` token
+  (`Body_LOD0`, `Body_LOD1`) are a set of tiers, and a set of two or more needs one
+  `defineLod(levels, { screenCoverage })` declaration. Without it, with a gap, without
+  LOD0, or declared inside another tier, the build fails with `LOD_SET`, which names the
+  fix; a lone token stays a label. A program that stacked tiers as plain groups must
+  declare them, or keep one tier, before it renders again; its saved revisions keep their
+  bytes. A declared set exports as one `MSFT_lod` chain whose lower levels leave the
+  scene, so GLB bytes change, headline triangles and bounds count LOD0 and the parts
+  outside every set, and default sheets draw LOD0 only. See
+  [levels of detail](../skills/kiln-author-asset/references/geometry-recipes.md#levels-of-detail-only-when-the-brief-asks).
+- **Viewer LOD selection.** The global selector remains available. Expand **Per-part
+  levels** in Library or Live Review to select independent chains, with an updated
+  total for the displayed combination. Part selections belong to the loaded GLB;
+  loading different artifact bytes resets them to LOD0. Pinned comparisons have
+  independent part controls. These are manual review controls, not automatic
+  distance switching or proof that another application's importer supports LOD.
+
+Changes to results and messages:
+
+- **Compact results.** MCP `kiln_render` and `kiln_screenshot_animation` return compact
+  results by default: every acceptance field, warn and block finding, the first finding
+  of each observed code, counts of repeated findings and 24 part paths. Pass
+  `detail: "full"` for the complete report. `kiln_view_interior`, `kiln_inspect` and
+  `kiln_edit` also return compact results; `kiln_edit` leads with `programRef` and
+  `parentRef`, and `kiln_render({ programRef, detail: "full" })` returns the complete
+  report for its embedded render. The CLI, retained artifacts and Live Review keep
+  complete reports.
+- **Sizes.** `kiln_screenshot_animation` and CLI `animation` accept a frame `size` of 128
+  to 1024 px (default 256). Versioned capture shots accept up to 2048 px.
+- **Identities.** `.kiln/workspace.json` records the bundle as `buildIdentity`; discovery
+  reports `execution.buildIdentity` beside the installed `runtimeIdentity`. Existing
+  manifests that still say `runtimeIdentity` are read without reporting drift.
+- **Rejections.** A build that throws names a closed cause (for example a
+  temporal-dead-zone read or a recipe override the recipe does not list) with advice
+  and a `Source check:` line. `kiln_validate` reports `TEMPORAL_DEAD_ZONE`,
+  `MATERIAL_RECIPE_OVERRIDE` and `MATERIAL_RECIPE_ID`.
+- **QA.** Overlap checks skip parts tagged at different `LOD<n>` levels and test the
+  likeliest pairs first; `TRUNCATED` separates unmeasurable pairs from pairs not reached,
+  and open shells are grouped by reason. Connectivity leaves out LOD1+ parts. Repeated
+  helper notes are reported once with a mesh count. The instanceability grade says it is
+  informational, and the blend-area budget names its largest materials.
+- **Inspection** evaluates with optimisation off, so it reports the materials the program
+  authored. Saved previews drawn from the persisted GLB record `exactArtifact: true`.
+- **Errors.** Ambiguous or missing subjects list the candidate paths; unknown camera keys
+  name the accepted keys (`fovDeg`, not `fov`); `surfacePairs` take exact paths or
+  unambiguous node names, and a missing or shared name fails on its own pair with candidates.
+- **Paths and hosts.** On Windows, collection roots in Git Bash form (`/c/...`) are
+  refused with the setting named; use `C:/...`. The asset viewer accepts `127.0.0.1`,
+  `localhost` and `[::1]` on its own port.
+- **Discovery.** `ids` take a recipe's bare slug (`material-wood-v1`) as well as the
+  `recipe:` form. Reviewed aliases change the ranking for `bench`, `table` and `cast iron`.
+- **CLI `--json`.** `render`, `source`, `export`, `discover`, `inspect`, `animation` and
+  `service status`/`reprobe` print a receipt; commands that print JSON already accept the
+  flag; `generate`, `view`, `collections add` and `service start`/`stop` refuse it.
+  `export` and `source --out` never replace a file and name the one that exists.
+  `discover --capabilities` reports the collections the MCP server has, and `kiln-init`
+  creates `.kiln/programs`.
+- **CLI.** `kiln edit` and `kiln source` accept `--json`; `--capture` with
+  `output: "separate"` writes `<stem>.shot-01.png` and onward. `kiln service start`
+  joins or starts the shared renderer. A `KILN_RENDER_PORT_URL` naming the shared local
+  socket takes the local route. The CLI honours `KILN_RENDER` whenever `--render` is
+  omitted.
+- **Levels of detail.** Render results, the integration manifest and CLI receipts list
+  every chain in `levelsOfDetail` with each level's path and triangles; in `kiln_render`
+  and `kiln_inspect` results each chain also carries `drawn`, the level every view drew
+  (0 is LOD0). A shot whose subject is a lower level's path draws that level; see
+  [levels of detail in views](cameras.md#levels-of-detail). Chains, imported or authored,
+  survive save, optimisation and export; GPU instancing skips such files and full
+  optimisation falls back to palette. Revision comparison compares each lower level at
+  the path it takes beside LOD0 and does not compare switch thresholds. Library and Live
+  Review show a Level control for a GLB with chains.
+
+### Additional 0.9 author contracts
+
+- **Part inspection.** `listParts` entries now include world `position`, `quaternion`,
+  `scale`, `mirrored` and world `bounds`. Paging and compact limits are unchanged.
+- **Application metadata.** Plain JSON in node/material `userData` exports as extras
+  and imports back. Keep each object below 4 KiB of UTF-8 JSON and the asset below
+  64 KiB. Do not write `kiln*` keys. `kiln_validate` checks literal assignments without
+  running source; build warnings identify dynamic values that cannot be exported.
+  Metadata may reduce optimization: nodes keep their identity, and palette merging
+  is skipped when materials carry extras.
+- **Visibility.** `visible = false` now changes exported intent using
+  `KHR_node_visibility`, including hidden ancestors. Headline metrics and category QA
+  count visible geometry; `hiddenNodes` lists excluded triangles. Verify support in
+  the intended importer before depending on this extension outside Kiln.
+- **Intentional sheets.** Call `markOpenShell(part, 'specific reason')` when an open
+  boundary is intentional. The overlap report lists an acknowledgment with that
+  reason; it still measures closed geometry and reports unrelated measurement limits.
+- **Easing.** Pass `'CUBICSPLINE'`, `'EASE_IN'`, `'EASE_OUT'` or
+  `'EASE_IN_OUT'` as the third argument to a track helper. The cubic mode computes monotone tangents per
+  component; easing applies per consecutive key pair. GLBs contain standard
+  `CUBICSPLINE` data, and review playback uses those same samples. `STEP` and `LINEAR`
+  remain supported. A quaternion sign flip alone no longer warns about loop closure.
+- **Index buffers.** Source exports default to `indexPolicy: 'indexed'`, adding
+  indices to previously unindexed primitives and welding only exactly equal full
+  vertices. UV seams, normals, morph data and triangle order are retained. GLB bytes
+  can change. Set `indexPolicy: 'asBuilt'` on render calls, or
+  `KILN_INDEX_POLICY=asBuilt` in a local host, to preserve helper buffers; combine it
+  with optimization off. Saved rebuild settings and cache identities retain the
+  policy. `indexBuffers` reports unique vertex/morph/index accessor payload bytes at
+  this pass, before later optimizations; it is not a GLB compression measurement.
+- **Sweep evidence.** `SWEEP_SELF_INTERSECTION` is an observation of a tight station
+  radius or intersecting consecutive filled rings. Limits are 4096 stations, 512
+  points per ring and 65536 segment/triangle tests. Budget exhaustion retains an
+  unchecked warning and a partial finding. A completed local check does not certify
+  distant segments or a manufacturing solid.
+- **Hidden capture parts.** Use `version: 'kiln.capture.v2'` and shot-level
+  `hide: [EXACT_PATH_OR_UNIQUE_NAME]`, with up to 64 selectors. Names are exact and
+  ambiguous names fail before drawing. A hidden group hides its subtree. The hide
+  list applies after subject framing and isolation, leaving the same camera for
+  comparison; resolved paths are returned in `cameraShots`. CLI `--capture` accepts
+  the same JSON. Version 1 remains valid but rejects `hide` explicitly.
+
+## Geometry helper and diagnostic contracts
+
 `curveToMesh` and `pipeAlongPath` now reject missing, zero, negative, nonfinite or
 Float32-unrepresentable radii. Both signatures already required a radius; missing
 JavaScript values previously reached Three.js and silently selected its unit-radius
@@ -341,7 +496,9 @@ fidelity separately: a correct camera does not establish faithful PBR shading.
 
 The CLI accepts the same capture object from a JSON file:
 `node kiln.mjs render REF --capture cameras.json --views chosen.png`.
-Use grid output for this single PNG destination. This avoids copying image data
+Grid output writes that one PNG. With `output: "separate"` it writes one PNG per shot
+beside the stem instead, `chosen.shot-01.png`, `chosen.shot-02.png` and so on, and
+no sheet; `--json` lists each file with its shot name. This avoids copying image data
 from a tool response and reuses the evaluated asset.
 
 The GPU service now preserves HDR values until tone mapping and conversion to
@@ -445,7 +602,7 @@ Changing cameras can reuse an evaluated asset; source references and cached buil
 have separate lifetimes. Keep exported source before removing `.kiln/programs`.
 [Execution, limits and cache controls](runtime.md).
 
-For a new task, generate a fresh external workspace from the candidate. Use
+For a new task, generate a fresh external workspace from the new installation. Use
 `--repair` for moved installations; it preserves authored files and copied skills
 and refuses to overwrite edited configuration. Use `--check` to diagnose stale
 runtime/skill copies and `--upgrade` to refresh unchanged managed files together.
@@ -459,7 +616,7 @@ project's `kiln_workspace` server to avoid selecting an older global plugin.
 ## Keep experimental operations explicit
 
 `implicitSurface` is experimental and bounded. General bevel, shell and remeshing
-are not stable helpers in this candidate. Their trials and adoption decisions are
+are not stable helpers in this release. Their trials and adoption decisions are
 documented in [geometry experiments](experiments/geometry-frontier.md) and the
 [additional acceptance cases](experiments/geometry-acceptance.md). Ordinary
 JavaScript functions remain the supported way to reuse parameterized parts.

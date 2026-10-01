@@ -45,6 +45,24 @@ createPart(name, geometry, material, opts?: { position, rotation: [xDeg, yDeg, z
   // ~zero rotation.
   // e.g. createPart('Barrel', cylinderGeo(0.1, 0.1, 1), gameMaterial(0x556b2f), { position: [0,
   // 0.5, 0], rotation: [0, 0, 90], parent: root });
+defineLod(levels: Object3D[], opts: { screenCoverage: number[] })
+  // Declares one set of level-of-detail tiers, LOD0 (full detail) first, and the minimum screen
+  // coverage (0..1) at which each level draws.
+  // NOTE: Only when the brief asks for LOD tiers; otherwise build one tier. Tiers are sibling
+  // nodes named with one stem and consecutive LOD<n> tokens. screenCoverage has one value per
+  // level, strictly decreasing; below the last the asset is culled, and a last value of 0 never
+  // culls.
+  // e.g. const tiers = ['Body_LOD0', 'Body_LOD1', 'Body_LOD2'].map((name) => { const g = new
+  // THREE.Group(); g.name = name; root.add(g); return g; }); defineLod(tiers, { screenCoverage:
+  // [0.25, 0.06, 0.01] });
+markOpenShell(part: Object3D, reason: string)
+  // Marks a part that is open on purpose, such as a C-channel closed by separate end plates or
+  // a single-sided sheet, with the reason. QA reports it as an acknowledged open shell instead
+  // of an unexplained unmeasured part.
+  // NOTE: Only for shells open by design; close a part meant to be solid instead. A mark on a
+  // group covers its meshes. Overlap with a marked part stays unmeasured, not clear.
+  // e.g. const rail = createPart('Rail', new THREE.CylinderGeometry(0.2, 0.2, 2, 16, 1, true),
+  // steel, { parent: root }); markOpenShell(rail, 'Tube closed by the end plates');
 beamBetween(name, start: [x,y,z], end: [x,y,z], radius, material, opts?: { segments, parent })
   // Creates a cylindrical rail/strut exactly between two endpoints in its parent frame. Derive
   // attachment endpoints from the neighboring geometry; the helper does not find joints or join
@@ -276,7 +294,12 @@ await materialRecipe(recipeId, overrides?: { baseColor?, roughness?, metalness?,
   // occlusion with ID string values; albedo is a pbrMaterial field, not a recipe slot. Check
   // resource allowedSlots and recipeIds. All numeric overrides (including emissiveIntensity)
   // are finite 0..1. Recipe emission is baked into the core glTF emissive factor. Leaf is MASK,
-  // glass is BLEND, and host file paths are forbidden.
+  // glass is BLEND, and host file paths are forbidden. Overrides differ by recipe; any other
+  // key is rejected: bark, wood, stone, rubber, painted-metal, cloth: baseColor, roughness,
+  // metalness, doubleSided, textureResources; leaf: baseColor, roughness, alphaCutoff,
+  // doubleSided, textureResources; skin: baseColor, roughness, doubleSided; glass: baseColor,
+  // roughness, opacity, doubleSided; emissive: baseColor, roughness, doubleSided,
+  // emissiveColor, emissiveIntensity, textureResources.
   // e.g. const bark = await materialRecipe('kiln.material.bark.v1', { baseColor: '#6b4328' });
 await compilePortableMaterialSpecV2({ schemaVersion: 2, model: 'pbrMetallicRoughness', name?, baseColor?, roughness?, metalness?, emissive?, emissiveIntensity?, alphaMode?, alphaCutoff?, doubleSided?, textures?: { baseColor?, normal?, metallicRoughness?, emissive?, occlusion? } })
   // Compiles the strict portable material contract. Texture refs are typed procedural V2 specs
@@ -403,7 +426,7 @@ await roundedBoxGeo(width: number, height: number, depth: number, radius: number
   // — build() must be async and the call must use await.
   // e.g. const geo = await roundedBoxGeo(1.2, 0.6, 0.8, 0.05); createPart('Console', geo,
   // plastic, { position: [0, 0.3, 0], parent: root });
-await extrudeProfile(profile: [number, number][], opts?: { depth?: 1, holes?: [number, number][][], bevel?: 0, bevelStyle?: 'round' | 'chamfer', segments?: 12, twist?: 0, taper?: number | [number, number], divisions?: number, axis?: 'x' | 'y' | 'z', center?: true, smooth?: false })
+await extrudeProfile(profile: [number, number][], opts?: { depth?: 1, holes?: [number, number][][], bevel?: 0, bevelStyle?: 'round' | 'chamfer', segments?: 12, twist?: 0, taper?: number | [number, number], divisions?: 0, axis?: 'x' | 'y' | 'z', center?: true, smooth?: false })
   // Sweeps a closed 2D outline into a watertight solid, with optional holes, corner
   // rounding/chamfering, twist, and taper. The way to build any cross-section that is not a box
   // or a cylinder: L-brackets, I-beams, gaskets, washers, star and gear plates, signage,
@@ -412,10 +435,12 @@ await extrudeProfile(profile: [number, number][], opts?: { depth?: 1, holes?: [n
   // where d is extrusion depth. For a desired XZ footprint on axis y, pass [X,-Z]; positive
   // profile v projects toward -Z. The bevel rounds the edges PARALLEL to the sweep axis (the
   // profile corners) — the two flat caps stay sharp. For a box rounded on all twelve edges use
-  // roundedBoxGeo instead. Holes are subtracted, so their winding order does not matter. A
-  // bevel larger than half the outline's narrowest feature throws rather than silently
-  // returning an empty solid. Output is manifold, so it feeds straight into boolUnion /
-  // boolDiff / boolIntersect. Async — await it inside an async build().
+  // roundedBoxGeo instead. Holes are subtracted, so their winding order does not matter.
+  // divisions is the whole number (>= 0) of intermediate rings between the caps: default 0, or
+  // 16 when twisting; a straight or tapered sweep needs none. A bevel larger than half the
+  // outline's narrowest feature throws rather than silently returning an empty solid. Output is
+  // manifold, so it feeds straight into boolUnion / boolDiff / boolIntersect. Async — await it
+  // inside an async build().
   // e.g. // L-bracket, inner AND outer corners filleted const outline = [[0, 0], [2, 0], [2,
   // 0.4], [0.4, 0.4], [0.4, 2], [0, 2]]; const geo = await extrudeProfile(outline, { depth:
   // 0.5, bevel: 0.06 }); createPart('Bracket', geo, steel, { parent: root });
@@ -486,13 +511,17 @@ mergeVertices(geometry: BufferGeometry, opts?: { tolerance?: 1e-4, positionOnly?
   // 0]);
 
 // Curves
-sweepProfile(profile: [x,z][], path: [x,y,z][], opts?: { cap?: true, closed?: false, up?: [x,y,z], twist?: 0, scale?: number | [x,z][] })
+sweepProfile(profile: [x,z][], path: [x,y,z][], opts?: { cap?: true | false | 'start' | 'end', creaseAngle?: 60, closed?: false, up?: [x,y,z], twist?: 0, scale?: number | [x,z][] })
   // Sweeps a simple noncircular profile along polyline stations using transported frames.
   // Supports total twist in degrees and per-station scales. Generates UVs and optional caps.
   // NOTE: First version supports one simple profile without holes. Closed paths omit the
   // repeated endpoint and require twist to be a multiple of 360. up sets the initial profile +Z
-  // direction and cannot parallel the path. Tight-turn warnings do not replace visual
-  // inspection for self-intersections.
+  // direction and cannot parallel the path. cap caps both ends by default; 'start' or 'end'
+  // caps only that end of an open path. creaseAngle (degrees) keeps side faces meeting at more
+  // than it hard-edged, at profile corners and sharp path corners: at the default 60, squares,
+  // triangles and pentagons stay faceted while hexagons and finer profiles shade smooth; 180
+  // smooths every edge. Tight-turn warnings do not replace visual inspection for
+  // self-intersections.
   // e.g. const rail = sweepProfile([[-.1,-.2],[.1,-.2],[.1,.2],[-.1,.2]],
   // [[0,0,0],[0,1,0],[1,2,0]]);
 loftProfiles(sections: { profile: [x,z][], frame?: { origin, rotation } }[], opts?: { cap?: true })
@@ -591,26 +620,29 @@ normalMapFromHeight(source: THREE.Texture, { strength?: number, name?: string })
   // pbrMaterial({ albedo: bark, normal: normalMapFromHeight(bark, { strength: 4 }) });
 
 // Animation — keyframes use "rotation"/"position"/"scale" keys, NOT "value"
-rotationTrack(jointName: string, keyframes: Array<{ time, rotation: [xDeg, yDeg, zDeg] }>, interp?: 'LINEAR' | 'STEP')
+rotationTrack(jointName: string, keyframes: Array<{ time, rotation: [xDeg, yDeg, zDeg] }>, interp?: 'LINEAR' | 'STEP' | 'CUBICSPLINE' | 'EASE_IN' | 'EASE_OUT' | 'EASE_IN_OUT')
   // Absolute local XYZ Euler degrees converted to quaternion keys. Use an exact node name;
   // Joint_ is a convention. LINEAR follows shortest quaternion arcs; STEP holds until the next
-  // key.
+  // key. CUBICSPLINE is one smooth curve through the keys; EASE_IN, EASE_OUT and EASE_IN_OUT
+  // ease every segment, so one key pair is a smooth swing. The last four export as glTF
+  // CUBICSPLINE and need two or more keys.
   // e.g. rotationTrack('Joint_Lid', [{ time: 0, rotation: [0, 0, 0] }, { time: 1, rotation:
-  // [90, 0, 0] }]);
-positionTrack(jointName: string, keyframes: Array<{ time, position: [x, y, z] }>, interp?: 'LINEAR' | 'STEP')
+  // [90, 0, 0] }], 'EASE_IN_OUT');
+positionTrack(jointName: string, keyframes: Array<{ time, position: [x, y, z] }>, interp?: 'LINEAR' | 'STEP' | 'CUBICSPLINE' | 'EASE_IN' | 'EASE_OUT' | 'EASE_IN_OUT')
   // Absolute parent-local positions in authored length units. Use \`position:\`, not \`value:\`.
   // Finite nonnegative times must stay strictly increasing in float32.
   // e.g. positionTrack('Joint_Body', [{ time: 0, position: [0, 0, 0] }, { time: 1, position:
   // [0, 0.1, 0] }]);
-scaleTrack(jointName: string, keyframes: Array<{ time, scale: [x, y, z] }>, interp?: 'LINEAR' | 'STEP')
+scaleTrack(jointName: string, keyframes: Array<{ time, scale: [x, y, z] }>, interp?: 'LINEAR' | 'STEP' | 'CUBICSPLINE' | 'EASE_IN' | 'EASE_OUT' | 'EASE_IN_OUT')
   // Uniform or per-axis scale track.
   // e.g. scaleTrack('Joint_Chest', [{ time: 0, scale: [1, 1, 1] }, { time: 1, scale: [1.1, 1.1,
   // 1.1] }]);
-createClip(name: string, duration: number, tracks: KeyframeTrack[])
+createClip(name: string, duration: number, tracks: KeyframeTrack[], options?: { loop?: boolean })
   // Validates supported position/quaternion/scale tracks and collects them into a named clip.
-  // Duration is seconds (-1 derives from keys); explicit duration must include every key.
-  // Returned from animate().
-  // e.g. return [createClip('Open', 1, [rotationTrack('Joint_Lid', [...])])];
+  // Duration is seconds (-1 derives from keys); explicit duration must include every key. loop:
+  // true declares a cycle, false a one-shot; exported as the glTF animation extra
+  // kilnLoopIntent and reported by animation review. Returned from animate().
+  // e.g. return [createClip('Open', 1, [rotationTrack('Joint_Lid', [...])], { loop: false })];
 idleBreathing(bodyJoint: string, duration?: 2, amount?: 0.02, options?: { basePosition?: [x, y, z] })
   // Gentle parent-local Y bob around options.basePosition, default [0,0,0]. Give the authored
   // base explicitly or animate a separate zero-origin pivot.
