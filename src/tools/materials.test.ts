@@ -69,6 +69,27 @@ test('material tool creates repeatable recipes, lists summaries and reads code-r
     revisionId: result.material.revisionId,
   });
   expect(read).toEqual(result);
+  // Two live sessions of 1 October 2026 called get with the id alone (w21, w22). A material's
+  // only revision needs no revisionId; several are named for the caller to choose.
+  expect(await tool.run({ action: 'get', materialId: 'mortar' })).toEqual(result);
+  // w28: Codex passed the id a project's palette lists, `resourceId`, twice. It is an alias
+  // of materialId here (decision 25 of 2 October 2026); the docs keep materialId. The two
+  // may not disagree.
+  expect(await tool.run({ action: 'get', resourceId: 'mortar' })).toEqual(result);
+  await expect(
+    tool.run({ action: 'get', resourceId: 'mortar', materialId: 'plaster' }),
+  ).rejects.toThrow('name different materials');
+  const second = (await tool.run({
+    action: 'create-procedural',
+    draft: { ...draft, name: 'Cool mortar' },
+  })) as { material: { revisionId: string } };
+  expect(second.material.revisionId).not.toBe(result.material.revisionId);
+  await expect(tool.run({ action: 'get', materialId: 'mortar' })).rejects.toThrow(
+    `Material mortar has 2 revisions: ${[result.material.revisionId, second.material.revisionId].sort().join(', ')}. Pass revisionId to get one.`,
+  );
+  await expect(tool.run({ action: 'get', materialId: 'granite' })).rejects.toThrow(
+    "Unknown material granite. kiln_material { action: 'list' } lists the materials in this workspace with their revision IDs.",
+  );
 });
 test('material import accepts only complete normalized data and remains usable offline', async () => {
   const from = await library();

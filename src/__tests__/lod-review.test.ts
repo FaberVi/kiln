@@ -167,11 +167,14 @@ describe('a shot draws the level its subject names', () => {
   });
 
   test('the CPU and the GPU draw the same derivative bytes for every shot', async () => {
-    const cpu = await tool('kiln_render')({ code: TIERED_CAR, capture: SHOTS });
+    // Whole receipts (renderer and input bytes per view) are full detail; compact and lean
+    // keep only what differs from the viewFidelity summary.
+    const cpu = await tool('kiln_render')({ code: TIERED_CAR, capture: SHOTS, detail: 'full' });
     const requests: PbrRenderRequest[] = [];
     const gpu = await tool('kiln_render', { viewRenderPort: fakeGpu(requests) })({
       code: TIERED_CAR,
       capture: SHOTS,
+      detail: 'full',
     });
 
     expect(gpu.derivativeReceipts!.map((receipt) => receipt.rendererId)).toEqual([
@@ -231,6 +234,14 @@ function build() {
     const missing = await shot({ path: `${right.slice(0, -'/Mesh_Panel[0]'.length)}/Nope[0]` });
     expect(missing.ok).toBe(false);
     expect(missing.error).toContain('missing camera subject');
+    // A subject that names no node is a request error: next names the shot, not the source
+    // (a blind OpenCode session was sent to kiln_edit for a wrong path, 2 October 2026).
+    for (const result of [missing, ambiguous]) {
+      const next = (result as { next?: string }).next ?? '';
+      expect(next).toContain('shot');
+      expect(next).toContain('programRef');
+      expect(next).not.toContain('Fix the error in the source');
+    }
   });
 
   test('kiln_inspect frames a lower level through a shot or a legacy part', async () => {

@@ -4,6 +4,65 @@ Existing inline-code transport and the legacy capture format remain supported. T
 Discovery and authoring-helper changes below require explicit migration; retired
 names have no callable compatibility aliases.
 
+## Changes in 0.10.0
+
+The [changelog](../CHANGELOG.md) names every break; these are the ones an existing
+integration notices first.
+
+- **Server.** `dist/mcp-server.mjs` answers the handshake and `tools/list` from a
+  generated manifest and loads `dist/mcp-engine.mjs` on the first call that needs the
+  engine: both bundles stay together. Protocol revision 2026-07-28 is served beside the
+  2025 revisions; a request with neither a protocol version nor a preceding
+  `initialize` is refused with both ways in. A configuration problem comes back as the
+  first tool result instead of killing the server.
+- **Tool schemas.** `kiln_project`, `kiln_material` and `kiln_review` are one flat object
+  each with an `action` field; their `draft`, `patch` and `payload` records, and the
+  `capture`/`shot` records of the review tools other than `kiln_render`, are opaque in
+  the schema and described by `kiln_discover({ ids: ['shape:…'] })`. Every input schema
+  is within 5,000 bytes. The field names and defaults are unchanged.
+- **Results.** Every result is JSON on one line and leads with the verdict (`ok`,
+  `acceptance`, `disposition`, `blockers`, `findings` counts, `next`). The compact
+  report groups findings by code with counts, lists no `notRequested` rules and shows
+  24 part paths; `detail` takes `lean`, `compact` or `full`, and `full` is bounded at
+  40,000 characters with `retainedReport.path` naming the complete pretty-printed
+  report. `kiln_edit` returns what applied and changed with the compacted render;
+  `kiln_inspect listParts` returns paths unless `placement: true`; `kiln_review list`
+  pages. A `kiln_render` or `kiln_edit` result is never larger than 40,000 characters
+  and at most 20,000 by default. A compact or lean comparison (`preservation.comparison`
+  of `kiln_edit`, `comparison` of `kiln_inspect compare`) names each change by path,
+  name, status and changed fields without its bounds or the scope prose, and a compact
+  or lean per-view receipt (`derivativeReceipts`, `viewFidelity.receipts`) carries its
+  label, `cameraFidelity`, `captureCache` and only what differs from `viewFidelity`,
+  which states once what every receipt shares; both are whole in `full`. A compact or
+  lean result rounds every number to six decimals, states an animation shot shared by
+  several frames once (`cameraShots[].frames`, each frame's bounds in `poseBounds`),
+  omits `viewEvidence.lastFaithful` when it is the current view and keeps `poseBounds`
+  inside the default limit by counting the trailing frames it leaves out
+  (`poseBoundsOmitted`, `poseBoundsHint`). A full `kiln_edit` is bounded as a whole: its
+  diff shrinks first, then the bounds of each change, then the render. A `kiln_edit` sent
+  by `code` no longer echoes the patched source: the result's `programRef` serves it through
+  `kiln_source`, and `includeCode: true` asks for it bounded with the rest (`codeOmitted`,
+  `codeHint`). CLI `render --json` and `animation --json` carry the compact result unless
+  `--detail full`.
+- **Errors.** `ok: false` is an MCP error (`isError: true`) naming the cause and the next
+  call, with no local path. Invalid input is a sentence, not a zod issue list; a wrong
+  camera subject is answered with the shot's fix, not the source's.
+- **Revisions by default.** `kiln_assets get` and `restore` without `revisionId` read the
+  asset's newest revision; `kiln_material get` without `revisionId` reads the material's
+  only revision and names the revisions when there are several, as `kiln_project get`
+  reads the latest project revision.
+- **Strict mode.** Generated code runs under `'use strict'`: `this` is allowed inside
+  object-literal and class methods (and in field initializers, static blocks and arrows
+  nested in them) and refused elsewhere; an assignment to an undeclared name, `with`, a
+  legacy octal literal or a duplicate parameter name is an error with its line, and a
+  function declared inside a block is visible in that block only. A saved source that
+  relied on sloppy behaviour fails `kiln_validate` or its rebuild with the line named.
+- **Material pins.** A project revision implies its pins, so a call under a project
+  need not repeat them; a pin named on the call replaces the project's for the same
+  `resourceId` instead of being refused as a conflict. A saved manifest read as a
+  resource (`kiln://assets/.../manifest.json`) is one line; the file on disk is
+  unchanged.
+
 ## Changes in 0.9.0
 
 Upgrade the installation and each workspace together: run the new installation's

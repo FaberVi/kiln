@@ -196,19 +196,24 @@ overlap; the contents do not.
 | copilot | `.mcp.json` | `mcpServers.<name>` with `type: "local"` and `tools: ["*"]` |
 | cursor-agent | `.cursor/mcp.json` | `mcpServers.<name>` |
 | agy | `.agents/mcp_config.json` | `mcpServers.<name>` |
-| codex | **none** -- config is `$CODEX_HOME`-rooted | per-invocation `-c mcp_servers.<name>.…` from `codex.mjs` |
+| codex | `.codex/config.toml`, read only once `$CODEX_HOME/config.toml` marks the project trusted | the same values as per-invocation `-c mcp_servers.<name>.…` from `codex.mjs`, so no trust entry is needed |
 | opencode | `opencode.json` | `mcp.<name>` with `type: "local"` and `command` as an array |
 | hermes | **none** -- config is `$HERMES_HOME`-rooted | one user-level `hermes mcp add`; the workspace supplies `--in` and the program store |
 
-**Two of these have no project-local configuration at all, and both used to be written as
-though they did.** Codex reads only `$CODEX_HOME`: `-c` overrides `~/.codex/config.toml`,
-`-p <name>` layers `$CODEX_HOME/<name>.config.toml`, and `-C`/`--cd` changes the working
-directory and nothing else. Hermes reads only `$HERMES_HOME`, and `hermes mcp add` has no
+**Codex reads a project's `.codex/config.toml` only for a trusted project, and Hermes has no
+project-local configuration at all.** Measured on Codex 0.160.0 under an empty `$CODEX_HOME`
+(2026-10-01): `codex mcp list` from a directory holding `.codex/config.toml` lists nothing until
+the home's `config.toml` carries `[projects."<path>"] trust_level = "trusted"`, and lists the
+server after it. Everything else Codex reads is `$CODEX_HOME`-rooted: `-c` overrides
+`~/.codex/config.toml`, `-p <name>` layers `$CODEX_HOME/<name>.config.toml`, and `-C`/`--cd`
+changes the working directory. Hermes reads only `$HERMES_HOME`, and `hermes mcp add` has no
 scope flag -- confirmed against upstream HEAD, not just the installed build.
 
 So a workspace configures them **per invocation**, through a generated launcher. Codex takes
-nested TOML overrides, which is a complete fix: the server is registered for that run and
-nothing is written, so `$CODEX_HOME` keeps its configuration and its authentication. Hermes
+nested TOML overrides, which is complete without a trust entry: the server is registered for
+that run and nothing is written, so `$CODEX_HOME` keeps its configuration and its
+authentication; the generated `.codex/config.toml` carries the same values for a reader and
+for a project the user chooses to trust. Hermes
 has no equivalent for MCP servers, so registering the server is one user-level command that
 `START.md` prints; the launcher still supplies the project directory and retargets the program
 store through the environment, so one registration serves every workspace.
@@ -243,12 +248,56 @@ Call `kiln_discover` with `{ capabilities: true }` and compare `capabilities.eng
 register under their own `kiln_workspace` name. Report a mismatch rather than silently
 substituting it.
 
-Skills need no per-harness directory beyond the two the generator already writes. Claude Code
-reads `.claude/skills/`. Every other harness here reads `.agents/skills/`: `copilot skill
+A workspace carries one skill registry, the directory its harness reads, beside the maintained
+`skills/`. Measured in the installed binaries on 2026-10-01: Claude Code 2.1.287 names
+`.claude/skills` (and `.agents/skills`, so a workspace that carried both registered every
+skill twice); Codex 0.160.0 names `.agents/skills` and `.codex/skills`; Agy 1.2.14 names
+`.agents/skills`; OpenCode 2.0.14 names only the `skills.paths` key, which its generated
+`opencode.json` points at `skills/`. Documented rather than measured here: `copilot skill
 --help` lists `.github/skills/`, `.agents/skills/` and `.claude/skills/`, and Cursor's project
 skill paths are `.agents/skills/` and `.cursor/skills/` with `.claude/skills/` supported as
-legacy. cursor-agent additionally applies a project-root `AGENTS.md` as a rule, alongside
-`.cursor/rules/`.
+legacy, so both get `.agents/skills/`. cursor-agent additionally applies a project-root
+`AGENTS.md` as a rule, alongside `.cursor/rules/`. `kiln-init --check` reports the second
+registry a 0.9 workspace carried as `retired`, and `--upgrade` removes it when unchanged.
+
+Claude Code 2.1.287 loads `AGENTS.md` as project instructions only where the project has no
+`CLAUDE.md`; its `instructionFiles` setting can load `CLAUDE.md` alone or both, and in the
+both-files mode "a file CLAUDE.md already imports or links to is not loaded twice" (the
+binary's own description). So the generated `CLAUDE.md` is the one-line import `@AGENTS.md`:
+one copy of the guide in context under every setting.
+
+## Protocol revisions and each harness's switch
+
+The stdio server serves three revisions of the protocol: **2026-07-28**, which has no
+handshake and carries the protocol version and client capabilities in every request's
+`_meta`, and the two handshake revisions **2025-11-25** and **2025-06-18**, opened with
+`initialize`. The library decides the era from the opening message; Kiln adds one rule of
+its own: a request that carries neither a protocol version nor a preceding `initialize` is
+answered `-32602` with both ways in, rather than being served as a 2025 session.
+`src/__tests__/mcp-conformance.test.ts` drives the built bundle with raw JSON-RPC under all
+three and is part of `bun run test`.
+
+Generated workspaces leave each harness on its default. Where a harness has a switch, the
+after-fix sessions of the v1 readiness cycle run it with the switch on:
+
+| harness | default | switch to 2026-07-28 |
+| --- | --- | --- |
+| Claude Code 2.1.287 | `initialize` at 2025-11-25 | `MCP_PROTOCOL_NEGOTIATION=auto` and `MCP_SDK_GENERATION=v2` in the environment |
+| Codex 0.159.3 | `initialize` at 2025-06-18 | `-c features.mcp_2026_07_28=true` and `CODEX_MCP_PROTOCOL_VERSION=2026-07-28` |
+| OpenCode 2.0.14 | `legacy` | per server, `protocol: "2026-07-28"` (or `auto`) in `opencode.json` |
+| Antigravity 1.2.14 | 2026-07-28 | none needed |
+
+Under 2026-07-28 the definition answers are cacheable: `server/discover`, `tools/list`,
+`resources/list`, `resources/templates/list` and the viewer page read are `public` with a
+one-day `ttlMs`, because they are fixed for a build and a new build restarts the process;
+asset and project reads are `private` with `ttlMs: 0`. No `listChanged` is advertised, so a
+`subscriptions/listen` acknowledges no list-changed notifications.
+
+The entry answers these before it loads the engine: `dist/mcp-server.mjs` carries the
+protocol library and a generated manifest of the definitions, and loads
+`dist/mcp-engine.mjs` on the first call that needs it. Codex gives an optional server one
+second before it goes on without its tools; 0.9.0 took 1.1 to 1.7 s to the first answer and
+lost the race, and the thin entry answers in about a quarter of a second after process start.
 
 ## Running the checks
 

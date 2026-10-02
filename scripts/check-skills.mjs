@@ -18,18 +18,35 @@
  * whichever ending an editor happened to write is not.
  *
  * Third, `skills/` is the maintained copy, but a bare clone registers nothing
- * from it: Claude Code scans only `.claude/skills/`, while codex, opencode,
- * hermes and agy scan `.agents/skills/`. Those copies exist so a fresh clone has
- * a working loadout, and copies drift. Symlinks would avoid the duplication but
- * need developer mode or an administrator on Windows, so the files are real and
- * this check is what keeps them honest.
+ * from it: Claude Code scans only `.claude/skills/`, while codex, hermes and agy
+ * scan `.agents/skills/` (opencode reads the `skills.paths` a workspace config
+ * names). Those copies exist so a fresh clone has a working loadout, and copies
+ * drift. Symlinks would avoid the duplication but need developer mode or an
+ * administrator on Windows, so the files are real and this check is what keeps
+ * them honest.
+ *
+ * Fourth, standing knowledge is a budget (v1 contract rule 12). Claude Code
+ * re-injects at most about 5,000 tokens of a skill after compaction, and the
+ * baseline sessions read the 19,000-character author skill whole before the first
+ * call, so a SKILL.md is at most 16,000 characters and 500 lines. Codex read the
+ * same reference file from two skills in one session, so every file under
+ * `skills/` has one source: no two files may carry the same bytes.
+ *
+ * `node scripts/check-skills.mjs [root]` checks the repository, or the tree at
+ * `root` (used by its test over a scratch copy).
  */
+import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const repo = fileURLToPath(new URL('..', import.meta.url));
+const repo = process.argv[2]
+  ? resolve(process.argv[2])
+  : fileURLToPath(new URL('..', import.meta.url));
 const CANONICAL = 'skills';
+/** Rule 12: what a harness keeps whole after compaction. */
+const SKILL_CHARACTERS = 16_000;
+const SKILL_LINES = 500;
 /** Skills that must also be registered at the repository root, and where. */
 const REGISTERED = ['kiln-setup-workspace'];
 const REGISTRIES = ['.claude/skills', '.agents/skills'];
@@ -100,7 +117,50 @@ async function validate(label, dir, name) {
       errors.push(`${label}: ${key} is not an Agent Skills frontmatter field`);
   }
   const lines = text.split(/\r?\n/u).length;
-  if (lines > 500) errors.push(`${label}: SKILL.md is ${lines} lines, over the recommended 500`);
+  if (lines > SKILL_LINES)
+    errors.push(`${label}: SKILL.md is ${lines} lines, over the ${SKILL_LINES} of rule 12`);
+  if (text.length > SKILL_CHARACTERS)
+    errors.push(
+      `${label}: SKILL.md is ${text.length} characters, over the ${SKILL_CHARACTERS.toLocaleString('en-US')} a harness keeps whole (rule 12); move detail into a reference file`,
+    );
+}
+
+/** Rule 12: every file under the maintained tree has one source. */
+async function checkOneSource(dir) {
+  const byDigest = new Map();
+  for (const file of await tree(dir)) {
+    const digest = createHash('sha256')
+      .update(await readFile(join(dir, file)))
+      .digest('hex');
+    const seen = byDigest.get(digest);
+    const posix = (name) => name.replaceAll('\\', '/');
+    if (seen)
+      errors.push(
+        `${CANONICAL}/${posix(file)} has the same bytes as ${CANONICAL}/${posix(seen)}; keep one source and name it by skill and path from the other (a markdown link must stay inside its skill)`,
+      );
+    else byDigest.set(digest, file);
+  }
+}
+
+/**
+ * Fifth, rule 7's default has to hold in practice. The wave sessions of 1 October
+ * 2026 (OpenCode, both the compact and the lean arm) asked `detail: "full"` on
+ * every render and edit because the skills said to pass it "for every finding",
+ * so the bounded default never reached the model. A skill may name full detail
+ * only as a qualified second look: every sentence that names it says "only".
+ */
+async function checkFullDetail(label, dir) {
+  for (const file of await tree(dir)) {
+    if (!file.endsWith('.md')) continue;
+    const text = await readFile(join(dir, file), 'utf8');
+    for (const sentence of text.split(/(?<=[.!?])\s+|\r?\n/u)) {
+      if (!/detail: ?"full"|--detail full/u.test(sentence)) continue;
+      if (!/\bonly\b/u.test(sentence))
+        errors.push(
+          `${label}/${file.replaceAll('\\', '/')}: "${sentence.trim().slice(0, 90)}" names full detail without "only"; the compact result is the way to review (rule 7) and full is a qualified second look`,
+        );
+    }
+  }
 }
 
 /** Every file of a skill, rejected if its bytes are not canonically LF. */
@@ -121,7 +181,9 @@ if (names.length === 0) errors.push(`${CANONICAL}/ contains no skills`);
 for (const name of names) {
   await validate(`${CANONICAL}/${name}`, join(canonicalDir, name), name);
   await checkLineEndings(`${CANONICAL}/${name}`, join(canonicalDir, name));
+  await checkFullDetail(`${CANONICAL}/${name}`, join(canonicalDir, name));
 }
+await checkOneSource(canonicalDir);
 
 for (const registry of REGISTRIES) {
   const dir = join(repo, registry);

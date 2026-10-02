@@ -37,6 +37,8 @@ export interface DiscoveryResponse {
   nextOffset: number | null;
   text: string;
   textTruncated?: boolean;
+  /** Exact ids requested but not returned because the page was full; fetch them with another call. */
+  omittedIds?: string[];
   error?: { code: string; message: string };
   suggestions?: string[];
   capabilities?: unknown;
@@ -50,6 +52,8 @@ export interface DiscoveryResponse {
 
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_TEXT_CHARS = 16 * 1024;
+/** Rule 7: a detail page of exact contracts stays inside MAX_TEXT_CHARS with room for its notice. */
+const DETAIL_RESULT_BUDGET = 15_000;
 const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export function createDiscoveryService(
@@ -57,6 +61,8 @@ export function createDiscoveryService(
   index: DiscoveryIndex,
   capabilities: () => Promise<unknown>,
   retirements: Readonly<Record<string, string>> = {},
+  /** Host notes for the overview, such as the project an omitted `projectId` selects. */
+  notes: () => Promise<string[]> = async () => [],
 ): (input: unknown) => Promise<DiscoveryResponse> {
   const entries = parseCatalog(source);
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
@@ -78,7 +84,7 @@ export function createDiscoveryService(
   const orientation: NonNullable<DiscoveryResponse['orientation']> = {
     start: ['createRoot', 'createPart'].flatMap((name) => {
       const entry = byName.get(name);
-      return entry
+      return entry && 'contract' in entry
         ? [{ id: entry.id, signature: entry.contract.signature, returns: entry.contract.returns }]
         : [];
     }),
@@ -140,7 +146,9 @@ export function createDiscoveryService(
     tags: entry.tags,
     stability: entry.stability,
     limitations: entry.limitations,
-    ...(entry.kind === 'recipe' ? {} : { execution: entry.contract.execution }),
+    ...(entry.kind === 'operation' || entry.kind === 'assembly'
+      ? { execution: entry.contract.execution }
+      : {}),
     ...(match ? { match } : {}),
   });
   return async (value) => {
@@ -154,7 +162,7 @@ export function createDiscoveryService(
         total: 0,
         nextOffset: null,
         capabilities: current,
-        text: `Current host capabilities.\n${JSON.stringify(current, null, 2)}`,
+        text: `Current host capabilities.\n${JSON.stringify(current)}`,
       });
     }
     if (input.mode === 'detail') {
@@ -183,21 +191,40 @@ export function createDiscoveryService(
           suggestions,
         });
       }
-      const details = selected as DiscoveryEntry[];
-      if (new Set(details.map((entry) => entry.id)).size !== details.length) {
+      const requested = selected as DiscoveryEntry[];
+      if (new Set(requested.map((entry) => entry.id)).size !== requested.length) {
         return error(
           input.mode,
           'DUPLICATE_ID',
           'Each exact selector must identify a different catalog entry. A name or unprefixed slug and its canonical ID refer to the same entry.',
         );
       }
+      // Rule 7: a detail page stays inside the default result size. Six full
+      // tool-input shapes run to 35,000 characters, so the entries that do not
+      // fit are named for a second call rather than cut mid-contract.
+      const details: DiscoveryEntry[] = [];
+      let characters = 2;
+      for (const entry of requested) {
+        const cost = JSON.stringify(entry).length + 1;
+        if (details.length && characters + cost > DETAIL_RESULT_BUDGET) break;
+        details.push(entry);
+        characters += cost;
+      }
+      const omitted = requested.slice(details.length).map((entry) => entry.id);
       return finish({
         version: 'kiln.discovery.v1',
         mode: input.mode,
         entries: details,
-        total: details.length,
+        total: requested.length,
         nextOffset: null,
-        text: details.map((entry) => JSON.stringify(entry, null, 2)).join('\n\n'),
+        ...(omitted.length ? { omittedIds: omitted } : {}),
+        // One JSON line: a contract is read whole, and one-line JSON costs
+        // about a quarter fewer tokens than the indented form.
+        text:
+          JSON.stringify(details) +
+          (omitted.length
+            ? `\nNot returned, over the result size: ${omitted.join(', ')}. Fetch them with another kiln_discover ids call.`
+            : ''),
       });
     }
     if (
@@ -254,13 +281,14 @@ export function createDiscoveryService(
     const page = matches.slice(input.offset, input.offset + input.limit);
     const nextOffset =
       input.offset + page.length < matches.length ? input.offset + page.length : null;
+    const guidance = [...orientation.guidance, ...(input.mode === 'overview' ? await notes() : [])];
     return finish({
       version: 'kiln.discovery.v1',
       mode: input.mode,
       entries: page,
       total: matches.length,
       nextOffset,
-      ...(input.mode === 'overview' ? { orientation } : {}),
+      ...(input.mode === 'overview' ? { orientation: { ...orientation, guidance } } : {}),
       text: [
         input.query
           ? 'Potential helpers and related guidance. Fetch selected contracts with ids before calling unfamiliar helpers. Search relevance does not certify support for the entire requested asset.'
@@ -268,7 +296,7 @@ export function createDiscoveryService(
         ...(input.mode === 'overview'
           ? [
               ...orientation.start.map((entry) => `${entry.signature} -> ${entry.returns}`),
-              ...orientation.guidance,
+              ...guidance,
               `Families: ${orientation.families.join(', ')}. Tags: ${orientation.tags.join(', ')}.`,
             ]
           : []),

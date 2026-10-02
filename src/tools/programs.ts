@@ -1,34 +1,58 @@
 import { z } from 'zod';
 import { programRefPattern, retainProgram, type ProgramStore } from '../program-store';
 import type { KilnToolDef } from './registry';
+import { DEFAULT_RESULT_LIMIT, MAX_RESULT_LIMIT, resultCharacters } from './review-detail';
 
 const refInput = z
   .string()
   .regex(programRefPattern)
   .describe('Returned p_ handle or full sha256 ref.');
 
-/** Adapt source-taking definitions once, for all hosts. Legacy definitions remain unchanged. */
-export function withProgramReferences(def: KilnToolDef, store: ProgramStore): KilnToolDef {
+/**
+ * Adapt source-taking definitions once, for all hosts. Legacy definitions remain unchanged.
+ * A host that can read workspace files also accepts `file`, a path relative to the workspace
+ * root, so a code-mode harness need not quote a program into an argument.
+ */
+export function withProgramReferences(
+  def: KilnToolDef,
+  store: ProgramStore,
+  readSourceFile?: (file: string) => Promise<string>,
+): KilnToolDef {
   if (!(def.inputSchema instanceof z.ZodObject))
     throw new Error(`${def.name} must have an object input schema.`);
+  const sources = readSourceFile ? 'code, programRef OR file' : 'code OR programRef';
   const inputSchema = def.inputSchema
     .extend({
-      code: z.string().optional().describe('New source. Supply code OR programRef.'),
+      code: z.string().optional().describe('New source.'),
       programRef: refInput.optional(),
+      ...(readSourceFile
+        ? {
+            file: z
+              .string()
+              .min(1)
+              .max(1024)
+              .optional()
+              .describe('A program file inside the workspace, relative to its root.'),
+          }
+        : {}),
       ...(def.name === 'kiln_edit'
         ? {
             includeCode: z
               .boolean()
               .optional()
               .describe(
-                'Return the full updated source. Defaults to false with programRef, true with code.',
+                'Also return the patched source, bounded with the result; kiln_source pages it. Default false.',
               ),
           }
         : {}),
     })
-    .refine((input) => (input.code !== undefined) !== (input.programRef !== undefined), {
-      message: 'Supply exactly one of code or programRef.',
-    });
+    .refine(
+      (input) =>
+        [input.code, input.programRef, (input as { file?: string }).file].filter(
+          (value) => value !== undefined,
+        ).length === 1,
+      { message: `Supply exactly one of ${sources.replace(' OR ', ' or ')}.` },
+    );
   const summaries: Record<string, string> = {
     kiln_validate:
       'Check program syntax, sandbox rules and retired globals before building. Returns findings with codes, lines and repair hints where available; use kiln_render to evaluate geometry and see the asset.',
@@ -41,18 +65,29 @@ export function withProgramReferences(def: KilnToolDef, store: ProgramStore): Ki
     kiln_inspect:
       'List part paths and inspect joints, clearances and edit preservation. listParts filters names/paths with query; follow partListing.nextOffset on the same programRef/query. measure/surfacePairs return distances, not fit certificates. compare reports static changes and separate animation channel changes; paths adds complete static subtree summaries. image:false skips rendering. Otherwise use part/orbit or exact shot; check viewFidelity for materials.',
   };
+  // Every tool that returns a handle states how long the bound store keeps it.
+  const kept = store.retention ?? 'kept by the host program store';
   const description =
     def.name === 'kiln_edit'
-      ? 'Atomically apply ordered exact-string replacements and render. Copy anchors from kiln_source. Returns programRef, parentRef, diff and preservation comparing static data and animation channels. Review changes; use kiln_inspect compare for more pages or protected subtrees. Failed comparison preserves the repair; render:false leaves preservation not_assessed. capture selects cameras; includeCode returns full source.'
-      : `${summaries[def.name] ?? def.description} Supply code OR programRef. Invalid drafts retain a ref; read with kiln_source.`;
+      ? `Atomically apply ordered exact-string replacements and render. Copy anchors from kiln_source. Supply ${sources}. Returns programRef (${kept}), parentRef, diff and preservation comparing static data and animation channels. Review changes; use kiln_inspect compare for more pages or protected subtrees. Failed comparison preserves the repair; render:false leaves preservation not_assessed. capture selects cameras; includeCode adds the patched source, bounded.`
+      : `${summaries[def.name] ?? def.description} Supply ${sources} (${kept}). Invalid drafts keep a ref.`;
   return {
     ...def,
     inputSchema,
     description,
     run: async (input) => {
-      const args = inputSchema.parse(input);
+      const args = inputSchema.parse(input) as Record<string, unknown> & {
+        code?: string;
+        programRef?: string;
+        file?: string;
+        includeCode?: boolean;
+      };
       const code =
-        typeof args.code === 'string' ? args.code : await store.get(args.programRef as string);
+        typeof args.code === 'string'
+          ? args.code
+          : typeof args.file === 'string' && readSourceFile
+            ? await readSourceFile(args.file)
+            : await store.get(args.programRef as string);
       // Keep malformed drafts too, so a failed build can be repaired by reference.
       const parentRef = await retainProgram(store, code);
       const { programRef: _inner, ...output } = (await def.run({ ...args, code })) as Record<
@@ -64,20 +99,42 @@ export function withProgramReferences(def: KilnToolDef, store: ProgramStore): Ki
         return { programRef: parentRef, ...output };
       const programRef = await retainProgram(store, output.code);
       const { code: updatedCode, ...rest } = output;
-      const includeCode = args.includeCode ?? args.code !== undefined;
+      // The retained ref serves the source through kiln_source. Echoing it by default put
+      // an edit sent by `code` at 28,539 characters (w26); includeCode asks for it, inside
+      // the limit of the requested detail.
+      const includeCode = args.includeCode === true;
       const diff = typeof rest.diff === 'string' ? rest.diff : '';
-      return {
-        programRef,
-        parentRef,
-        ...rest,
-        ...(includeCode
-          ? { code: updatedCode }
-          : {
-              diff: diff.slice(0, 8000),
-              diffTruncated: diff.length > 8000,
-            }),
-      };
+      if (!includeCode)
+        return {
+          programRef,
+          parentRef,
+          ...rest,
+          diff: diff.slice(0, 8000),
+          diffTruncated: diff.length > 8000 || typeof rest.diffOmitted === 'number',
+        };
+      return boundIncludedCode(
+        { programRef, parentRef, ...rest, code: updatedCode },
+        args.detail === 'full' ? MAX_RESULT_LIMIT : DEFAULT_RESULT_LIMIT,
+      );
     },
+  };
+}
+
+/** Rule 7 for a result that carries the patched source: the source gives way first. */
+function boundIncludedCode(
+  result: Record<string, unknown>,
+  limit: number,
+): Record<string, unknown> {
+  const code = typeof result.code === 'string' ? result.code : '';
+  const over = resultCharacters(result) - limit;
+  if (over <= 0) return result;
+  // Every raw character cut removes at least one JSON character; 120 covers the two fields added.
+  const keep = Math.max(0, code.length - over - 120);
+  return {
+    ...result,
+    code: code.slice(0, keep),
+    codeOmitted: code.length - keep,
+    codeHint: 'The whole patched source: kiln_source with this programRef.',
   };
 }
 

@@ -1,9 +1,10 @@
 # Install Kiln for your coding agent
 
-This guide installs Kiln **0.9.0**: standalone authoring with optional projects, a
-material library and Live Review in the local dashboard. [CHANGELOG.md](../CHANGELOG.md)
+This guide installs Kiln **0.10.0**: standalone authoring with optional projects, a
+material library and Live Review in the local dashboard, served to a coding agent over
+the 2026-07-28 and 2025 protocol revisions. [CHANGELOG.md](../CHANGELOG.md)
 lists what changed. Existing users should read the [migration notes](migration.md)
-before upgrading a workspace. **0.9.0 is a source and site preview for dogfooding.** Build this checkout
+before upgrading a workspace. **0.10.0 is a source and site preview for dogfooding.** Build this checkout
 to evaluate the current engine. Package publication is deferred to v1.0.
 
 ## Install the package
@@ -224,7 +225,7 @@ connecting an existing harness does not load that stack.
 | Harness | Project configuration | Launch from the workspace |
 | --- | --- | --- |
 | Claude Code | `.mcp.json` | `claude` |
-| Codex | `.codex/config.toml` | `codex` |
+| Codex | `.codex/config.toml`, read once `$CODEX_HOME/config.toml` marks the project trusted | `node codex.mjs` (applies the same values per run) |
 | OpenCode | `opencode.json` | `opencode` |
 | Antigravity | `.agents/mcp_config.json` | `node agy.mjs` |
 | Hermes | Separate `.hermes/config.yaml` profile | `node hermes.mjs --ignore-rules` |
@@ -321,17 +322,21 @@ writing anything. Preserve those files separately, compare with a fresh temporar
 workspace from the desired installation, and resolve them before retrying. Reapply
 compatible customizations afterward; no automatic content merge is attempted.
 
-Restart the harness/MCP session after upgrading. Newly generated CLI launchers
-and MCP configurations reject stale managed workspaces before starting tools.
-Older launchers need an explicit `--check`/`--upgrade` first. Hand-wired MCP setups
-are outside this managed-workspace check. Customizations are reported by `--check`;
+Generated CLI launchers refuse a stale managed workspace before running. The MCP
+server still answers the handshake and the tool list; its first call that needs the
+engine returns the stale-workspace diagnostic with the `kiln-init` steps, and the next
+call succeeds once the workspace is upgraded, without restarting the session. Older
+launchers need an explicit `--check`/`--upgrade` first. Hand-wired MCP setups are
+outside this managed-workspace check. Customizations are reported by `--check`;
 their compatibility remains the owner's responsibility. Keep exported `.kiln.js`
 files as portable checkpoints even when retaining the source store. Use fresh
 workspaces for independent model evaluations.
 
 ## Manual MCP configuration
 
-Launch the installed `dist/mcp-server.mjs` over stdio using an absolute path. Choose
+Launch the installed `dist/mcp-server.mjs` over stdio using an absolute path. It loads
+`dist/mcp-engine.mjs` from the same directory on the first call that needs the engine,
+so launch the installed copy in place rather than copying one file elsewhere. Choose
 an explicit store shared with your CLI:
 
 ```json

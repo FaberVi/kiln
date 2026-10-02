@@ -12,7 +12,7 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 
 import { createKilnNativeToolRegistry, createKilnProgramToolRegistry } from './tools/registry';
 import { makeKilnNativeTools } from './agent/tools';
-import { runTool, kilnMcpToolDefs, createKilnMcpServer } from './mcp-server';
+import { runTool, kilnMcpToolDefs, createKilnMcpServer } from './mcp-engine';
 
 /**
  * List the tool surface the way a client sees it, over a real linked transport.
@@ -246,7 +246,11 @@ describe('a camera vector is still exactly three numbers at runtime', () => {
     code: "const meta = { name: 'B', category: 'prop' }; function build() { const root = createRoot('B'); createPart('Body', boxGeo(1,1,1), gameMaterial(0x808080), { position: [0,0.5,0], parent: root }); return root; }",
     capture: {
       version: 'kiln.capture.v1',
-      shots: [{ camera: { type: 'explicit', projection: 'perspective', position } }],
+      // A complete explicit shot: before results marked `ok: false` as errors, a
+      // shot without `target` failed at runtime and this test passed on nothing.
+      shots: [
+        { camera: { type: 'explicit', projection: 'perspective', position, target: [0, 0.5, 0] } },
+      ],
     },
   });
   const refusal = async (position: unknown) => {
@@ -259,7 +263,8 @@ describe('a camera vector is still exactly three numbers at runtime', () => {
   };
 
   it('accepts exactly three numbers', async () => {
-    expect((await refusal([3, 2, 4])).failed).toBe(false);
+    const accepted = await refusal([3, 2, 4]);
+    expect(accepted.failed, accepted.text.slice(0, 600)).toBe(false);
   });
 
   /**

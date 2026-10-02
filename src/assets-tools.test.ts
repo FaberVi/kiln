@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { EXTENSION_ID as MCP_APPS_EXTENSION_ID } from '@modelcontextprotocol/ext-apps/server';
-import { createKilnMcpServer } from './mcp-server';
+import { createKilnMcpServer } from './mcp-engine';
 import { FileAssetLibrary } from './assets-node';
 import { MemoryProgramStore, retainProgram } from './program-store';
 import { createKilnProgramToolRegistry } from './tools/registry';
@@ -107,6 +107,35 @@ test('MCP saves an editable revision, exposes exact downloadable bytes, and rest
         revisionId: data.asset.revisionId,
       })) as { programRef: string };
     expect(await fresh.get(restored.programRef)).toBe(code);
+    // c40 (1 October 2026) called get with the asset id alone and was refused. A get or
+    // restore without a revisionId reads the newest revision: the one no later revision
+    // names as its parent.
+    const assets = defs.find((d) => d.name === 'kiln_assets')!;
+    const latest = (await assets.run({
+      action: 'restore',
+      collection: 'project',
+      assetId: data.asset.assetId,
+    })) as { programRef: string; asset: { revisionId: string } };
+    expect(latest.asset.revisionId).toBe(data.asset.revisionId);
+    expect(await fresh.get(latest.programRef)).toBe(code);
+    const first = await assetLibrary.read('project', data.asset.assetId, data.asset.revisionId);
+    const child = await assetLibrary.save('project', {
+      assetId: data.asset.assetId,
+      parentRevision: data.asset.revisionId,
+      name: 'Crate again',
+      code,
+      glb: first.files['asset.glb']!,
+      build: { engine: 'test', options: {}, warnings: [], integration: {} },
+    });
+    const newest = (await assets.run({
+      action: 'get',
+      collection: 'project',
+      assetId: data.asset.assetId,
+    })) as { asset: { revisionId: string } };
+    expect(newest.asset.revisionId).toBe(child.revisionId);
+    await expect(
+      assets.run({ action: 'get', collection: 'project', assetId: 'nope' }),
+    ).rejects.toThrow("kiln_assets { action: 'list', collection: 'project' } lists them");
     const copy = (await defs
       .find((d) => d.name === 'kiln_import')!
       .run({
@@ -275,6 +304,17 @@ test('the default MCP transport keeps artifact URIs readable without resource-li
     );
     const read = await client.readResource({ uri: source.uri });
     expect('text' in read.contents[0]! ? read.contents[0].text : undefined).toBe(code);
+    // Decision 27 of 2 October 2026 (H26): the manifest is pretty-printed on disk and one
+    // line as a resource (a Codex session read 33,563 characters of it, a quarter of
+    // them line breaks and indentation).
+    const manifest = payload.resources.find(
+      (link: { name?: string }) => link.name === 'manifest.json',
+    );
+    const manifestRead = await client.readResource({ uri: manifest.uri });
+    const manifestText =
+      'text' in manifestRead.contents[0]! ? manifestRead.contents[0].text : undefined;
+    expect(manifestText).not.toContain('\n');
+    expect(JSON.parse(manifestText!).assetId).toBe(payload.asset.assetId);
   } finally {
     await client.close();
     await server.close();

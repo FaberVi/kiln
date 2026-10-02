@@ -46,6 +46,8 @@ Defaults to a no-call dry run. Live runs additionally require:
 
 Options:
   --runs N                 Repeat one goal N times (default: number of goals)
+  --repository URL_OR_PATH Repository the agent clones (default: the public repository);
+                           a local mirror lets a blind run test an unpushed branch
   --model ID               Override the outer harness model
   --provider ID            Provider override where the harness supports one (Hermes)
   --reasoning LEVEL        Per-run reasoning/variant override
@@ -69,6 +71,7 @@ export function parseArgs(argv) {
   const opts = {
     harness: null,
     goals: [],
+    repository: PUBLIC_REPOSITORY,
     model: null,
     provider: null,
     reasoning: null,
@@ -98,6 +101,7 @@ export function parseArgs(argv) {
     };
     if (arg === '--harness') opts.harness = value();
     else if (arg === '--goal') opts.goals.push(value());
+    else if (arg === '--repository') opts.repository = value();
     else if (arg === '--model') opts.model = value();
     else if (arg === '--provider') opts.provider = value();
     else if (arg === '--reasoning') opts.reasoning = value();
@@ -130,6 +134,9 @@ export function parseArgs(argv) {
     throw new Error(`--harness must be one of: ${SUPPORTED_HARNESSES.join(', ')}.`);
   if (opts.goals.length === 0) throw new Error('Supply at least one --goal.');
   if (opts.goals.some((goal) => !goal.trim())) throw new Error('--goal cannot be empty.');
+  // The value becomes one line of the prompt, so it must be a single clonable token.
+  if (/\s/u.test(opts.repository))
+    throw new Error('--repository must be one URL or path without whitespace.');
   if (opts.requestedRuns !== null) {
     if (!Number.isInteger(opts.requestedRuns) || opts.requestedRuns < 1)
       throw new Error('--runs must be a positive integer.');
@@ -171,9 +178,9 @@ export function parseArgs(argv) {
 }
 
 /** Keep the experimental prompt from teaching the setup path it is meant to test. */
-export function composeBlindPrompt(goal) {
+export function composeBlindPrompt(goal, repository = PUBLIC_REPOSITORY) {
   return [
-    `Repository: ${PUBLIC_REPOSITORY}`,
+    `Repository: ${repository}`,
     `Goal: Create a visually distinctive, production-worthy 3D asset: ${goal.trim()}.`,
     'Start from a fresh clone, set up Kiln from its public documentation in a separate asset workspace inside your current run directory, then launch your own headless coding agent to author, render, visually review, revise, and export the asset. Continue until the source and GLB are saved.',
   ].join('\n');
@@ -442,9 +449,20 @@ async function evidenceFromFiles(stdoutPath, stderrPath) {
   return evidence;
 }
 
-/** The workspace MCP tools, by their unprefixed names; a harness adds its own prefix. */
-const KILN_MCP_TOOL =
-  /kiln_(?:list_primitives|validate|render|screenshot_animation|view_interior|inspect|edit|source|save|assets|present|export|import)\b/u;
+/**
+ * The workspace MCP tools by their unprefixed names, read from the packaged manifest so a
+ * tool added to the registry counts the day it ships; a harness adds its own prefix. The
+ * hand-kept list this replaced lacked five tools, so a session that only discovered and
+ * configured a project read as `not-exercised`. Longest names first, so `renderer` is not
+ * cut short by `render`.
+ */
+const KILN_MCP_TOOL = new RegExp(
+  `kiln_(?:${JSON.parse(readFileSync(join(REPO, 'src/generated/mcp-manifest.json'), 'utf8'))
+    .tools.map((tool) => tool.name.replace(/^kiln_/u, ''))
+    .sort((a, b) => b.length - a.length)
+    .join('|')})\\b`,
+  'u',
+);
 
 /**
  * Every tool call in a trace, counted by name, and whether any of them reached the
@@ -456,12 +474,15 @@ const KILN_MCP_TOOL =
  *
  * Shapes recognised: OpenCode (`{type:'tool_use', part:{tool}}`), Claude stream
  * JSON (`{type:'tool_use', name}` inside message content), Codex JSONL
- * (`{type:'mcp_tool_call', server, tool}` and `command_execution` items). Anything
+ * (`{type:'mcp_tool_call', server, tool}` and `command_execution` items), Agy stream
+ * JSON (`{event:'step_update', step_update:{step_index, tool_name}}`, emitted when a
+ * tool step starts and again when it ends, so one step index is one call). Anything
  * else counts as no tool calls, which the receipt reports as `unknown` rather than
  * as `not-exercised`.
  */
 export function toolUsageFromEvents(events) {
   const calls = {};
+  const agySteps = new Set();
   const record = (name) => {
     if (typeof name !== 'string' || !name) return;
     calls[name] = (calls[name] ?? 0) + 1;
@@ -472,6 +493,17 @@ export function toolUsageFromEvents(events) {
       return;
     }
     if (!node || typeof node !== 'object') return;
+    if (node.event === 'step_update' && node.step_update && typeof node.step_update === 'object') {
+      const step = node.step_update;
+      if (typeof step.tool_name === 'string') {
+        const key = `${step.conversation_id ?? ''}:${step.step_index}`;
+        if (!agySteps.has(key)) {
+          agySteps.add(key);
+          record(step.tool_name);
+        }
+      }
+      return;
+    }
     if (node.type === 'tool_use') {
       record(node.name ?? node.tool ?? node.part?.tool);
       return;
@@ -812,7 +844,7 @@ async function main(argv) {
       invocation: buildInvocation({
         harness: opts.harness,
         model: opts.model,
-        prompt: composeBlindPrompt(goal),
+        prompt: composeBlindPrompt(goal, opts.repository),
         workspace,
         emptyMcpConfig,
         compactTokens: opts.compactTokens,
@@ -831,6 +863,7 @@ async function main(argv) {
         sanitizeReceipt(
           {
             mode: 'dry-run',
+            repository: opts.repository,
             harness: opts.harness,
             model: opts.model ?? 'harness default',
             provider: opts.provider ?? 'harness default',
@@ -881,6 +914,7 @@ async function main(argv) {
     agyHome: opts.agyHome,
     authorization: opts.authorization,
     publicRepository: PUBLIC_REPOSITORY,
+    repository: opts.repository,
     timeoutSeconds: opts.timeoutMs / 1000,
     compactTokens: opts.compactTokens,
     rawEvidence: outDir,

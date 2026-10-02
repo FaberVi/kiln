@@ -155,13 +155,23 @@ test('CLI samples real clips with the same frames as the shared tool and preserv
     expect(grid.exitCode).toBe(0);
     const gridResult = JSON.parse(grid.stdout.toString());
     expect(gridResult.frames).toBe(3);
-    expect(gridResult.cameraShots).toHaveLength(3);
+    // The compact receipt states each distinct resolved shot once with its frame count: the
+    // swing returns to its first pose, so two of the three followed frames share a shot.
+    expect(
+      (gridResult.cameraShots as { frames?: number }[]).reduce(
+        (frames, shot) => frames + (shot.frames ?? 1),
+        0,
+      ),
+    ).toBe(3);
     expect(gridResult.images).toHaveLength(1);
     expect((await readFile(gridResult.images[0].path)).subarray(0, 4)).toEqual(
       Buffer.from([137, 80, 78, 71]),
     );
 
-    // The frame size is selectable, and the CLI receipt keeps the complete QA report.
+    // The frame size is selectable; the receipt is compact unless --detail full
+    // asks for the complete QA report.
+    expect(gridResult.qaReport.detail).toBe('compact');
+    expect(gridResult.qaReport.ruleSummary).toBeDefined();
     const sized = run([
       result.programRef,
       '--clip',
@@ -175,12 +185,18 @@ test('CLI samples real clips with the same frames as the shared tool and preserv
       '--views',
       'sized.png',
       '--json',
+      '--detail',
+      'full',
     ]);
     expect(sized.stderr.toString()).toBe('');
     expect(sized.exitCode).toBe(0);
     const sizedResult = JSON.parse(sized.stdout.toString());
     expect(decodePng(await readFile(sizedResult.images[0].path)).width).toBeGreaterThan(2 * 384);
     expect(Array.isArray(sizedResult.qaReport.rules)).toBe(true);
+    expect(
+      run([result.programRef, '--clip', 'Swing', '--views', 'x.png', '--detail', 'verbose'])
+        .exitCode,
+    ).not.toBe(0);
 
     await writeFile(join(directory, 'guard.png'), 'existing image');
     const absent = run([
@@ -234,4 +250,4 @@ test('CLI samples real clips with the same frames as the shared tool and preserv
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-}, 30000);
+}, 90_000); // Compiled-CLI animation runs: 12.2 to 17.4 s in the gates of 2 October 2026, 29.4 s in a fresh clone's gate beside two live sessions.
