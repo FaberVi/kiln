@@ -9,6 +9,11 @@ Changes since the 0.10.0 tagged package release. The package version stays 0.10.
 until the next package release; source/main and website deployment are separate
 from publishing a new installable package.
 
+- Organic authoring helpers: `metaballSurface`, `taperedTube`, `catmullRomPath`,
+  `smoothOrganic`, `rockDisplace`, and SDF utilities `smoothUnion` / `sphereInside`.
+  Benchmark programs under `benchmark/organic-comparison/` and
+  `scripts/organic-benchmark-compare.mjs` document before/after CPU renders.
+
 - **Breaking (planned 0.11):** `optimize: 'full'` replaces flatten/join with rigid-group
   merging. Its rigid-merge pass preserves node names, hierarchy and transforms, including animated targets,
   named joint pivots, semantic nodes, composition placements and LOD levels. Ordinary

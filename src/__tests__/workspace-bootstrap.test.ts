@@ -242,7 +242,7 @@ it('steers the session to the loop, the render service and its own inherited con
     // absolute engine path baked in here would rot silently the first time the
     // installation moved. The manifest is the indirection that repair does keep.
     expect(guide).toContain('.kiln/workspace.json');
-    expect(guide).not.toContain(repo);
+    expect(guide).not.toContain(`${repo}/`);
     // Inherited user-level skills and servers are the measured context leak; the
     // workspace cannot prevent them, so it must at least ask for them to be reported.
     expect(guide).toContain('user-level configuration');

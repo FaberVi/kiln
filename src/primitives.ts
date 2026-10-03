@@ -49,7 +49,17 @@ import * as geometry from './geometry';
 import * as deform from './deform';
 import * as sweep from './sweep';
 import { implicitSurface } from './implicit';
+import {
+  catmullRomPath,
+  metaballSurface,
+  rockDisplace,
+  smoothOrganic,
+  taperedTube,
+} from './organic';
+import { smoothUnion, sphereInside } from './sdf';
 export * from './implicit';
+export * from './organic';
+export * from './sdf';
 export * from './sweep';
 export * from './deform';
 export * from './geometry';
@@ -2234,6 +2244,13 @@ export function buildSandboxGlobals(
     bobbingAnimation: wrap('bobbingAnimation', bobbingAnimation),
     idleBreathing: wrap('idleBreathing', idleBreathing),
     implicitSurface: wrap('implicitSurface', implicitSurface),
+    metaballSurface: wrap('metaballSurface', metaballSurface),
+    catmullRomPath: wrap('catmullRomPath', catmullRomPath),
+    taperedTube: wrap('taperedTube', taperedTube),
+    smoothOrganic: wrap('smoothOrganic', smoothOrganic),
+    rockDisplace: wrap('rockDisplace', rockDisplace),
+    smoothUnion: wrap('smoothUnion', smoothUnion),
+    sphereInside: wrap('sphereInside', sphereInside),
     sweepProfile: wrap('sweepProfile', sweep.sweepProfile),
     loftProfiles: wrap('loftProfiles', sweep.loftProfiles),
     bend: wrap('bend', deform.bend),
