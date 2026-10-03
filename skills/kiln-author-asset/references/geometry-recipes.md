@@ -308,7 +308,7 @@ const torso = await metaballSurface(
 );
 ```
 
-`rockDisplace` adds deterministic fractal normal displacement to spheres or other closed meshes for boulders. Compose custom fields with `sphereInside` and `smoothUnion` inside `implicitSurface` when metaballs are not enough. See `benchmark/organic-comparison/` for paired before/after briefs.
+`rockDisplace` adds low-frequency, faceted displacement (defaults: amplitude ~0.022, frequency ~1.15, two octaves, 34° faceting). Tune amplitude down for small boulders; raise frequency only when you need sharper breakup. Compose custom fields with `sphereInside` and `smoothUnion` inside `implicitSurface` when metaballs are not enough. See `benchmark/organic-comparison/` for paired before/after briefs.
 
 
 For textures, preserve valid primitive UVs. Use `copyGeometry` before independent

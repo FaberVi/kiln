@@ -262,7 +262,7 @@ export const geometryPrimitives: readonly HelperSpec[] = [
     category: 'mesh-ops',
     description:
       'Deterministic fractal displacement along vertex normals for boulders and rough shells.',
-    example: 'const boulder = rockDisplace(sphereGeo(0.4, 32, 24), { amplitude: 0.03, seed: 4 });',
+    example: 'const boulder = rockDisplace(sphereGeo(0.4, 24, 18), { seed: 4 });',
   },
   {
     name: 'smoothUnion',

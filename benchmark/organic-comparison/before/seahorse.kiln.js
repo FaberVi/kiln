@@ -11,7 +11,7 @@ function build() {
   const spine = pipeAlongPath(
     [[0, 0.05, 0], [0.02, 0.2, 0], [0.05, 0.32, 0], [0.02, 0.42, 0], [-0.02, 0.48, 0]],
     0.04,
-    { tubularSegments: 12, radialSegments: 6 },
+    { tubularSegments: 24, radialSegments: 10 },
   );
   createPart('Body', spine, bodyMat, { parent: root });
 

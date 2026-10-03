@@ -8,10 +8,10 @@ async function build() {
   const skin = gameMaterial(0x3d6b4f, { roughness: 0.72 });
   const belly = gameMaterial(0x8a9a6b, { roughness: 0.8 });
 
-  createPart('Head', sphereGeo(0.09, 12, 8), skin, { position: [0.38, 0.07, 0], parent: root });
-  createPart('Snout', sphereGeo(0.05, 10, 6), skin, { position: [0.46, 0.06, 0], parent: root });
-  createPart('Torso', sphereGeo(0.11, 12, 8), skin, { position: [0.22, 0.06, 0], parent: root });
-  createPart('Hind', sphereGeo(0.1, 12, 8), skin, { position: [0.05, 0.055, 0], parent: root });
+  createPart('Head', sphereGeo(0.09, 16, 12), skin, { position: [0.38, 0.07, 0], parent: root });
+  createPart('Snout', sphereGeo(0.05, 12, 8), skin, { position: [0.46, 0.06, 0], parent: root });
+  createPart('Torso', sphereGeo(0.11, 16, 12), skin, { position: [0.22, 0.06, 0], parent: root });
+  createPart('Hind', sphereGeo(0.1, 16, 12), skin, { position: [0.05, 0.055, 0], parent: root });
   createPart('BellyPlate', sphereGeo(0.08, 10, 6), belly, {
     position: [0.24, 0.03, 0],
     scale: [1.2, 0.35, 0.9],
@@ -21,7 +21,7 @@ async function build() {
   const tail = pipeAlongPath(
     [[-0.02, 0.055, 0], [-0.12, 0.07, 0], [-0.22, 0.1, 0], [-0.32, 0.12, 0.02]],
     0.035,
-    { tubularSegments: 10, radialSegments: 6 },
+    { tubularSegments: 20, radialSegments: 10 },
   );
   createPart('Tail', tail, skin, { parent: root });
 

@@ -123,10 +123,18 @@ export function smoothOrganic(
 }
 
 export interface RockDisplaceOptions {
+  /** Peak normal displacement in asset units. Default 0.022. */
   amplitude?: number;
+  /** Base spatial frequency before octave doubling. Default 0.95 (chunky, not spiky). */
   frequency?: number;
+  /** Fractal layers; default 2. Values above 3 add high-frequency shard detail. */
   octaves?: number;
   seed?: number;
+  /**
+   * Broad planar facets via angle-limited normals after displacement.
+   * Default 34°. Pass `null` to keep smooth vertex normals.
+   */
+  facetingAngle?: number | null;
 }
 
 function hashNoise(x: number, y: number, z: number, seed: number): number {
@@ -134,15 +142,23 @@ function hashNoise(x: number, y: number, z: number, seed: number): number {
   return (v - Math.floor(v)) * 2 - 1;
 }
 
+/** Low-frequency biased noise — reduces hedgehog spikes from raw fractal hash. */
+function chunkyNoise(x: number, y: number, z: number, seed: number): number {
+  const n = hashNoise(x, y, z, seed);
+  const t = Math.abs(n);
+  return Math.sign(n) * (t * t * (3 - 2 * t));
+}
+
 /** Deterministic fractal displacement along vertex normals for rock-like surfaces. */
 export function rockDisplace(
   geometry: THREE.BufferGeometry,
   options: RockDisplaceOptions = {},
 ): THREE.BufferGeometry {
-  const amplitude = options.amplitude ?? 0.04;
-  const frequency = options.frequency ?? 3.5;
-  const octaves = options.octaves ?? 3;
+  const amplitude = options.amplitude ?? 0.022;
+  const frequency = options.frequency ?? 0.95;
+  const octaves = options.octaves ?? 2;
   const seed = options.seed ?? 1;
+  const facetingAngle = options.facetingAngle === undefined ? 34 : options.facetingAngle;
   if (!Number.isFinite(amplitude) || amplitude < 0)
     throw new Error('rockDisplace amplitude must be nonnegative and finite');
   if (!Number.isSafeInteger(octaves) || octaves < 1 || octaves > 6)
@@ -160,9 +176,9 @@ export function rockDisplace(
     let amp = amplitude;
     let freq = frequency;
     for (let o = 0; o < octaves; o++) {
-      n += hashNoise(x * freq, y * freq, z * freq, seed + o * 17) * amp;
-      amp *= 0.5;
-      freq *= 2.1;
+      n += chunkyNoise(x * freq, y * freq, z * freq, seed + o * 17) * amp;
+      amp *= 0.38;
+      freq *= 1.85;
     }
     pos.setXYZ(i, x + norm.getX(i) * n, y + norm.getY(i) * n, z + norm.getZ(i) * n);
   }
@@ -183,5 +199,6 @@ export function rockDisplace(
   normals.needsUpdate = true;
   out.computeBoundingBox();
   out.computeBoundingSphere();
+  if (facetingAngle !== null) return creaseNormals(out, { angle: facetingAngle });
   return out;
 }

@@ -15840,11 +15840,17 @@ function hashNoise(x, y, z, seed) {
   const v = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719 + seed * 43.21) * 43758.5453;
   return (v - Math.floor(v)) * 2 - 1;
 }
+function chunkyNoise(x, y, z, seed) {
+  const n = hashNoise(x, y, z, seed);
+  const t = Math.abs(n);
+  return Math.sign(n) * (t * t * (3 - 2 * t));
+}
 function rockDisplace(geometry, options = {}) {
-  const amplitude = options.amplitude ?? 0.04;
-  const frequency = options.frequency ?? 3.5;
-  const octaves = options.octaves ?? 3;
+  const amplitude = options.amplitude ?? 0.022;
+  const frequency = options.frequency ?? 0.95;
+  const octaves = options.octaves ?? 2;
   const seed = options.seed ?? 1;
+  const facetingAngle = options.facetingAngle === undefined ? 34 : options.facetingAngle;
   if (!Number.isFinite(amplitude) || amplitude < 0)
     throw new Error("rockDisplace amplitude must be nonnegative and finite");
   if (!Number.isSafeInteger(octaves) || octaves < 1 || octaves > 6)
@@ -15864,9 +15870,9 @@ function rockDisplace(geometry, options = {}) {
     let amp = amplitude;
     let freq = frequency;
     for (let o = 0;o < octaves; o++) {
-      n += hashNoise(x * freq, y * freq, z * freq, seed + o * 17) * amp;
-      amp *= 0.5;
-      freq *= 2.1;
+      n += chunkyNoise(x * freq, y * freq, z * freq, seed + o * 17) * amp;
+      amp *= 0.38;
+      freq *= 1.85;
     }
     pos.setXYZ(i, x + norm.getX(i) * n, y + norm.getY(i) * n, z + norm.getZ(i) * n);
   }
@@ -15888,6 +15894,8 @@ function rockDisplace(geometry, options = {}) {
   normals.needsUpdate = true;
   out.computeBoundingBox();
   out.computeBoundingSphere();
+  if (facetingAngle !== null)
+    return creaseNormals(out, { angle: facetingAngle });
   return out;
 }
 var init_organic = __esm(() => {
@@ -21613,7 +21621,7 @@ var init_geometry_catalog = __esm(() => {
       returns: "THREE.BufferGeometry",
       category: "mesh-ops",
       description: "Deterministic fractal displacement along vertex normals for boulders and rough shells.",
-      example: "const boulder = rockDisplace(sphereGeo(0.4, 32, 24), { amplitude: 0.03, seed: 4 });"
+      example: "const boulder = rockDisplace(sphereGeo(0.4, 24, 18), { seed: 4 });"
     },
     {
       name: "smoothUnion",

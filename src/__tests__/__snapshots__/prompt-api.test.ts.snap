@@ -517,7 +517,7 @@ smoothOrganic(geometry, opts?: { iterations?: 1, creaseAngle?: 55, preserveUV?: 
   // e.g. const soft = smoothOrganic(tube, { iterations: 1, creaseAngle: 50 });
 rockDisplace(geometry, opts?: { amplitude?: 0.04, frequency?: 3.5, octaves?: 3, seed?: 1 })
   // Deterministic fractal displacement along vertex normals for boulders and rough shells.
-  // e.g. const boulder = rockDisplace(sphereGeo(0.4, 32, 24), { amplitude: 0.03, seed: 4 });
+  // e.g. const boulder = rockDisplace(sphereGeo(0.4, 24, 18), { seed: 4 });
 subdivide(geometry: BufferGeometry, iterations?: 1, opts?: { preserveUV?: boolean, split?: boolean, uvSmooth?: boolean, preserveEdges?: boolean, flatOnly?: boolean, weld?: boolean })
   // Loop subdivision returns new geometry; each iteration roughly quadruples triangles and
   // smooths the surface. Use preserveUV:true for textured meshes. Legacy position-only welding
