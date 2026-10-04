@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test';
+import * as THREE from 'three';
+
 import { geometryDiagnostics } from '../geometry';
 import { catmullRomPath, rockBoulder, rockDisplace, smoothOrganic, taperedTube } from '../organic';
 import { countTriangles, createPart, createRoot, gameMaterial, sphereGeo } from '../primitives';
+import { createUniversalQaRegistry } from '../qa/universal';
+import { createAssetIntentV1 } from '../contracts';
 
 describe('organic helpers', () => {
   test('catmullRomPath returns more points than controls', () => {
@@ -49,11 +53,28 @@ describe('organic helpers', () => {
     );
   });
 
-  test('rockBoulder produces faceted angular mesh', () => {
-    const geo = rockBoulder({ halfExtents: [0.1, 0.08, 0.09], seed: 9, detail: 1 });
-    const diag = geometryDiagnostics(geo);
-    expect(diag.triangles).toBeGreaterThan(40);
-    expect(diag.degenerateTriangles).toBe(0);
+  test('QA blocks open kilnSolidRock meshes', () => {
+    const root = new THREE.Group();
+    const geo = new THREE.PlaneGeometry(0.2, 0.2);
+    geo.userData.kilnSolidRock = true;
+    root.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ name: 'Stone' })));
+    const findings = createUniversalQaRegistry().run({
+      intent: createAssetIntentV1({ category: 'prop' }),
+      scene: root,
+    }).findings;
+    expect(findings.some((f) => f.code === 'UNIVERSAL_MESH_TOPOLOGY')).toBe(true);
+  });
+
+  test('rockBoulder produces watertight manifold solids for varied seeds', async () => {
+    for (const seed of [1, 3, 7, 11, 19, 23, 42]) {
+      const geo = await rockBoulder({ halfExtents: [0.1, 0.08, 0.09], seed });
+      const diag = geometryDiagnostics(geo);
+      expect(diag.triangles).toBeGreaterThan(20);
+      expect(diag.boundaryEdges).toBe(0);
+      expect(diag.nonManifoldEdges).toBe(0);
+      expect(diag.orientationConflicts).toBe(0);
+      expect(diag.degenerateTriangles).toBe(0);
+    }
   });
 
   test('rockDisplace changes positions on a sphere', () => {

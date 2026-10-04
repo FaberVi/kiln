@@ -7,6 +7,8 @@ import { circleProfile } from './profile';
 import { subdivide } from './ops';
 import { sweepProfile } from './sweep';
 import { smoothUnionSpheres } from './sdf';
+import { getManifoldModule, manifoldToGeometry } from './solids';
+import type { Manifold } from 'manifold-3d';
 
 export interface MetaballSphere {
   center: Point3;
@@ -135,22 +137,13 @@ export interface RockDisplaceOptions {
    * Default 26°. Pass `null` to keep smooth vertex normals.
    */
   facetingAngle?: number | null;
-  /**
-   * When set, applies piecewise-constant Voronoi cell offsets before fractal
-   * displacement — sharp fractured facets instead of smooth blobbing.
-   */
-  voronoiCells?: number;
 }
 
 export interface RockBoulderOptions {
-  /** Half-extents along X, Y, Z before jitter. Default [0.12, 0.1, 0.11]. */
+  /** Half-extents along X, Y, Z before shaping. Default [0.12, 0.1, 0.11]. */
   halfExtents?: readonly [number, number, number];
   seed?: number;
-  /** Icosahedron subdivision level 0–2. Default 1. */
-  detail?: number;
-  /** Voronoi facet cell count. Default 11. */
-  voronoiCells?: number;
-  /** Extra crease angle after displacement. Default 24°. */
+  /** Crease angle for flat-shaded facets on the exported solid. Default 24°. */
   facetingAngle?: number;
 }
 
@@ -176,103 +169,85 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-function voronoiFacetDisplace(
-  geometry: THREE.BufferGeometry,
-  options: { cells: number; amplitude: number; seed: number },
-): THREE.BufferGeometry {
-  const { cells, amplitude, seed } = options;
-  const out = geometry.clone();
-  const pos = out.getAttribute('position') as THREE.BufferAttribute;
-  if (!pos) throw new Error('voronoiFacetDisplace needs positions');
-  out.computeBoundingBox();
-  const box = out.boundingBox!;
-  const size = new THREE.Vector3();
-  box.getSize(size);
-  const center = new THREE.Vector3();
-  box.getCenter(center);
-  const rng = mulberry32(seed);
-  const cellCenters: THREE.Vector3[] = [];
-  for (let c = 0; c < cells; c++) {
-    cellCenters.push(
-      new THREE.Vector3(
-        center.x + (rng() - 0.5) * size.x * 0.9,
-        center.y + (rng() - 0.5) * size.y * 0.9,
-        center.z + (rng() - 0.5) * size.z * 0.9,
-      ),
-    );
-  }
-  const cellOffset = cellCenters.map(() => {
-    const dir = new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5);
-    if (dir.lengthSq() < 1e-12) dir.set(0, 1, 0);
-    dir.normalize();
-    const mag = amplitude * (0.55 + rng() * 0.9);
-    return dir.multiplyScalar(mag);
-  });
-  const vertexCell = new Int32Array(pos.count);
-  for (let i = 0; i < pos.count; i++) {
-    const p = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
-    let best = 0;
-    let bestD = cellCenters[0]!.distanceToSquared(p);
-    for (let c = 1; c < cells; c++) {
-      const d = cellCenters[c]!.distanceToSquared(p);
-      if (d < bestD) {
-        bestD = d;
-        best = c;
-      }
-    }
-    vertexCell[i] = best;
-  }
-  for (let i = 0; i < pos.count; i++) {
-    const off = cellOffset[vertexCell[i]!]!;
-    pos.setXYZ(i, pos.getX(i) + off.x, pos.getY(i) + off.y, pos.getZ(i) + off.z);
-  }
-  pos.needsUpdate = true;
-  out.computeVertexNormals();
-  return out;
-}
-
 /**
- * Angular boulder mesh: jittered low-poly hull, Voronoi facets, mild erosion noise.
- * Prefer this over `sphereGeo` + `rockDisplace` for convincing rocks by default.
+ * Manifold-backed angular boulder: intersected boxes, corner plane cuts, mild warp.
+ * Always returns a closed watertight solid mesh (flat-shaded facets by default).
  */
-export function rockBoulder(options: RockBoulderOptions = {}): THREE.BufferGeometry {
+export async function rockBoulder(options: RockBoulderOptions = {}): Promise<THREE.BufferGeometry> {
   const seed = options.seed ?? 1;
   const [hx, hy, hz] = options.halfExtents ?? [0.12, 0.1, 0.11];
-  const detail = options.detail ?? 1;
-  const voronoiCells = options.voronoiCells ?? 11;
   const facetingAngle = options.facetingAngle ?? 24;
-  if (!Number.isSafeInteger(detail) || detail < 0 || detail > 2)
-    throw new Error('rockBoulder detail must be an integer from 0 to 2');
   const rng = mulberry32(seed);
-  const base = new THREE.IcosahedronGeometry(1, detail);
-  const pos = base.getAttribute('position') as THREE.BufferAttribute;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const z = pos.getZ(i);
-    const jx = 0.78 + rng() * 0.38;
-    const jy = y < 0 ? 0.65 + rng() * 0.25 : 0.75 + rng() * 0.35;
-    const jz = 0.78 + rng() * 0.38;
-    const len = Math.hypot(x, y, z) || 1;
-    pos.setXYZ(i, (x / len) * hx * jx, (y / len) * hy * jy, (z / len) * hz * jz);
-  }
-  pos.needsUpdate = true;
-  base.computeVertexNormals();
+  const mod = await getManifoldModule();
+  const owned: Manifold[] = [];
+  const track = (m: Manifold) => {
+    owned.push(m);
+    return m;
+  };
   const extent = Math.max(hx, hy, hz);
-  let geo = voronoiFacetDisplace(base, {
-    cells: voronoiCells,
-    amplitude: extent * 0.16,
-    seed: seed + 41,
-  });
-  geo = rockDisplace(geo, {
-    amplitude: extent * 0.022,
-    frequency: 1.25,
-    octaves: 2,
-    seed: seed + 3,
-    voronoiCells: undefined,
-    facetingAngle: null,
-  });
-  return creaseNormals(geo, { angle: facetingAngle });
+  try {
+    const sx = hx * (0.82 + rng() * 0.28);
+    const sy = hy * (0.75 + rng() * 0.22);
+    const sz = hz * (0.82 + rng() * 0.28);
+    let solid = track(mod.Manifold.cube([sx * 2, sy * 2, sz * 2], true));
+    const blockB = track(
+      mod.Manifold.cube([sx * 2.15, sy * 1.75, sz * 2.05], true).rotate([
+        rng() * 18 - 9,
+        rng() * 28 - 14,
+        rng() * 16 - 8,
+      ]),
+    );
+    solid = track(solid.intersect(blockB));
+    const blockC = track(
+      mod.Manifold.cube([sx * 1.65, sy * 2.05, sz * 1.85], true).rotate([
+        rng() * 22 - 11,
+        rng() * 20 - 10,
+        rng() * 24 - 12,
+      ]),
+    );
+    solid = track(solid.intersect(blockC));
+
+    const cuts = 4 + (seed % 3);
+    for (let i = 0; i < cuts; i++) {
+      const sign = () => (rng() > 0.5 ? 1 : -1);
+      const corner = track(
+        mod.Manifold.cube([extent * 0.55, extent * 0.55, extent * 0.55], true).translate([
+          sign() * sx * (0.65 + rng() * 0.25),
+          sign() * sy * (0.55 + rng() * 0.25),
+          sign() * sz * (0.65 + rng() * 0.25),
+        ]),
+      );
+      solid = track(solid.subtract(corner));
+    }
+
+    const warpAmp = extent * 0.035;
+    solid = track(
+      solid.warp((v: number[]) => {
+        const x = v[0]!;
+        const y = v[1]!;
+        const z = v[2]!;
+        const nx = x / (sx || 1);
+        const ny = y / (sy || 1);
+        const nz = z / (sz || 1);
+        const n =
+          chunkyNoise(nx * 1.6, ny * 1.6, nz * 1.6, seed) * warpAmp +
+          chunkyNoise(nx * 3.2, ny * 3.2, nz * 3.2, seed + 5) * warpAmp * 0.35;
+        const len = Math.hypot(x, y, z);
+        if (len < 1e-9) return;
+        v[0]! += (x / len) * n;
+        v[1]! += (y / len) * n;
+        v[2]! += (z / len) * n;
+      }),
+    );
+
+    if (solid.isEmpty()) throw new Error('rockBoulder: plane cuts removed the entire solid');
+    let geo = manifoldToGeometry(solid, { smooth: false });
+    geo = creaseNormals(geo, { angle: facetingAngle });
+    geo.userData.kilnSolidRock = true;
+    return geo;
+  } finally {
+    for (const m of owned) m.delete();
+  }
 }
 
 /** Deterministic fractal displacement along vertex normals for rock-like surfaces. */
@@ -285,19 +260,11 @@ export function rockDisplace(
   const octaves = options.octaves ?? 2;
   const seed = options.seed ?? 1;
   const facetingAngle = options.facetingAngle === undefined ? 26 : options.facetingAngle;
-  const voronoiCells = options.voronoiCells;
   if (!Number.isFinite(amplitude) || amplitude < 0)
     throw new Error('rockDisplace amplitude must be nonnegative and finite');
   if (!Number.isSafeInteger(octaves) || octaves < 1 || octaves > 6)
     throw new Error('rockDisplace octaves must be an integer from 1 to 6');
-  let out = geometry.clone();
-  if (voronoiCells !== undefined && voronoiCells > 0) {
-    out = voronoiFacetDisplace(out, {
-      cells: voronoiCells,
-      amplitude: amplitude * 1.8,
-      seed: seed + 91,
-    });
-  }
+  const out = geometry.clone();
   const pos = out.getAttribute('position') as THREE.BufferAttribute;
   if (!pos) throw new Error('rockDisplace needs positions');
   if (!out.getAttribute('normal')) out.computeVertexNormals();

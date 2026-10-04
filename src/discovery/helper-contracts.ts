@@ -790,8 +790,8 @@ define(
   {
     ...ownedGeometry,
     parameters: [
-      'Optional halfExtents [x,y,z], seed, detail (0..2), voronoiCells, facetingAngle.',
-      'Builds a jittered icosahedron hull with fractured facets.',
+      'Optional halfExtents [x,y,z], seed, facetingAngle.',
+      'Async Manifold solid: intersected blocks, plane cuts, mild warp, flat facets.',
     ],
     preservation: ['Recomputes normals; tangents are not retained.'],
     cost: 'Scales with icosahedron detail and Voronoi cell count.',
@@ -808,7 +808,7 @@ define(
   {
     ...ownedGeometry,
     parameters: [
-      'Optional amplitude, frequency, octaves (1..6), seed, voronoiCells, facetingAngle.',
+      'Optional amplitude, frequency, octaves (1..6), seed, facetingAngle.',
       'Requires triangle positions; displaces along normals.',
     ],
     preservation: ['Recomputes normals; tangents are not retained.'],

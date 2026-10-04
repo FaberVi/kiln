@@ -2,7 +2,7 @@
 
 const meta = { name: 'RockCluster', category: 'prop', role: 'prop' };
 
-function build() {
+async function build() {
   const root = createRoot('RockCluster');
   const stone = gameMaterial(0x6a6660, { roughness: 0.95 });
 
@@ -16,13 +16,7 @@ function build() {
   const parts = [];
   for (let i = 0; i < rocks.length; i++) {
     const r = rocks[i];
-    const geo = rockBoulder({
-      halfExtents: r.half,
-      seed: r.seed,
-      detail: i === 0 ? 2 : 1,
-      voronoiCells: 12 + i,
-      facetingAngle: 20,
-    });
+    const geo = await rockBoulder({ halfExtents: r.half, seed: r.seed, facetingAngle: 22 });
     const hy = r.half[1];
     parts.push(
       createPart(`Rock_${i}`, geo, stone, {

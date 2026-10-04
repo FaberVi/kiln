@@ -256,23 +256,22 @@ export const geometryPrimitives: readonly HelperSpec[] = [
   },
   {
     name: 'rockBoulder',
-    signature:
-      'rockBoulder(opts?: { halfExtents?: [x,y,z], seed?: 1, detail?: 1, voronoiCells?: 11, facetingAngle?: 24 })',
+    signature: 'await rockBoulder(opts?: { halfExtents?: [x,y,z], seed?: 1, facetingAngle?: 24 })',
     returns: 'THREE.BufferGeometry',
     category: 'mesh-ops',
     description:
-      'Angular boulder hull with Voronoi facets and mild erosion noise — default rock primitive.',
-    example: 'const chunk = rockBoulder({ halfExtents: [0.14, 0.1, 0.12], seed: 5 });',
+      'Manifold angular boulder (box intersection, plane cuts, mild warp) — default rock primitive.',
+    example: 'const chunk = await rockBoulder({ halfExtents: [0.14, 0.1, 0.12], seed: 5 });',
   },
   {
     name: 'rockDisplace',
     signature:
-      'rockDisplace(geometry, opts?: { amplitude?: 0.018, frequency?: 1.05, octaves?: 2, seed?: 1, voronoiCells?: number })',
+      'rockDisplace(geometry, opts?: { amplitude?: 0.018, frequency?: 1.05, octaves?: 2, seed?: 1 })',
     returns: 'THREE.BufferGeometry',
     category: 'mesh-ops',
     description:
-      'Fractal normal displacement with optional Voronoi facets for rough shells on existing meshes.',
-    example: 'const rough = rockDisplace(boxGeo(0.3, 0.2, 0.25), { seed: 4, voronoiCells: 9 });',
+      'Mild fractal normal displacement on an existing closed mesh; prefer rockBoulder for new rocks.',
+    example: 'const rough = rockDisplace(boxGeo(0.3, 0.2, 0.25), { seed: 4, amplitude: 0.01 });',
   },
   {
     name: 'smoothUnion',

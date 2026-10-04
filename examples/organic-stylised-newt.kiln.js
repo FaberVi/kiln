@@ -10,38 +10,56 @@ async function build() {
 
   const bodyGeo = await metaballSurface(
     [
-      { center: [0.06, 0.058, 0], radius: 0.09 },
-      { center: [0.22, 0.064, 0], radius: 0.102 },
-      { center: [0.36, 0.066, 0], radius: 0.095 },
-      { center: [0.46, 0.068, 0], radius: 0.052 },
-      { center: [0.5, 0.072, 0], radius: 0.078 },
-      { center: [0.54, 0.07, 0], radius: 0.048 },
+      { center: [0.05, 0.058, 0], radius: 0.092 },
+      { center: [0.2, 0.064, 0], radius: 0.105 },
+      { center: [0.34, 0.066, 0], radius: 0.098 },
+      { center: [0.44, 0.064, 0], radius: 0.042 },
     ],
     {
-      bounds: { min: [-0.06, -0.02, -0.15], max: [0.58, 0.14, 0.15] },
+      bounds: { min: [-0.06, -0.02, -0.15], max: [0.5, 0.14, 0.15] },
       edgeLength: 0.038,
-      blend: 0.068,
+      blend: 0.072,
     },
   );
   createPart('Torso', creaseNormals(bodyGeo, { angle: 50 }), skin, { parent: root });
 
-  createPart('Eye_L', sphereGeo(0.015, 12, 10), eye, { position: [0.52, 0.09, 0.04], parent: root });
-  createPart('Eye_R', sphereGeo(0.015, 12, 10), eye, { position: [0.52, 0.09, -0.04], parent: root });
+  const headGeo = await metaballSurface(
+    [
+      { center: [0.46, 0.07, 0], radius: 0.072 },
+      { center: [0.52, 0.068, 0], radius: 0.055 },
+      { center: [0.56, 0.064, 0], radius: 0.032 },
+    ],
+    {
+      bounds: { min: [0.38, 0.02, -0.12], max: [0.6, 0.12, 0.12] },
+      edgeLength: 0.032,
+      blend: 0.055,
+    },
+  );
+  createPart('Head', creaseNormals(headGeo, { angle: 48 }), skin, {
+    parent: root,
+    scale: [1, 0.72, 1.22],
+  });
+
+  createPart('Eye_L', sphereGeo(0.016, 12, 10), eye, { position: [0.51, 0.092, 0.042], parent: root });
+  createPart('Eye_R', sphereGeo(0.016, 12, 10), eye, { position: [0.51, 0.092, -0.042], parent: root });
 
   const tailCtrl = [
-    [0.05, 0.062, 0],
-    [-0.02, 0.066, 0],
-    [-0.12, 0.072, 0.01],
-    [-0.22, 0.076, 0.016],
-    [-0.32, 0.07, 0.02],
-    [-0.4, 0.062, 0.022],
+    [0.06, 0.062, 0],
+    [0.02, 0.064, 0],
+    [-0.08, 0.068, 0.008],
+    [-0.18, 0.072, 0.014],
+    [-0.28, 0.074, 0.018],
+    [-0.38, 0.068, 0.02],
+    [-0.46, 0.058, 0.021],
   ];
   const tailPath = catmullRomPath(tailCtrl, 12);
-  const tailProfile = [[0, 0], [0.095, 0], [0, 0.042], [-0.095, 0]];
+  const hipWide = 0.11;
+  const hipTall = 0.048;
+  const tailProfile = [[0, 0], [hipWide, 0], [0, hipTall], [-hipWide, 0]];
   const tailSections = tailPath.map((origin, i, a) => {
     const t = i / (a.length - 1);
-    const s = 1 - t * 0.72;
-    const flat = 1 - t * 0.15;
+    const s = 1 - t * 0.78;
+    const flat = 1 - t * 0.12;
     return {
       profile: tailProfile.map(([x, z]) => [x * s, z * s * flat]),
       frame: { origin, rotation: [0, 0, 0] },
@@ -82,17 +100,10 @@ async function build() {
       parent: root,
     });
     for (let t = 0; t < 3; t++) {
-      const toe = [
-        foot[0] - 0.012,
-        foot[1],
-        foot[2] + side * (0.014 + t * 0.01),
-      ];
-      createPart(
-        `${name}_Toe_${t}`,
-        taperedTube([foot, toe], [0.009, 0.004], { radialSegments: 6 }),
-        skin,
-        { parent: root },
-      );
+      const toe = [foot[0] - 0.012, foot[1], foot[2] + side * (0.014 + t * 0.01)];
+      createPart(`${name}_Toe_${t}`, taperedTube([foot, toe], [0.009, 0.004], { radialSegments: 6 }), skin, {
+        parent: root,
+      });
     }
   }
 
