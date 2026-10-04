@@ -528,8 +528,8 @@ describe('Tier 2 blind dogfood driver', () => {
     mkdirSync(join(root, 'clone', '.git'));
 
     expect(discoverArtifacts(root).map(({ path }) => path)).toEqual([
-      'workspace/final.glb',
       'workspace/final.kiln.js',
+      'workspace/final.glb',
     ]);
   });
 
