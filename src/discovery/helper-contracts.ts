@@ -791,7 +791,7 @@ define(
     ...ownedGeometry,
     parameters: [
       'Optional halfExtents [x,y,z], seed, facetingAngle.',
-      'Async Manifold solid: intersected blocks, plane cuts, mild warp, flat facets.',
+      'Async Manifold solid: ellipsoid hull, random plane facets, surface chips, flat facets.',
     ],
     preservation: ['Recomputes normals; tangents are not retained.'],
     cost: 'Scales with icosahedron detail and Voronoi cell count.',

@@ -215,12 +215,10 @@ function meshTopologyFindings(context: UniversalQaInput): QaFinding[] {
     if (diag.invalidIndices > 0 || diag.nonFiniteVertices > 0) continue;
     const solidRock = Boolean((geometry.userData as { kilnSolidRock?: boolean }).kilnSolidRock);
     const defects: string[] = [];
-    if (solidRock && diag.boundaryEdges > 0)
-      defects.push(`${diag.boundaryEdges} boundary edge(s)`);
+    if (solidRock && diag.boundaryEdges > 0) defects.push(`${diag.boundaryEdges} boundary edge(s)`);
     if (solidRock && diag.nonManifoldEdges > 0)
       defects.push(`${diag.nonManifoldEdges} non-manifold edge(s)`);
-    const tornShell =
-      diag.boundaryEdges >= Math.max(8, Math.floor(diag.triangles * 1.25));
+    const tornShell = diag.boundaryEdges >= Math.max(8, Math.floor(diag.triangles * 1.25));
     if (!solidRock && tornShell) defects.push(`${diag.boundaryEdges} boundary edge(s)`);
     if (!defects.length) continue;
     findings.push({

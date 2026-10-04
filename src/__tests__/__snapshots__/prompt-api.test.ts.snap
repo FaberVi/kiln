@@ -516,7 +516,7 @@ smoothOrganic(geometry, opts?: { iterations?: 1, creaseAngle?: 55, preserveUV?: 
   // Runs subdivide then creaseNormals with organic-friendly defaults.
   // e.g. const soft = smoothOrganic(tube, { iterations: 1, creaseAngle: 50 });
 await rockBoulder(opts?: { halfExtents?: [x,y,z], seed?: 1, facetingAngle?: 24 })
-  // Manifold angular boulder (box intersection, plane cuts, mild warp) — default rock
+  // Manifold boulder (ellipsoid hull, random plane facets, surface chips) — default rock
   // primitive.
   // e.g. const chunk = await rockBoulder({ halfExtents: [0.14, 0.1, 0.12], seed: 5 });
 rockDisplace(geometry, opts?: { amplitude?: 0.018, frequency?: 1.05, octaves?: 2, seed?: 1 })

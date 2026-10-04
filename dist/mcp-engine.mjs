@@ -20350,10 +20350,18 @@ function mulberry32(seed) {
     return ((r ^ r >>> 14) >>> 0) / 4294967296;
   };
 }
+function randomUnitVector(rng) {
+  const u = rng();
+  const v = rng();
+  const theta = 2 * Math.PI * u;
+  const z = 2 * v - 1;
+  const r = Math.sqrt(Math.max(0, 1 - z * z));
+  return [r * Math.cos(theta), r * Math.sin(theta), z];
+}
 async function rockBoulder(options = {}) {
   const seed = options.seed ?? 1;
   const [hx, hy, hz] = options.halfExtents ?? [0.12, 0.1, 0.11];
-  const facetingAngle = options.facetingAngle ?? 24;
+  const facetingAngle = options.facetingAngle ?? 34;
   const rng = mulberry32(seed);
   const mod = await getManifoldModule();
   const owned = [];
@@ -20362,34 +20370,55 @@ async function rockBoulder(options = {}) {
     return m;
   };
   const extent = Math.max(hx, hy, hz);
+  const acceptSolid = (prev, next, minTris = 32) => {
+    if (next.isEmpty() || next.numTri() < minTris)
+      return prev;
+    const prevVol = prev.volume();
+    const nextVol = next.volume();
+    if (prevVol > 0 && nextVol < prevVol * 0.22)
+      return prev;
+    return next;
+  };
   try {
-    const sx = hx * (0.82 + rng() * 0.28);
-    const sy = hy * (0.75 + rng() * 0.22);
-    const sz = hz * (0.82 + rng() * 0.28);
-    let solid = track(mod.Manifold.cube([sx * 2, sy * 2, sz * 2], true));
-    const blockB = track(mod.Manifold.cube([sx * 2.15, sy * 1.75, sz * 2.05], true).rotate([
-      rng() * 18 - 9,
-      rng() * 28 - 14,
-      rng() * 16 - 8
-    ]));
-    solid = track(solid.intersect(blockB));
-    const blockC = track(mod.Manifold.cube([sx * 1.65, sy * 2.05, sz * 1.85], true).rotate([
-      rng() * 22 - 11,
-      rng() * 20 - 10,
-      rng() * 24 - 12
-    ]));
-    solid = track(solid.intersect(blockC));
-    const cuts = 4 + seed % 3;
-    for (let i = 0;i < cuts; i++) {
-      const sign = () => rng() > 0.5 ? 1 : -1;
-      const corner = track(mod.Manifold.cube([extent * 0.55, extent * 0.55, extent * 0.55], true).translate([
-        sign() * sx * (0.65 + rng() * 0.25),
-        sign() * sy * (0.55 + rng() * 0.25),
-        sign() * sz * (0.65 + rng() * 0.25)
-      ]));
-      solid = track(solid.subtract(corner));
+    const sx = hx * (0.88 + rng() * 0.18);
+    const sy = hy * (0.82 + rng() * 0.2);
+    const sz = hz * (0.88 + rng() * 0.18);
+    const hullCount = 14 + seed % 8;
+    const microR = extent * (0.035 + rng() * 0.015);
+    const seeds = [];
+    for (let i = 0;i < hullCount; i++) {
+      const [ux, uy, uz] = randomUnitVector(rng);
+      const bulge = 0.78 + rng() * 0.28;
+      seeds.push(track(mod.Manifold.sphere(microR, 8).translate([
+        sx * ux * bulge,
+        sy * uy * bulge,
+        sz * uz * bulge
+      ])));
     }
-    const warpAmp = extent * 0.035;
+    let solid = track(mod.Manifold.hull(seeds));
+    const trims = 8 + seed % 5;
+    for (let i = 0;i < trims; i++) {
+      const n = randomUnitVector(rng);
+      const offset = extent * (-0.18 + rng() * 0.36);
+      const trimmed = track(solid.trimByPlane(n, offset));
+      solid = acceptSolid(solid, trimmed);
+    }
+    const chips = 4 + seed % 3;
+    for (let i = 0;i < chips; i++) {
+      const n = randomUnitVector(rng);
+      const chip = track(mod.Manifold.cube([
+        extent * (0.22 + rng() * 0.28),
+        extent * (0.18 + rng() * 0.22),
+        extent * (0.24 + rng() * 0.3)
+      ], true).rotate([rng() * 360, rng() * 360, rng() * 360]).translate([
+        n[0] * sx * (0.62 + rng() * 0.28),
+        n[1] * sy * (0.62 + rng() * 0.28),
+        n[2] * sz * (0.62 + rng() * 0.28)
+      ]));
+      const chipped = track(solid.subtract(chip));
+      solid = acceptSolid(solid, chipped, 28);
+    }
+    const warpAmp = extent * 0.022;
     solid = track(solid.warp((v) => {
       const x = v[0];
       const y = v[1];
@@ -20397,7 +20426,7 @@ async function rockBoulder(options = {}) {
       const nx = x / (sx || 1);
       const ny = y / (sy || 1);
       const nz = z / (sz || 1);
-      const n = chunkyNoise(nx * 1.6, ny * 1.6, nz * 1.6, seed) * warpAmp + chunkyNoise(nx * 3.2, ny * 3.2, nz * 3.2, seed + 5) * warpAmp * 0.35;
+      const n = chunkyNoise(nx * 1.4, ny * 1.4, nz * 1.4, seed) * warpAmp + chunkyNoise(nx * 2.8, ny * 2.8, nz * 2.8, seed + 5) * warpAmp * 0.4;
       const len = Math.hypot(x, y, z);
       if (len < 0.000000001)
         return;
@@ -20406,7 +20435,7 @@ async function rockBoulder(options = {}) {
       v[2] += z / len * n;
     }));
     if (solid.isEmpty())
-      throw new Error("rockBoulder: plane cuts removed the entire solid");
+      throw new Error("rockBoulder: shaping removed the entire solid");
     let geo = manifoldToGeometry(solid, { smooth: false });
     geo = creaseNormals(geo, { angle: facetingAngle });
     geo.userData.kilnSolidRock = true;
@@ -23068,7 +23097,7 @@ var init_geometry_catalog = __esm(() => {
       signature: "await rockBoulder(opts?: { halfExtents?: [x,y,z], seed?: 1, facetingAngle?: 24 })",
       returns: "THREE.BufferGeometry",
       category: "mesh-ops",
-      description: "Manifold angular boulder (box intersection, plane cuts, mild warp) — default rock primitive.",
+      description: "Manifold boulder (ellipsoid hull, random plane facets, surface chips) — default rock primitive.",
       example: "const chunk = await rockBoulder({ halfExtents: [0.14, 0.1, 0.12], seed: 5 });"
     },
     {
@@ -38022,7 +38051,7 @@ define2("rockBoulder", {
   ...ownedGeometry,
   parameters: [
     "Optional halfExtents [x,y,z], seed, facetingAngle.",
-    "Async Manifold solid: intersected blocks, plane cuts, mild warp, flat facets."
+    "Async Manifold solid: ellipsoid hull, random plane facets, surface chips, flat facets."
   ],
   preservation: ["Recomputes normals; tangents are not retained."],
   cost: "Scales with icosahedron detail and Voronoi cell count."

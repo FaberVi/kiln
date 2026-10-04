@@ -11,7 +11,8 @@ async function build() {
 
   const bodyGeo = await metaballSurface(
     [
-      { center: [0.05, 0.058, 0], radius: 0.092 },
+      { center: [0.02, 0.061, 0], radius: 0.095 },
+      { center: [0.08, 0.06, 0], radius: 0.098 },
       { center: [0.2, 0.064, 0], radius: 0.105 },
       { center: [0.34, 0.066, 0], radius: 0.098 },
       { center: [0.44, 0.064, 0], radius: 0.042 },
@@ -45,30 +46,30 @@ async function build() {
   createPart('Eye_R', sphereGeo(0.016, 12, 10), eye, { position: [0.51, 0.092, -0.042], parent: root });
 
   const tailCtrl = [
-    [0.06, 0.062, 0],
-    [0.02, 0.064, 0],
-    [-0.08, 0.068, 0.008],
-    [-0.18, 0.072, 0.014],
-    [-0.28, 0.074, 0.018],
+    [0.085, 0.061, 0],
+    [0.055, 0.062, 0],
+    [0.035, 0.063, 0],
+    [0.01, 0.064, 0.002],
+    [-0.08, 0.067, 0.008],
+    [-0.18, 0.071, 0.014],
+    [-0.28, 0.073, 0.018],
     [-0.38, 0.068, 0.02],
     [-0.46, 0.058, 0.021],
+    [-0.52, 0.048, 0.02],
   ];
   const tailPath = catmullRomPath(tailCtrl, 12);
-  const hipWide = 0.11;
-  const hipTall = 0.048;
-  const tailProfile = [[0, 0], [hipWide, 0], [0, hipTall], [-hipWide, 0]];
-  const tailSections = tailPath.map((origin, i, a) => {
+  const hipRadius = 0.106;
+  const tailRadii = tailPath.map((_, i, a) => {
     const t = i / (a.length - 1);
-    const s = 1 - t * 0.78;
-    const flat = 1 - t * 0.12;
-    return {
-      profile: tailProfile.map(([x, z]) => [x * s, z * s * flat]),
-      frame: { origin, rotation: [0, 0, 0] },
-    };
+    const s = Math.max(0.02, (1 - t) ** 0.68);
+    return hipRadius * s;
   });
-  createPart('Tail', creaseNormals(loftProfiles(tailSections, { cap: true }), { angle: 52 }), skin, {
-    parent: root,
-  });
+  createPart(
+    'Tail',
+    creaseNormals(taperedTube(tailPath, tailRadii, { radialSegments: 18 }), { angle: 52 }),
+    skin,
+    { parent: root, scale: [1, 0.62, 1.38] },
+  );
 
   function salamanderLeg(name, hipX, hipZ, side) {
     const hip = [hipX, 0.052, hipZ];

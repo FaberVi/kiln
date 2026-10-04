@@ -260,7 +260,7 @@ export const geometryPrimitives: readonly HelperSpec[] = [
     returns: 'THREE.BufferGeometry',
     category: 'mesh-ops',
     description:
-      'Manifold angular boulder (box intersection, plane cuts, mild warp) — default rock primitive.',
+      'Manifold boulder (ellipsoid hull, random plane facets, surface chips) — default rock primitive.',
     example: 'const chunk = await rockBoulder({ halfExtents: [0.14, 0.1, 0.12], seed: 5 });',
   },
   {

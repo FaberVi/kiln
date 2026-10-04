@@ -169,14 +169,23 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+function randomUnitVector(rng: () => number): [number, number, number] {
+  const u = rng();
+  const v = rng();
+  const theta = 2 * Math.PI * u;
+  const z = 2 * v - 1;
+  const r = Math.sqrt(Math.max(0, 1 - z * z));
+  return [r * Math.cos(theta), r * Math.sin(theta), z];
+}
+
 /**
- * Manifold-backed angular boulder: intersected boxes, corner plane cuts, mild warp.
- * Always returns a closed watertight solid mesh (flat-shaded facets by default).
+ * Manifold-backed boulder: jittered convex hull + random plane trims on an ellipsoid,
+ * random surface chips, mild radial warp. Watertight solid mesh.
  */
 export async function rockBoulder(options: RockBoulderOptions = {}): Promise<THREE.BufferGeometry> {
   const seed = options.seed ?? 1;
   const [hx, hy, hz] = options.halfExtents ?? [0.12, 0.1, 0.11];
-  const facetingAngle = options.facetingAngle ?? 24;
+  const facetingAngle = options.facetingAngle ?? 34;
   const rng = mulberry32(seed);
   const mod = await getManifoldModule();
   const owned: Manifold[] = [];
@@ -185,42 +194,68 @@ export async function rockBoulder(options: RockBoulderOptions = {}): Promise<THR
     return m;
   };
   const extent = Math.max(hx, hy, hz);
+  const acceptSolid = (prev: Manifold, next: Manifold, minTris = 32): Manifold => {
+    if (next.isEmpty() || next.numTri() < minTris) return prev;
+    const prevVol = prev.volume();
+    const nextVol = next.volume();
+    if (prevVol > 0 && nextVol < prevVol * 0.22) return prev;
+    return next;
+  };
   try {
-    const sx = hx * (0.82 + rng() * 0.28);
-    const sy = hy * (0.75 + rng() * 0.22);
-    const sz = hz * (0.82 + rng() * 0.28);
-    let solid = track(mod.Manifold.cube([sx * 2, sy * 2, sz * 2], true));
-    const blockB = track(
-      mod.Manifold.cube([sx * 2.15, sy * 1.75, sz * 2.05], true).rotate([
-        rng() * 18 - 9,
-        rng() * 28 - 14,
-        rng() * 16 - 8,
-      ]),
-    );
-    solid = track(solid.intersect(blockB));
-    const blockC = track(
-      mod.Manifold.cube([sx * 1.65, sy * 2.05, sz * 1.85], true).rotate([
-        rng() * 22 - 11,
-        rng() * 20 - 10,
-        rng() * 24 - 12,
-      ]),
-    );
-    solid = track(solid.intersect(blockC));
+    const sx = hx * (0.88 + rng() * 0.18);
+    const sy = hy * (0.82 + rng() * 0.2);
+    const sz = hz * (0.88 + rng() * 0.18);
 
-    const cuts = 4 + (seed % 3);
-    for (let i = 0; i < cuts; i++) {
-      const sign = () => (rng() > 0.5 ? 1 : -1);
-      const corner = track(
-        mod.Manifold.cube([extent * 0.55, extent * 0.55, extent * 0.55], true).translate([
-          sign() * sx * (0.65 + rng() * 0.25),
-          sign() * sy * (0.55 + rng() * 0.25),
-          sign() * sz * (0.65 + rng() * 0.25),
-        ]),
+    const hullCount = 14 + (seed % 8);
+    const microR = extent * (0.035 + rng() * 0.015);
+    const seeds: Manifold[] = [];
+    for (let i = 0; i < hullCount; i++) {
+      const [ux, uy, uz] = randomUnitVector(rng);
+      const bulge = 0.78 + rng() * 0.28;
+      seeds.push(
+        track(
+          mod.Manifold.sphere(microR, 8).translate([
+            sx * ux * bulge,
+            sy * uy * bulge,
+            sz * uz * bulge,
+          ]),
+        ),
       );
-      solid = track(solid.subtract(corner));
+    }
+    let solid = track(mod.Manifold.hull(seeds));
+
+    const trims = 8 + (seed % 5);
+    for (let i = 0; i < trims; i++) {
+      const n = randomUnitVector(rng);
+      const offset = extent * (-0.18 + rng() * 0.36);
+      const trimmed = track(solid.trimByPlane(n, offset));
+      solid = acceptSolid(solid, trimmed);
     }
 
-    const warpAmp = extent * 0.035;
+    const chips = 4 + (seed % 3);
+    for (let i = 0; i < chips; i++) {
+      const n = randomUnitVector(rng);
+      const chip = track(
+        mod.Manifold.cube(
+          [
+            extent * (0.22 + rng() * 0.28),
+            extent * (0.18 + rng() * 0.22),
+            extent * (0.24 + rng() * 0.3),
+          ],
+          true,
+        )
+          .rotate([rng() * 360, rng() * 360, rng() * 360])
+          .translate([
+            n[0] * sx * (0.62 + rng() * 0.28),
+            n[1] * sy * (0.62 + rng() * 0.28),
+            n[2] * sz * (0.62 + rng() * 0.28),
+          ]),
+      );
+      const chipped = track(solid.subtract(chip));
+      solid = acceptSolid(solid, chipped, 28);
+    }
+
+    const warpAmp = extent * 0.022;
     solid = track(
       solid.warp((v: number[]) => {
         const x = v[0]!;
@@ -230,8 +265,8 @@ export async function rockBoulder(options: RockBoulderOptions = {}): Promise<THR
         const ny = y / (sy || 1);
         const nz = z / (sz || 1);
         const n =
-          chunkyNoise(nx * 1.6, ny * 1.6, nz * 1.6, seed) * warpAmp +
-          chunkyNoise(nx * 3.2, ny * 3.2, nz * 3.2, seed + 5) * warpAmp * 0.35;
+          chunkyNoise(nx * 1.4, ny * 1.4, nz * 1.4, seed) * warpAmp +
+          chunkyNoise(nx * 2.8, ny * 2.8, nz * 2.8, seed + 5) * warpAmp * 0.4;
         const len = Math.hypot(x, y, z);
         if (len < 1e-9) return;
         v[0]! += (x / len) * n;
@@ -240,7 +275,7 @@ export async function rockBoulder(options: RockBoulderOptions = {}): Promise<THR
       }),
     );
 
-    if (solid.isEmpty()) throw new Error('rockBoulder: plane cuts removed the entire solid');
+    if (solid.isEmpty()) throw new Error('rockBoulder: shaping removed the entire solid');
     let geo = manifoldToGeometry(solid, { smooth: false });
     geo = creaseNormals(geo, { angle: facetingAngle });
     geo.userData.kilnSolidRock = true;
