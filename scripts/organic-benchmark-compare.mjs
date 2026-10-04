@@ -11,6 +11,7 @@ import sharp from 'sharp';
 
 import { resolveEvaluatorPortV2 } from '../src/evaluator/protocol.ts';
 import { renderGlbViewGrid } from '../src/views/index.ts';
+import { assertSeahorseAfterGuards } from './organic-benchmark-guards.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -109,6 +110,10 @@ async function main() {
 
   for (const subject of SUBJECTS) {
     const before = await evaluateLane(evaluator, 'before', subject);
+    if (subject === 'seahorse') {
+      const afterPath = join(BENCH, 'after', `${subject}.kiln.js`);
+      await assertSeahorseAfterGuards(await readFile(afterPath, 'utf8'));
+    }
     const after = await evaluateLane(evaluator, 'after', subject);
 
     const sheetBefore = join(OUT, `${subject}-before-sheet.png`);
