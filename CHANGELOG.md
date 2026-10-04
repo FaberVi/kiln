@@ -9,6 +9,7 @@ Changes since the 0.10.0 tagged package release. The package version stays 0.10.
 until the next package release; source/main and website deployment are separate
 from publishing a new installable package.
 
+- Organic authoring helpers: `metaballSurface`, `taperedTube` (incl. `sectionScale`), `catmullRomPath`, `spiralPath`, `smoothOrganic`, `rockDisplace`, `rockBoulder`, and SDF utilities `smoothUnion` / `sphereInside`. Discovery catalog and geometry-recipes skill updates.
 - **Breaking (planned 0.11):** `optimize: 'full'` replaces flatten/join with rigid-group
   merging. Its rigid-merge pass preserves node names, hierarchy and transforms, including animated targets,
   named joint pivots, semantic nodes, composition placements and LOD levels. Ordinary
