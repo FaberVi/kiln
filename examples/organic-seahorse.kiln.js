@@ -48,56 +48,94 @@ async function build() {
   });
 
   const bodyGeo = taperedTube(spinePath, spineRadii, { radialSegments: 28, creaseAngle: 180 });
-  createPart('Body', creaseNormals(bodyGeo, { angle: 34 }), bodyMat, {
-    parent: root,
-    scale: [0.48, 1, 1],
+  const bodyScale = [0.48, 1, 1];
+
+  function spineAtY(targetY) {
+    let idx = 0;
+    for (let i = 1; i < spinePath.length; i++) {
+      if (Math.abs(spinePath[i][1] - targetY) < Math.abs(spinePath[idx][1] - targetY)) idx = i;
+    }
+    return { point: spinePath[idx], radius: spineRadii[idx] };
+  }
+
+  const finReach = 0.026;
+  const finProfile = [];
+  const finSegs = 10;
+  for (let i = 0; i <= finSegs; i++) {
+    const a = (i / finSegs) * Math.PI;
+    const px = Math.cos(a) * finReach * 0.52;
+    const py = Math.sin(a) * finReach - (i === 0 || i === finSegs ? 0.008 : 0);
+    finProfile.push([px, py]);
+  }
+
+  const finYs = [0.238, 0.268, 0.298, 0.318];
+  const finPath = finYs.map((y) => {
+    const { point, radius } = spineAtY(y);
+    return [point[0], point[1] + radius - 0.006, point[2]];
   });
+  const dorsalGeo = sweepProfile(finProfile, catmullRomPath(finPath, 3), {
+    cap: true,
+    creaseAngle: 68,
+    up: [0, 0, 1],
+  });
+  const bodyPart = createPart('BodyMesh', creaseNormals(bodyGeo, { angle: 34 }), bodyMat, {
+    scale: bodyScale,
+  });
+  const finPart = createPart('DorsalMesh', creaseNormals(dorsalGeo, { angle: 58 }), finMat, {
+    scale: bodyScale,
+  });
+  const bodyWithFin = await boolUnion('Body', bodyPart, finPart);
+  root.add(bodyWithFin);
 
   const neckTop = spinePath[spinePath.length - 1];
+  const headLen = H / 5;
+
   const headGeo = await metaballSurface(
     [
-      { center: neckTop, radius: 0.031 },
-      { center: [0, 0.368, -0.008], radius: 0.036 },
-      { center: [0, 0.354, 0.014], radius: 0.032 },
-      { center: [0, 0.344, 0.034], radius: 0.024 },
+      { center: [neckTop[0], neckTop[1] - 0.004, neckTop[2] + 0.01], radius: headLen * 0.44 },
+      { center: [0, 0.368, 0.006], radius: headLen * 0.48 },
+      { center: [0, 0.354, 0.024], radius: headLen * 0.46 },
+      { center: [0, 0.342, 0.04], radius: headLen * 0.42 },
+      { center: [0, 0.332, 0.05], radius: headLen * 0.36 },
     ],
     {
-      bounds: { min: [-0.05, 0.32, -0.045], max: [0.05, 0.395, 0.075] },
-      edgeLength: 0.026,
-      blend: 0.024,
+      bounds: { min: [-0.055, 0.308, -0.035], max: [0.055, 0.382, 0.065] },
+      edgeLength: 0.022,
+      blend: 0.042,
     },
   );
-  createPart('Head', creaseNormals(headGeo, { angle: 58 }), bodyMat, {
+  createPart('Head', creaseNormals(headGeo, { angle: 78 }), bodyMat, {
     parent: root,
-    scale: [0.52, 1, 1],
+    scale: [0.5, 1, 1],
   });
 
-  const snoutBase = [0, 0.342, 0.036];
   const snoutPath = catmullRomPath(
     [
-      snoutBase,
-      [0, 0.328, 0.052],
-      [0, 0.312, 0.066],
-      [0, 0.296, 0.076],
-      [0, 0.282, 0.082],
-      [0, 0.272, 0.084],
+      [0, 0.33, 0.052],
+      [0, 0.312, 0.074],
+      [0, 0.29, 0.094],
+      [0, 0.266, 0.108],
+      [0, 0.244, 0.116],
+      [0, 0.228, 0.118],
+      [0, 0.218, 0.116],
+      [0, 0.212, 0.112],
     ],
-    6,
+    8,
   );
-  const snoutLen = H / 5;
   const snoutRadii = snoutPath.map((_, i, a) => {
     const t = i / (a.length - 1);
-    if (t < 0.12) return snoutLen * 0.32;
-    if (t > 0.9) return snoutLen * 0.28;
-    return Math.max(0.004, snoutLen * 0.3 * (1 - (t - 0.12) / 0.78) + 0.005);
+    const base = headLen * 0.4;
+    if (t < 0.06) return base * 0.95;
+    if (t > 0.82) return headLen * 0.44;
+    return Math.max(0.009, base * (1 - (t - 0.06) * 0.62));
   });
-  const snoutGeo = taperedTube(snoutPath, snoutRadii, { radialSegments: 24, creaseAngle: 180 });
-  createPart('Snout', creaseNormals(snoutGeo, { angle: 72 }), bodyMat, {
+  const snoutGeo = taperedTube(snoutPath, snoutRadii, { radialSegments: 28, creaseAngle: 180 });
+  createPart('Snout', creaseNormals(snoutGeo, { angle: 88 }), bodyMat, {
     parent: root,
-    scale: [0.52, 1, 1],
+    scale: [0.5, 1, 1],
   });
 
-  const crown = [0, 0.362, 0.01];
+  const crown = [0, 0.358, 0.018];
   for (const [name, ox, oy, oz, r] of [
     ['Coronet_L', -0.01, 0.014, -0.006, 0.008],
     ['Coronet_C', 0, 0.02, 0, 0.012],
@@ -110,62 +148,17 @@ async function build() {
   }
 
   createPart('Eye_L', sphereGeo(0.0075, 12, 10), bodyMat, {
-    position: [0.015, 0.356, 0.028],
+    position: [0.015, 0.352, 0.03],
     parent: root,
   });
   createPart('Eye_R', sphereGeo(0.0075, 12, 10), bodyMat, {
-    position: [-0.015, 0.356, 0.028],
+    position: [-0.015, 0.352, 0.03],
     parent: root,
   });
-
-  const finPath = catmullRomPath(
-    [
-      [0, 0.235, -0.021],
-      [0, 0.265, -0.026],
-      [0, 0.295, -0.028],
-      [0, 0.318, -0.025],
-    ],
-    4,
-  );
-  const finScales = finPath.map((_, i) => (i === 0 ? [0.08, 1] : [1, 1]));
-  const dorsalGeo = sweepProfile(
-    [
-      [0, 0],
-      [0.02, 0],
-      [0.026, -0.008],
-      [0.028, -0.018],
-      [0, -0.024],
-      [-0.028, -0.018],
-      [-0.026, -0.008],
-      [-0.02, 0],
-    ],
-    finPath,
-    { cap: 'end', creaseAngle: 62, scale: finScales, up: [0, 0, 1] },
-  );
-  createPart('DorsalFin', creaseNormals(dorsalGeo, { angle: 52 }), finMat, {
-    parent: root,
-    scale: [0.48, 1, 1],
-  });
-  for (let r = 0; r < 4; r++) {
-    const y = 0.248 + r * 0.018;
-    createPart(
-      `DorsalRay_${r}`,
-      taperedTube(
-        [
-          [0, y, -0.022],
-          [0, y + 0.006, -0.034],
-        ],
-        [0.002, 0.001],
-        { radialSegments: 6 },
-      ),
-      finMat,
-      { parent: root, scale: [0.48, 1, 1] },
-    );
-  }
 
   function pectoralFin(name, side) {
-    const base = [side * 0.016, 0.352, 0.012];
-    const pecPath = catmullRomPath([base, [side * 0.028, 0.348, 0.016]], 2);
+    const base = [side * 0.016, 0.348, 0.018];
+    const pecPath = catmullRomPath([base, [side * 0.028, 0.344, 0.022]], 2);
     const fin = sweepProfile(
       [[0, 0], [side * 0.01, 0.001], [side * 0.014, 0.008], [0, 0.01]],
       pecPath,
