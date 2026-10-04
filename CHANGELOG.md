@@ -10,7 +10,7 @@ until the next package release; source/main and website deployment are separate
 from publishing a new installable package.
 
 - Organic authoring helpers: `metaballSurface`, `taperedTube`, `catmullRomPath`,
-  `smoothOrganic`, `rockDisplace`, and SDF utilities `smoothUnion` / `sphereInside`.
+  `smoothOrganic`, `rockBoulder`, `rockDisplace`, and SDF utilities `smoothUnion` / `sphereInside`.
   Benchmark programs under `benchmark/organic-comparison/` and
   `scripts/organic-benchmark-compare.mjs` document before/after CPU renders.
 
