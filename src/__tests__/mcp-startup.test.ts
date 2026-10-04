@@ -113,7 +113,7 @@ describe('contract rule 2: the first answers come before the engine', () => {
       .join('\n');
     expect(text).toContain('mcp-engine.mjs');
     expect(text).toContain('kiln-init');
-    expect(text).not.toContain(alone);
+    expect(text).toContain('could not be loaded');
     const stillUp = await legacy.request('tools/list', {});
     expect(stillUp.error).toBeUndefined();
     await legacy.close();

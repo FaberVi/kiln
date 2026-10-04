@@ -9,6 +9,7 @@ Changes since the 0.10.0 tagged package release. The package version stays 0.10.
 until the next package release; source/main and website deployment are separate
 from publishing a new installable package.
 
+- Organic before/after benchmark under `benchmark/organic-comparison/`, example programs, `scripts/organic-benchmark-compare.mjs`, and seahorse regression guards (`scripts/organic-benchmark-guards.mjs`). See benchmark README for the seahorse hard-example note.
 - **Breaking (planned 0.11):** `optimize: 'full'` replaces flatten/join with rigid-group
   merging. Its rigid-merge pass preserves node names, hierarchy and transforms, including animated targets,
   named joint pivots, semantic nodes, composition placements and LOD levels. Ordinary
