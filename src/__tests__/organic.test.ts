@@ -2,7 +2,16 @@ import { describe, expect, test } from 'bun:test';
 import * as THREE from 'three';
 
 import { geometryDiagnostics } from '../geometry';
-import { catmullRomPath, rockBoulder, rockDisplace, smoothOrganic, taperedTube } from '../organic';
+import {
+  catmullRomPath,
+  meshExtentAspectRatio,
+  meshSliverTriangleCount,
+  rockBoulder,
+  rockDisplace,
+  smoothOrganic,
+  spiralPath,
+  taperedTube,
+} from '../organic';
 import { countTriangles, createPart, createRoot, gameMaterial, sphereGeo } from '../primitives';
 import { createUniversalQaRegistry } from '../qa/universal';
 import { createAssetIntentV1 } from '../contracts';
@@ -74,7 +83,29 @@ describe('organic helpers', () => {
       expect(diag.nonManifoldEdges).toBe(0);
       expect(diag.orientationConflicts).toBe(0);
       expect(diag.degenerateTriangles).toBe(0);
+      expect(meshExtentAspectRatio(geo)).toBeGreaterThanOrEqual(0.45);
+      expect(meshSliverTriangleCount(geo)).toBe(0);
     }
+  });
+
+  test('spiralPath and elliptical taperedTube build closed geometry', () => {
+    const spiral = spiralPath({
+      center: [0, 0, 0],
+      radius: 0.05,
+      rise: 0.12,
+      turns: 1.5,
+      samples: 16,
+    });
+    expect(spiral.length).toBeGreaterThan(10);
+    const path = [
+      ...spiral,
+      [0, 0.2, 0.05] as [number, number, number],
+      [0, 0.28, 0.04] as [number, number, number],
+    ];
+    const radii = path.map((_, i) => 0.02 * (1 - i / (path.length - 1)) + 0.008);
+    const scale = path.map(() => [0.4, 1.1] as [number, number]);
+    const geo = taperedTube(path, radii, { radialSegments: 14, sectionScale: scale });
+    expect(geometryDiagnostics(geo).degenerateTriangles).toBe(0);
   });
 
   test('rockDisplace changes positions on a sphere', () => {

@@ -228,7 +228,7 @@ export const geometryPrimitives: readonly HelperSpec[] = [
   {
     name: 'taperedTube',
     signature:
-      'taperedTube(path: [x,y,z][], radii: number[], opts?: { radialSegments?: 20, creaseAngle?: 180, cap?: true, closed?: false, up?, twist? })',
+      'taperedTube(path: [x,y,z][], radii: number[], opts?: { radialSegments?: 20, creaseAngle?: 180, cap?: true, closed?: false, up?, twist?, sectionScale?: [side,depth][] })',
     returns: 'THREE.BufferGeometry',
     category: 'curves',
     description:
@@ -244,6 +244,15 @@ export const geometryPrimitives: readonly HelperSpec[] = [
     description:
       'Samples a Catmull-Rom spline through waypoints for smooth tubes, tentacles and branches.',
     example: 'const path = catmullRomPath([[0,0,0],[0.2,0.4,0.1],[0.5,0.2,0]], 10);',
+  },
+  {
+    name: 'spiralPath',
+    signature: 'spiralPath(opts: { center, radius, rise, turns, axis?, forward?, samples? })',
+    returns: '[x,y,z][]',
+    category: 'curves',
+    description: 'Rising spiral path for prehensile tails and curled appendages.',
+    example:
+      'const curl = spiralPath({ center: [0,0.05,0], radius: 0.03, rise: 0.12, turns: 1.75, forward: [0,0,1] });',
   },
   {
     name: 'smoothOrganic',

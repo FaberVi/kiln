@@ -2081,11 +2081,36 @@ define(
   },
 );
 define(
+  'spiralPath',
+  {
+    units: lengthUnits,
+    axes: 'Center, axis, forward and output use XYZ.',
+    parameters: [
+      'Positive radius, rise, and turns; optional sample count (>= 4).',
+      'Forward must not be parallel to axis.',
+    ],
+    topology: [noMesh],
+    preservation: ['Returns spiral polyline samples for taperedTube or sweepProfile.'],
+    cost: 'Linear in samples.',
+  },
+  {
+    references: ['src/organic.ts'],
+    tags: ['path', 'spiral', 'curve'],
+    aliases: ['curl path', 'prehensile tail path'],
+    intents: ['sample a rising spiral for curled tails and tendrils'],
+    related: [
+      { name: 'catmullRomPath', relation: 'alternative' },
+      { name: 'taperedTube', relation: 'companion' },
+    ],
+  },
+);
+define(
   'taperedTube',
   {
     ...curveFacts,
     parameters: [
       'Polyline path with one positive radius per station.',
+      'Optional per-station sectionScale [side, depth] for elliptical cross-sections.',
       'Default creaseAngle 180 for round profiles; radialSegments default 20.',
     ],
     preservation: ['UVs and normals like sweepProfile; smooth round shading by default.'],

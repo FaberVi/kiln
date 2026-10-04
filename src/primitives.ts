@@ -55,6 +55,7 @@ import {
   rockBoulder,
   rockDisplace,
   smoothOrganic,
+  spiralPath,
   taperedTube,
 } from './organic';
 import { smoothUnion, sphereInside } from './sdf';
@@ -2247,6 +2248,7 @@ export function buildSandboxGlobals(
     implicitSurface: wrap('implicitSurface', implicitSurface),
     metaballSurface: wrap('metaballSurface', metaballSurface),
     catmullRomPath: wrap('catmullRomPath', catmullRomPath),
+    spiralPath: wrap('spiralPath', spiralPath),
     taperedTube: wrap('taperedTube', taperedTube),
     smoothOrganic: wrap('smoothOrganic', smoothOrganic),
     rockBoulder: wrap('rockBoulder', rockBoulder),

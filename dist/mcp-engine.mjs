@@ -20315,7 +20315,12 @@ function taperedTube(path, radii, options = {}) {
   }
   const radialSegments = options.radialSegments ?? 20;
   const profile = circleProfile(1, radialSegments).map(([x, y]) => [x, y]);
-  const scale = radii.map((r) => [r, r]);
+  const scale = radii.map((r, i) => {
+    const [side, depth] = options.sectionScale?.[i] ?? [1, 1];
+    return [r * side, r * depth];
+  });
+  if (options.sectionScale && options.sectionScale.length !== stations.length)
+    throw new Error("taperedTube sectionScale needs one [side, depth] pair per path point");
   const geo = sweepProfile(profile, [...stations], {
     cap: options.cap ?? true,
     closed,
@@ -20325,6 +20330,91 @@ function taperedTube(path, radii, options = {}) {
     creaseAngle: options.creaseAngle ?? 180
   });
   return geo;
+}
+function spiralPath(options) {
+  const {
+    center,
+    radius,
+    rise,
+    turns,
+    axis = [0, 1, 0],
+    forward = [0, 0, 1],
+    samples = 24
+  } = options;
+  if (![radius, rise, turns].every((n) => Number.isFinite(n) && n > 0))
+    throw new Error("spiralPath radius, rise and turns must be positive and finite");
+  if (!Number.isSafeInteger(samples) || samples < 4)
+    throw new Error("spiralPath samples must be an integer >= 4");
+  if (center.length !== 3 || !center.every(Number.isFinite))
+    throw new Error("spiralPath center must be a finite [x,y,z] triple");
+  const up = new THREE34.Vector3(...axis);
+  const fwd = new THREE34.Vector3(...forward);
+  if (up.lengthSq() < 0.000000000001 || fwd.lengthSq() < 0.000000000001)
+    throw new Error("spiralPath axis and forward must be nonzero");
+  up.normalize();
+  const horiz = fwd.clone().addScaledVector(up, -fwd.dot(up));
+  if (horiz.lengthSq() < 0.000000000001)
+    throw new Error("spiralPath forward must not be parallel to axis");
+  horiz.normalize();
+  const right = new THREE34.Vector3().crossVectors(up, horiz).normalize();
+  const out = [];
+  for (let i = 0;i <= samples; i++) {
+    const u = i / samples;
+    const theta = u * turns * Math.PI * 2;
+    const r = radius * (1 - u * 0.58);
+    const offset = horiz.clone().multiplyScalar(r * Math.cos(theta)).add(right.clone().multiplyScalar(r * Math.sin(theta)));
+    const lift = up.clone().multiplyScalar(u * rise);
+    out.push([
+      center[0] + offset.x + lift.x,
+      center[1] + offset.y + lift.y,
+      center[2] + offset.z + lift.z
+    ]);
+  }
+  return out;
+}
+function meshExtentAspectRatio(geometry) {
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  if (!box)
+    return 0;
+  const size = box.getSize(new THREE34.Vector3);
+  const dims = [size.x, size.y, size.z].sort((a, b) => a - b);
+  if (dims[2] <= 0)
+    return 0;
+  return dims[0] / dims[2];
+}
+function meshSliverTriangleCount(geometry, minEdgeToLongest = 0.08, minExtentFraction = 0.035) {
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  const minExtent = box ? Math.min(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z) : 0;
+  const pos = geometry.getAttribute("position");
+  if (!pos)
+    return 0;
+  const index = geometry.getIndex();
+  let slivers = 0;
+  const edgeLen = (a, b) => {
+    const dx = pos.getX(b) - pos.getX(a);
+    const dy = pos.getY(b) - pos.getY(a);
+    const dz = pos.getZ(b) - pos.getZ(a);
+    return Math.hypot(dx, dy, dz);
+  };
+  const tri = (a, b, c) => {
+    const e0 = edgeLen(a, b);
+    const e1 = edgeLen(b, c);
+    const e2 = edgeLen(c, a);
+    const minE = Math.min(e0, e1, e2);
+    const maxE = Math.max(e0, e1, e2);
+    if (maxE > 0 && minE / maxE < minEdgeToLongest && minE < minExtent * minExtentFraction)
+      slivers++;
+  };
+  if (index) {
+    for (let i = 0;i < index.count; i += 3)
+      tri(index.getX(i), index.getX(i + 1), index.getX(i + 2));
+  } else {
+    for (let i = 0;i < pos.count; i += 3)
+      tri(i, i + 1, i + 2);
+  }
+  return slivers;
 }
 function smoothOrganic(geometry, options = {}) {
   const iterations = options.iterations ?? 1;
@@ -20361,89 +20451,117 @@ function randomUnitVector(rng) {
 async function rockBoulder(options = {}) {
   const seed = options.seed ?? 1;
   const [hx, hy, hz] = options.halfExtents ?? [0.12, 0.1, 0.11];
-  const facetingAngle = options.facetingAngle ?? 34;
-  const rng = mulberry32(seed);
+  const facetingAngle = options.facetingAngle ?? 36;
   const mod = await getManifoldModule();
+  const extent = Math.max(hx, hy, hz);
+  const minAspect = 0.45;
+  for (let attempt = 0;attempt < 8; attempt++) {
+    const rng = mulberry32(seed + attempt * 131);
+    const owned = [];
+    const track = (m) => {
+      owned.push(m);
+      return m;
+    };
+    const acceptSolid = (prev, next, minTris = 32) => {
+      if (next.isEmpty() || next.numTri() < minTris)
+        return prev;
+      const prevVol = prev.volume();
+      const nextVol = next.volume();
+      if (prevVol > 0 && nextVol < prevVol * 0.28)
+        return prev;
+      return next;
+    };
+    try {
+      let sx = hx * (0.9 + rng() * 0.14);
+      let sy = hy * (0.86 + rng() * 0.16);
+      let sz = hz * (0.9 + rng() * 0.14);
+      const maxA = Math.max(sx, sy, sz);
+      sx = Math.max(sx, maxA * minAspect);
+      sy = Math.max(sy, maxA * minAspect);
+      sz = Math.max(sz, maxA * minAspect);
+      const hullCount = 12 + (seed + attempt) % 6;
+      const microR = extent * (0.04 + rng() * 0.012);
+      const seeds = [];
+      for (let i = 0;i < hullCount; i++) {
+        const [ux, uy, uz] = randomUnitVector(rng);
+        const bulge = 0.82 + rng() * 0.2;
+        seeds.push(track(mod.Manifold.sphere(microR, 8).translate([
+          sx * ux * bulge,
+          sy * uy * bulge,
+          sz * uz * bulge
+        ])));
+      }
+      let solid = track(mod.Manifold.hull(seeds));
+      const trims = 5 + (seed + attempt) % 3;
+      for (let i = 0;i < trims; i++) {
+        const n = randomUnitVector(rng);
+        const offset = extent * (-0.1 + rng() * 0.2);
+        const trimmed = track(solid.trimByPlane(n, offset));
+        solid = acceptSolid(solid, trimmed);
+      }
+      const chips = 2 + (seed + attempt) % 2;
+      for (let i = 0;i < chips; i++) {
+        const n = randomUnitVector(rng);
+        const chipDepth = extent * (0.05 + rng() * 0.06);
+        const chip = track(mod.Manifold.cube([chipDepth * 1.35, chipDepth * 1.1, chipDepth * 1.25], true).rotate([rng() * 360, rng() * 360, rng() * 360]).translate([
+          n[0] * sx * (0.78 + rng() * 0.14),
+          n[1] * sy * (0.78 + rng() * 0.14),
+          n[2] * sz * (0.78 + rng() * 0.14)
+        ]));
+        const chipped = track(solid.subtract(chip));
+        solid = acceptSolid(solid, chipped, 28);
+      }
+      const warpAmp = extent * 0.014;
+      solid = track(solid.warp((v) => {
+        const x = v[0];
+        const y = v[1];
+        const z = v[2];
+        const nx = x / (sx || 1);
+        const ny = y / (sy || 1);
+        const nz = z / (sz || 1);
+        const n = chunkyNoise(nx * 1.3, ny * 1.3, nz * 1.3, seed) * warpAmp + chunkyNoise(nx * 2.4, ny * 2.4, nz * 2.4, seed + 5) * warpAmp * 0.35;
+        const len = Math.hypot(x, y, z);
+        if (len < 0.000000001)
+          return;
+        v[0] += x / len * n;
+        v[1] += y / len * n;
+        v[2] += z / len * n;
+      }));
+      if (solid.isEmpty())
+        continue;
+      let geo = manifoldToGeometry(solid, { smooth: false });
+      geo = creaseNormals(geo, { angle: facetingAngle });
+      geo.userData.kilnSolidRock = true;
+      const aspect = meshExtentAspectRatio(geo);
+      const slivers = meshSliverTriangleCount(geo);
+      if (aspect >= minAspect && slivers === 0)
+        return geo;
+    } finally {
+      for (const m of owned)
+        m.delete();
+    }
+  }
   const owned = [];
   const track = (m) => {
     owned.push(m);
     return m;
   };
-  const extent = Math.max(hx, hy, hz);
-  const acceptSolid = (prev, next, minTris = 32) => {
-    if (next.isEmpty() || next.numTri() < minTris)
-      return prev;
-    const prevVol = prev.volume();
-    const nextVol = next.volume();
-    if (prevVol > 0 && nextVol < prevVol * 0.22)
-      return prev;
-    return next;
-  };
   try {
-    const sx = hx * (0.88 + rng() * 0.18);
-    const sy = hy * (0.82 + rng() * 0.2);
-    const sz = hz * (0.88 + rng() * 0.18);
-    const hullCount = 14 + seed % 8;
-    const microR = extent * (0.035 + rng() * 0.015);
-    const seeds = [];
-    for (let i = 0;i < hullCount; i++) {
-      const [ux, uy, uz] = randomUnitVector(rng);
-      const bulge = 0.78 + rng() * 0.28;
-      seeds.push(track(mod.Manifold.sphere(microR, 8).translate([
-        sx * ux * bulge,
-        sy * uy * bulge,
-        sz * uz * bulge
-      ])));
-    }
-    let solid = track(mod.Manifold.hull(seeds));
-    const trims = 8 + seed % 5;
-    for (let i = 0;i < trims; i++) {
-      const n = randomUnitVector(rng);
-      const offset = extent * (-0.18 + rng() * 0.36);
-      const trimmed = track(solid.trimByPlane(n, offset));
-      solid = acceptSolid(solid, trimmed);
-    }
-    const chips = 4 + seed % 3;
-    for (let i = 0;i < chips; i++) {
-      const n = randomUnitVector(rng);
-      const chip = track(mod.Manifold.cube([
-        extent * (0.22 + rng() * 0.28),
-        extent * (0.18 + rng() * 0.22),
-        extent * (0.24 + rng() * 0.3)
-      ], true).rotate([rng() * 360, rng() * 360, rng() * 360]).translate([
-        n[0] * sx * (0.62 + rng() * 0.28),
-        n[1] * sy * (0.62 + rng() * 0.28),
-        n[2] * sz * (0.62 + rng() * 0.28)
-      ]));
-      const chipped = track(solid.subtract(chip));
-      solid = acceptSolid(solid, chipped, 28);
-    }
-    const warpAmp = extent * 0.022;
-    solid = track(solid.warp((v) => {
-      const x = v[0];
-      const y = v[1];
-      const z = v[2];
-      const nx = x / (sx || 1);
-      const ny = y / (sy || 1);
-      const nz = z / (sz || 1);
-      const n = chunkyNoise(nx * 1.4, ny * 1.4, nz * 1.4, seed) * warpAmp + chunkyNoise(nx * 2.8, ny * 2.8, nz * 2.8, seed + 5) * warpAmp * 0.4;
-      const len = Math.hypot(x, y, z);
-      if (len < 0.000000001)
-        return;
-      v[0] += x / len * n;
-      v[1] += y / len * n;
-      v[2] += z / len * n;
-    }));
-    if (solid.isEmpty())
-      throw new Error("rockBoulder: shaping removed the entire solid");
+    const maxA = Math.max(hx, hy, hz);
+    const sx = Math.max(hx, maxA * minAspect);
+    const sy = Math.max(hy, maxA * minAspect);
+    const sz = Math.max(hz, maxA * minAspect);
+    const solid = track(mod.Manifold.sphere(1, 28).scale([sx, sy, sz]));
     let geo = manifoldToGeometry(solid, { smooth: false });
     geo = creaseNormals(geo, { angle: facetingAngle });
     geo.userData.kilnSolidRock = true;
-    return geo;
+    if (meshExtentAspectRatio(geo) >= minAspect && meshSliverTriangleCount(geo) === 0)
+      return geo;
   } finally {
     for (const m of owned)
       m.delete();
   }
+  throw new Error(`rockBoulder: could not build a chunky solid for seed ${seed} (need aspect >= ${minAspect} and no sliver triangles)`);
 }
 function rockDisplace(geometry, options = {}) {
   const amplitude = options.amplitude ?? 0.018;
@@ -21995,6 +22113,7 @@ function buildSandboxGlobals(usage, options = {}) {
     implicitSurface: wrap("implicitSurface", implicitSurface),
     metaballSurface: wrap("metaballSurface", metaballSurface),
     catmullRomPath: wrap("catmullRomPath", catmullRomPath),
+    spiralPath: wrap("spiralPath", spiralPath),
     taperedTube: wrap("taperedTube", taperedTube),
     smoothOrganic: wrap("smoothOrganic", smoothOrganic),
     rockBoulder: wrap("rockBoulder", rockBoulder),
@@ -23070,7 +23189,7 @@ var init_geometry_catalog = __esm(() => {
     },
     {
       name: "taperedTube",
-      signature: "taperedTube(path: [x,y,z][], radii: number[], opts?: { radialSegments?: 20, creaseAngle?: 180, cap?: true, closed?: false, up?, twist? })",
+      signature: "taperedTube(path: [x,y,z][], radii: number[], opts?: { radialSegments?: 20, creaseAngle?: 180, cap?: true, closed?: false, up?, twist?, sectionScale?: [side,depth][] })",
       returns: "THREE.BufferGeometry",
       category: "curves",
       description: "Circular sweep with one radius per path station. Default creaseAngle 180 shades round profiles smoothly; sample splines with catmullRomPath first.",
@@ -23083,6 +23202,14 @@ var init_geometry_catalog = __esm(() => {
       category: "curves",
       description: "Samples a Catmull-Rom spline through waypoints for smooth tubes, tentacles and branches.",
       example: "const path = catmullRomPath([[0,0,0],[0.2,0.4,0.1],[0.5,0.2,0]], 10);"
+    },
+    {
+      name: "spiralPath",
+      signature: "spiralPath(opts: { center, radius, rise, turns, axis?, forward?, samples? })",
+      returns: "[x,y,z][]",
+      category: "curves",
+      description: "Rising spiral path for prehensile tails and curled appendages.",
+      example: "const curl = spiralPath({ center: [0,0.05,0], radius: 0.03, rise: 0.12, turns: 1.75, forward: [0,0,1] });"
     },
     {
       name: "smoothOrganic",
@@ -39093,10 +39220,31 @@ define2("catmullRomPath", {
     { name: "sweepProfile", relation: "companion" }
   ]
 });
+define2("spiralPath", {
+  units: lengthUnits,
+  axes: "Center, axis, forward and output use XYZ.",
+  parameters: [
+    "Positive radius, rise, and turns; optional sample count (>= 4).",
+    "Forward must not be parallel to axis."
+  ],
+  topology: [noMesh],
+  preservation: ["Returns spiral polyline samples for taperedTube or sweepProfile."],
+  cost: "Linear in samples."
+}, {
+  references: ["src/organic.ts"],
+  tags: ["path", "spiral", "curve"],
+  aliases: ["curl path", "prehensile tail path"],
+  intents: ["sample a rising spiral for curled tails and tendrils"],
+  related: [
+    { name: "catmullRomPath", relation: "alternative" },
+    { name: "taperedTube", relation: "companion" }
+  ]
+});
 define2("taperedTube", {
   ...curveFacts,
   parameters: [
     "Polyline path with one positive radius per station.",
+    "Optional per-station sectionScale [side, depth] for elliptical cross-sections.",
     "Default creaseAngle 180 for round profiles; radialSegments default 20."
   ],
   preservation: ["UVs and normals like sweepProfile; smooth round shading by default."]

@@ -4,76 +4,108 @@ const meta = { name: 'Seahorse', category: 'prop', role: 'prop' };
 
 function build() {
   const root = createRoot('Seahorse');
+  const H = 0.48;
   const bodyMat = gameMaterial(0xd4a04a, { roughness: 0.55 });
   const finMat = gameMaterial(0xe8c878, { roughness: 0.42, metalness: 0.02 });
 
   const spineCtrl = [
-    [0.02, 0.04, -0.045],
-    [-0.01, 0.044, -0.06],
-    [-0.035, 0.05, -0.065],
-    [-0.055, 0.058, -0.055],
-    [-0.06, 0.068, -0.035],
-    [-0.05, 0.082, -0.012],
-    [-0.03, 0.1, 0.004],
-    [-0.005, 0.13, 0.01],
-    [0.02, 0.17, 0.012],
-    [0.04, 0.22, 0.01],
-    [0.055, 0.27, 0.007],
-    [0.064, 0.32, 0.003],
-    [0.068, 0.37, -0.002],
-    [0.066, 0.405, -0.006],
-    [0.06, 0.425, -0.009],
-    [0.056, 0.442, -0.01],
-    [0.052, 0.456, -0.009],
-    [0.048, 0.468, -0.007],
+    [0.02, 0.052, 0.05],
+    [0.028, 0.05, 0.035],
+    [0.02, 0.055, 0.018],
+    [0.008, 0.072, 0.012],
+    [0, 0.095, 0.018],
+    [0, 0.13, 0.032],
+    [0, 0.19, 0.048],
+    [0, 0.25, 0.062],
+    [0, 0.3, 0.05],
+    [-0.004, 0.34, 0.02],
+    [-0.003, 0.365, -0.01],
+    [-0.002, 0.378, -0.018],
   ];
-  const spinePath = catmullRomPath(spineCtrl, 10);
-  const spineR = spinePath.map((_, i, a) => {
+  const spinePath = catmullRomPath(spineCtrl, 9);
+  const ring = (i) => 1 + 0.055 * Math.sin(i * 1.15);
+
+  const spineRadii = spinePath.map((_, i, a) => {
     const t = i / (a.length - 1);
-    const belly = 0.017 * Math.sin(Math.PI * Math.min(t * 2.1, 1));
-    const tailTip = t < 0.18 ? 0.014 * (1 - t / 0.18) : 0;
-    const headSwelling = t > 0.78 ? 0.014 * Math.sin(((t - 0.78) / 0.22) * Math.PI) : 0;
-    const neckTaper = t > 0.68 && t < 0.82 ? -0.004 * Math.sin(((t - 0.68) / 0.14) * Math.PI) : 0;
-    return 0.024 + belly + headSwelling + neckTaper + 0.013 * (1 - t * 0.52) - tailTip;
+    const belly = t > 0.38 && t < 0.72 ? 0.04 * Math.sin(((t - 0.38) / 0.34) * Math.PI) : 0;
+    const tail = t < 0.28 ? 0.008 + t * 0.05 : 0;
+    const neck = t > 0.82 ? 0.026 - (t - 0.82) * 0.08 : 0;
+    const core = 0.012 + (1 - t) * 0.01;
+    return Math.max(0.006, (core + belly + tail + neck) * ring(i));
   });
-  const bodyGeo = taperedTube(spinePath, spineR, { radialSegments: 32, creaseAngle: 180 });
-  createPart('Body', creaseNormals(bodyGeo, { angle: 62 }), bodyMat, { parent: root });
 
-  const snoutStart = spinePath[spinePath.length - 1];
-  const snoutR0 = spineR[spineR.length - 1] * 0.92;
-  const snoutPath = catmullRomPath(
+  const bodyGeo = taperedTube(spinePath, spineRadii, { radialSegments: 28, creaseAngle: 180 });
+  createPart('Body', creaseNormals(bodyGeo, { angle: 34 }), bodyMat, {
+    parent: root,
+    scale: [0.48, 1, 1],
+  });
+
+  const neckTop = spinePath[spinePath.length - 1];
+  const headPath = catmullRomPath(
     [
-      snoutStart,
-      [snoutStart[0] + 0.03, snoutStart[1] - 0.003, snoutStart[2] + 0.005],
-      [snoutStart[0] + 0.065, snoutStart[1] - 0.008, snoutStart[2] + 0.01],
-      [snoutStart[0] + 0.11, snoutStart[1] - 0.014, snoutStart[2] + 0.014],
-      [snoutStart[0] + 0.15, snoutStart[1] - 0.018, snoutStart[2] + 0.017],
-      [snoutStart[0] + 0.18, snoutStart[1] - 0.02, snoutStart[2] + 0.018],
+      neckTop,
+      [0, 0.374, -0.01],
+      [0, 0.358, 0.02],
+      [0, 0.338, 0.048],
+      [0, 0.318, 0.062],
+      [0, 0.298, 0.068],
     ],
-    10,
+    6,
   );
-  const snoutR = snoutPath.map((_, i, a) => snoutR0 * (1 - (i / (a.length - 1)) * 0.86) + 0.004);
-  createPart('Snout', taperedTube(snoutPath, snoutR, { radialSegments: 18 }), bodyMat, { parent: root });
+  const headR = H / 5;
+  const headRadii = headPath.map((_, i, a) => {
+    const t = i / (a.length - 1);
+    if (t < 0.4) return headR * 0.44;
+    return Math.max(0.005, headR * 0.32 * (1 - (t - 0.4) / 0.6));
+  });
+  const headGeo = taperedTube(headPath, headRadii, { radialSegments: 20, creaseAngle: 180 });
+  createPart('HeadSnout', creaseNormals(headGeo, { angle: 60 }), bodyMat, {
+    parent: root,
+    scale: [0.55, 1, 1],
+  });
 
-  const crown = spinePath[Math.floor(spinePath.length * 0.92)];
-  for (const [name, ox, oy, oz] of [
-    ['Coronet_L', crown[0] - 0.018, crown[1] + 0.022, crown[2] + 0.01],
-    ['Coronet_C', crown[0] + 0.008, crown[1] + 0.026, crown[2]],
-    ['Coronet_R', crown[0] + 0.028, crown[1] + 0.022, crown[2] - 0.01],
+  const crown = headPath[2];
+  for (const [name, ox, oy, oz, r] of [
+    ['Coronet_L', -0.01, 0.012, -0.006, 0.008],
+    ['Coronet_C', 0, 0.018, 0, 0.011],
+    ['Coronet_R', 0.01, 0.012, 0.006, 0.008],
   ]) {
-    createPart(name, sphereGeo(0.011, 8, 6), bodyMat, { position: [ox, oy, oz], parent: root });
+    createPart(name, sphereGeo(r, 10, 8), bodyMat, {
+      position: [crown[0] + ox, crown[1] + oy, crown[2] + oz],
+      parent: root,
+    });
   }
 
-  const finPath = catmullRomPath(
-    [[0.015, 0.16, -0.028], [0.035, 0.22, -0.03], [0.048, 0.28, -0.028], [0.052, 0.34, -0.024]],
-    4,
+  const dorsalGeo = sweepProfile(
+    [[0, 0], [0.012, 0.002], [0.016, 0.014], [0, 0.022], [-0.016, 0.014], [-0.012, 0.002]],
+    catmullRomPath(
+      [
+        [0, 0.22, -0.026],
+        [0, 0.27, -0.034],
+        [0, 0.31, -0.036],
+      ],
+      3,
+    ),
+    { cap: true, creaseAngle: 55 },
   );
-  const finGeo = sweepProfile(
-    [[0, 0], [0.016, 0.006], [0.02, 0.038], [0, 0.052], [-0.02, 0.038], [-0.016, 0.006]],
-    finPath,
-    { cap: true, creaseAngle: 50 },
-  );
-  createPart('DorsalFin', finGeo, finMat, { parent: root });
+  createPart('DorsalFin', dorsalGeo, finMat, { parent: root, scale: [0.5, 1, 1] });
+
+  function pectoralFin(name, side) {
+    const fin = sweepProfile(
+      [[0, 0], [side * 0.008, 0.002], [side * 0.011, 0.01], [0, 0.012]],
+      catmullRomPath(
+        [
+          [side * 0.012, 0.348, 0.01],
+          [side * 0.024, 0.344, 0.016],
+        ],
+        2,
+      ),
+      { cap: true, creaseAngle: 55 },
+    );
+    createPart(name, fin, finMat, { parent: root });
+  }
+  pectoralFin('Pectoral_L', 1);
+  pectoralFin('Pectoral_R', -1);
 
   return root;
 }
