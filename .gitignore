@@ -80,3 +80,5 @@ assets/video/
 # Local qualification captures and build caches; preserved outside release source.
 /qa/
 /.cache/
+output/
+output/organic-benchmark/
