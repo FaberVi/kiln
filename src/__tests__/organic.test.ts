@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { geometryDiagnostics } from '../geometry';
-import { catmullRomPath, rockDisplace, smoothOrganic, taperedTube } from '../organic';
+import { catmullRomPath, rockBoulder, rockDisplace, smoothOrganic, taperedTube } from '../organic';
 import { countTriangles, createPart, createRoot, gameMaterial, sphereGeo } from '../primitives';
 
 describe('organic helpers', () => {
@@ -47,6 +47,13 @@ describe('organic helpers', () => {
     expect(smooth.getAttribute('position')!.count).toBeGreaterThan(
       base.getAttribute('position')!.count,
     );
+  });
+
+  test('rockBoulder produces faceted angular mesh', () => {
+    const geo = rockBoulder({ halfExtents: [0.1, 0.08, 0.09], seed: 9, detail: 1 });
+    const diag = geometryDiagnostics(geo);
+    expect(diag.triangles).toBeGreaterThan(40);
+    expect(diag.degenerateTriangles).toBe(0);
   });
 
   test('rockDisplace changes positions on a sphere', () => {

@@ -21070,17 +21070,120 @@ function chunkyNoise(x, y, z, seed) {
   const t = Math.abs(n);
   return Math.sign(n) * (t * t * (3 - 2 * t));
 }
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return () => {
+    t += 1831565813;
+    let r = Math.imul(t ^ t >>> 15, 1 | t);
+    r ^= r + Math.imul(r ^ r >>> 7, 61 | r);
+    return ((r ^ r >>> 14) >>> 0) / 4294967296;
+  };
+}
+function voronoiFacetDisplace(geometry, options) {
+  const { cells, amplitude, seed } = options;
+  const out = geometry.clone();
+  const pos = out.getAttribute("position");
+  if (!pos)
+    throw new Error("voronoiFacetDisplace needs positions");
+  out.computeBoundingBox();
+  const box = out.boundingBox;
+  const size = new THREE33.Vector3;
+  box.getSize(size);
+  const center = new THREE33.Vector3;
+  box.getCenter(center);
+  const rng = mulberry32(seed);
+  const cellCenters = [];
+  for (let c = 0;c < cells; c++) {
+    cellCenters.push(new THREE33.Vector3(center.x + (rng() - 0.5) * size.x * 0.9, center.y + (rng() - 0.5) * size.y * 0.9, center.z + (rng() - 0.5) * size.z * 0.9));
+  }
+  const cellOffset = cellCenters.map(() => {
+    const dir = new THREE33.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5);
+    if (dir.lengthSq() < 0.000000000001)
+      dir.set(0, 1, 0);
+    dir.normalize();
+    const mag = amplitude * (0.55 + rng() * 0.9);
+    return dir.multiplyScalar(mag);
+  });
+  const vertexCell = new Int32Array(pos.count);
+  for (let i = 0;i < pos.count; i++) {
+    const p = new THREE33.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+    let best = 0;
+    let bestD = cellCenters[0].distanceToSquared(p);
+    for (let c = 1;c < cells; c++) {
+      const d = cellCenters[c].distanceToSquared(p);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    vertexCell[i] = best;
+  }
+  for (let i = 0;i < pos.count; i++) {
+    const off = cellOffset[vertexCell[i]];
+    pos.setXYZ(i, pos.getX(i) + off.x, pos.getY(i) + off.y, pos.getZ(i) + off.z);
+  }
+  pos.needsUpdate = true;
+  out.computeVertexNormals();
+  return out;
+}
+function rockBoulder(options = {}) {
+  const seed = options.seed ?? 1;
+  const [hx, hy, hz] = options.halfExtents ?? [0.12, 0.1, 0.11];
+  const detail = options.detail ?? 1;
+  const voronoiCells = options.voronoiCells ?? 11;
+  const facetingAngle = options.facetingAngle ?? 24;
+  if (!Number.isSafeInteger(detail) || detail < 0 || detail > 2)
+    throw new Error("rockBoulder detail must be an integer from 0 to 2");
+  const rng = mulberry32(seed);
+  const base = new THREE33.IcosahedronGeometry(1, detail);
+  const pos = base.getAttribute("position");
+  for (let i = 0;i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const jx = 0.78 + rng() * 0.38;
+    const jy = y < 0 ? 0.65 + rng() * 0.25 : 0.75 + rng() * 0.35;
+    const jz = 0.78 + rng() * 0.38;
+    const len = Math.hypot(x, y, z) || 1;
+    pos.setXYZ(i, x / len * hx * jx, y / len * hy * jy, z / len * hz * jz);
+  }
+  pos.needsUpdate = true;
+  base.computeVertexNormals();
+  const extent = Math.max(hx, hy, hz);
+  let geo = voronoiFacetDisplace(base, {
+    cells: voronoiCells,
+    amplitude: extent * 0.16,
+    seed: seed + 41
+  });
+  geo = rockDisplace(geo, {
+    amplitude: extent * 0.022,
+    frequency: 1.25,
+    octaves: 2,
+    seed: seed + 3,
+    voronoiCells: undefined,
+    facetingAngle: null
+  });
+  return creaseNormals(geo, { angle: facetingAngle });
+}
 function rockDisplace(geometry, options = {}) {
-  const amplitude = options.amplitude ?? 0.022;
-  const frequency = options.frequency ?? 0.95;
+  const amplitude = options.amplitude ?? 0.018;
+  const frequency = options.frequency ?? 1.05;
   const octaves = options.octaves ?? 2;
   const seed = options.seed ?? 1;
-  const facetingAngle = options.facetingAngle === undefined ? 34 : options.facetingAngle;
+  const facetingAngle = options.facetingAngle === undefined ? 26 : options.facetingAngle;
+  const voronoiCells = options.voronoiCells;
   if (!Number.isFinite(amplitude) || amplitude < 0)
     throw new Error("rockDisplace amplitude must be nonnegative and finite");
   if (!Number.isSafeInteger(octaves) || octaves < 1 || octaves > 6)
     throw new Error("rockDisplace octaves must be an integer from 1 to 6");
-  const out = geometry.clone();
+  let out = geometry.clone();
+  if (voronoiCells !== undefined && voronoiCells > 0) {
+    out = voronoiFacetDisplace(out, {
+      cells: voronoiCells,
+      amplitude: amplitude * 1.8,
+      seed: seed + 91
+    });
+  }
   const pos = out.getAttribute("position");
   if (!pos)
     throw new Error("rockDisplace needs positions");
@@ -22621,6 +22724,7 @@ function buildSandboxGlobals(usage, options = {}) {
     catmullRomPath: wrap("catmullRomPath", catmullRomPath),
     taperedTube: wrap("taperedTube", taperedTube),
     smoothOrganic: wrap("smoothOrganic", smoothOrganic),
+    rockBoulder: wrap("rockBoulder", rockBoulder),
     rockDisplace: wrap("rockDisplace", rockDisplace),
     smoothUnion: wrap("smoothUnion", smoothUnion),
     sphereInside: wrap("sphereInside", sphereInside),
@@ -23716,12 +23820,20 @@ var init_geometry_catalog = __esm(() => {
       example: "const soft = smoothOrganic(tube, { iterations: 1, creaseAngle: 50 });"
     },
     {
-      name: "rockDisplace",
-      signature: "rockDisplace(geometry, opts?: { amplitude?: 0.04, frequency?: 3.5, octaves?: 3, seed?: 1 })",
+      name: "rockBoulder",
+      signature: "rockBoulder(opts?: { halfExtents?: [x,y,z], seed?: 1, detail?: 1, voronoiCells?: 11, facetingAngle?: 24 })",
       returns: "THREE.BufferGeometry",
       category: "mesh-ops",
-      description: "Deterministic fractal displacement along vertex normals for boulders and rough shells.",
-      example: "const boulder = rockDisplace(sphereGeo(0.4, 24, 18), { seed: 4 });"
+      description: "Angular boulder hull with Voronoi facets and mild erosion noise — default rock primitive.",
+      example: "const chunk = rockBoulder({ halfExtents: [0.14, 0.1, 0.12], seed: 5 });"
+    },
+    {
+      name: "rockDisplace",
+      signature: "rockDisplace(geometry, opts?: { amplitude?: 0.018, frequency?: 1.05, octaves?: 2, seed?: 1, voronoiCells?: number })",
+      returns: "THREE.BufferGeometry",
+      category: "mesh-ops",
+      description: "Fractal normal displacement with optional Voronoi facets for rough shells on existing meshes.",
+      example: "const rough = rockDisplace(boxGeo(0.3, 0.2, 0.25), { seed: 4, voronoiCells: 9 });"
     },
     {
       name: "smoothUnion",
@@ -37097,10 +37209,24 @@ var init_helper_contracts = __esm(() => {
     intents: ["soften an authored mesh for creatures and plants"],
     related: [{ name: "subdivide", relation: "companion" }]
   });
+  define2("rockBoulder", {
+    ...ownedGeometry,
+    parameters: [
+      "Optional halfExtents [x,y,z], seed, detail (0..2), voronoiCells, facetingAngle.",
+      "Builds a jittered icosahedron hull with fractured facets."
+    ],
+    preservation: ["Recomputes normals; tangents are not retained."],
+    cost: "Scales with icosahedron detail and Voronoi cell count."
+  }, {
+    references: ["src/organic.ts"],
+    tags: ["rock", "procedural", "mesh-ops"],
+    intents: ["author angular boulders and rock clusters without hand-modelling facets"],
+    related: [{ name: "rockDisplace", relation: "companion" }]
+  });
   define2("rockDisplace", {
     ...ownedGeometry,
     parameters: [
-      "Optional amplitude, frequency, octaves (1..6), seed.",
+      "Optional amplitude, frequency, octaves (1..6), seed, voronoiCells, facetingAngle.",
       "Requires triangle positions; displaces along normals."
     ],
     preservation: ["Recomputes normals; tangents are not retained."],
@@ -37109,7 +37235,10 @@ var init_helper_contracts = __esm(() => {
     references: ["src/organic.ts"],
     tags: ["displacement", "rock", "noise"],
     intents: ["roughen a closed mesh for natural rock surfaces"],
-    related: [{ name: "displace", relation: "alternative" }]
+    related: [
+      { name: "rockBoulder", relation: "alternative" },
+      { name: "displace", relation: "alternative" }
+    ]
   });
   nodeFacts = {
     units: `${lengthUnits} explicit rotation triples use degrees unless stated otherwise.`,

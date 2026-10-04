@@ -255,14 +255,24 @@ export const geometryPrimitives: readonly HelperSpec[] = [
     example: 'const soft = smoothOrganic(tube, { iterations: 1, creaseAngle: 50 });',
   },
   {
-    name: 'rockDisplace',
+    name: 'rockBoulder',
     signature:
-      'rockDisplace(geometry, opts?: { amplitude?: 0.04, frequency?: 3.5, octaves?: 3, seed?: 1 })',
+      'rockBoulder(opts?: { halfExtents?: [x,y,z], seed?: 1, detail?: 1, voronoiCells?: 11, facetingAngle?: 24 })',
     returns: 'THREE.BufferGeometry',
     category: 'mesh-ops',
     description:
-      'Deterministic fractal displacement along vertex normals for boulders and rough shells.',
-    example: 'const boulder = rockDisplace(sphereGeo(0.4, 24, 18), { seed: 4 });',
+      'Angular boulder hull with Voronoi facets and mild erosion noise — default rock primitive.',
+    example: 'const chunk = rockBoulder({ halfExtents: [0.14, 0.1, 0.12], seed: 5 });',
+  },
+  {
+    name: 'rockDisplace',
+    signature:
+      'rockDisplace(geometry, opts?: { amplitude?: 0.018, frequency?: 1.05, octaves?: 2, seed?: 1, voronoiCells?: number })',
+    returns: 'THREE.BufferGeometry',
+    category: 'mesh-ops',
+    description:
+      'Fractal normal displacement with optional Voronoi facets for rough shells on existing meshes.',
+    example: 'const rough = rockDisplace(boxGeo(0.3, 0.2, 0.25), { seed: 4, voronoiCells: 9 });',
   },
   {
     name: 'smoothUnion',

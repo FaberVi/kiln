@@ -52,6 +52,7 @@ import { implicitSurface } from './implicit';
 import {
   catmullRomPath,
   metaballSurface,
+  rockBoulder,
   rockDisplace,
   smoothOrganic,
   taperedTube,
@@ -2248,6 +2249,7 @@ export function buildSandboxGlobals(
     catmullRomPath: wrap('catmullRomPath', catmullRomPath),
     taperedTube: wrap('taperedTube', taperedTube),
     smoothOrganic: wrap('smoothOrganic', smoothOrganic),
+    rockBoulder: wrap('rockBoulder', rockBoulder),
     rockDisplace: wrap('rockDisplace', rockDisplace),
     smoothUnion: wrap('smoothUnion', smoothUnion),
     sphereInside: wrap('sphereInside', sphereInside),

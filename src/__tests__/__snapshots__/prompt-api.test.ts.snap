@@ -515,9 +515,13 @@ displace(geometry, offset: ([x,y,z], t) => [dx,dy,dz], opts?: { frame?: { origin
 smoothOrganic(geometry, opts?: { iterations?: 1, creaseAngle?: 55, preserveUV?: false })
   // Runs subdivide then creaseNormals with organic-friendly defaults.
   // e.g. const soft = smoothOrganic(tube, { iterations: 1, creaseAngle: 50 });
-rockDisplace(geometry, opts?: { amplitude?: 0.04, frequency?: 3.5, octaves?: 3, seed?: 1 })
-  // Deterministic fractal displacement along vertex normals for boulders and rough shells.
-  // e.g. const boulder = rockDisplace(sphereGeo(0.4, 24, 18), { seed: 4 });
+rockBoulder(opts?: { halfExtents?: [x,y,z], seed?: 1, detail?: 1, voronoiCells?: 11, facetingAngle?: 24 })
+  // Angular boulder hull with Voronoi facets and mild erosion noise — default rock primitive.
+  // e.g. const chunk = rockBoulder({ halfExtents: [0.14, 0.1, 0.12], seed: 5 });
+rockDisplace(geometry, opts?: { amplitude?: 0.018, frequency?: 1.05, octaves?: 2, seed?: 1, voronoiCells?: number })
+  // Fractal normal displacement with optional Voronoi facets for rough shells on existing
+  // meshes.
+  // e.g. const rough = rockDisplace(boxGeo(0.3, 0.2, 0.25), { seed: 4, voronoiCells: 9 });
 subdivide(geometry: BufferGeometry, iterations?: 1, opts?: { preserveUV?: boolean, split?: boolean, uvSmooth?: boolean, preserveEdges?: boolean, flatOnly?: boolean, weld?: boolean })
   // Loop subdivision returns new geometry; each iteration roughly quadruples triangles and
   // smooths the surface. Use preserveUV:true for textured meshes. Legacy position-only welding

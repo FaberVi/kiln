@@ -786,11 +786,29 @@ define(
   },
 );
 define(
+  'rockBoulder',
+  {
+    ...ownedGeometry,
+    parameters: [
+      'Optional halfExtents [x,y,z], seed, detail (0..2), voronoiCells, facetingAngle.',
+      'Builds a jittered icosahedron hull with fractured facets.',
+    ],
+    preservation: ['Recomputes normals; tangents are not retained.'],
+    cost: 'Scales with icosahedron detail and Voronoi cell count.',
+  },
+  {
+    references: ['src/organic.ts'],
+    tags: ['rock', 'procedural', 'mesh-ops'],
+    intents: ['author angular boulders and rock clusters without hand-modelling facets'],
+    related: [{ name: 'rockDisplace', relation: 'companion' }],
+  },
+);
+define(
   'rockDisplace',
   {
     ...ownedGeometry,
     parameters: [
-      'Optional amplitude, frequency, octaves (1..6), seed.',
+      'Optional amplitude, frequency, octaves (1..6), seed, voronoiCells, facetingAngle.',
       'Requires triangle positions; displaces along normals.',
     ],
     preservation: ['Recomputes normals; tangents are not retained.'],
@@ -800,7 +818,10 @@ define(
     references: ['src/organic.ts'],
     tags: ['displacement', 'rock', 'noise'],
     intents: ['roughen a closed mesh for natural rock surfaces'],
-    related: [{ name: 'displace', relation: 'alternative' }],
+    related: [
+      { name: 'rockBoulder', relation: 'alternative' },
+      { name: 'displace', relation: 'alternative' },
+    ],
   },
 );
 
