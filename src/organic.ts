@@ -363,12 +363,14 @@ export async function rockBoulder(options: RockBoulderOptions = {}): Promise<THR
       for (let i = 0; i < chips; i++) {
         const n = randomUnitVector(rng);
         const chipDepth = extent * (0.05 + rng() * 0.06);
+        const chipY = n[1] * sy * (0.78 + rng() * 0.14);
+        if (chipY > sy * 0.42) continue;
         const chip = track(
           mod.Manifold.cube([chipDepth * 1.35, chipDepth * 1.1, chipDepth * 1.25], true)
             .rotate([rng() * 360, rng() * 360, rng() * 360])
             .translate([
               n[0] * sx * (0.78 + rng() * 0.14),
-              n[1] * sy * (0.78 + rng() * 0.14),
+              chipY,
               n[2] * sz * (0.78 + rng() * 0.14),
             ]),
         );
