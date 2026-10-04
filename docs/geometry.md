@@ -358,7 +358,7 @@ const blob = await implicitSurface(
 Higher-level organic helpers build on the same positive-inside convention:
 `metaballSurface` smooth-unions spheres; `taperedTube` and `catmullRomPath` author
 smooth limbs and tentacles; `smoothOrganic` subdivides then limits crease angles;
-`rockDisplace` roughens closed meshes along normals. `smoothUnion` and `sphereInside`
+`rockBoulder` authors angular fractured boulders; `rockDisplace` roughens existing closed meshes along normals (optional Voronoi facets). `smoothUnion` and `sphereInside`
 compose custom fields inside `implicitSurface` callbacks. See
 `benchmark/organic-comparison/` for reproducible before/after benchmark programs.
 
