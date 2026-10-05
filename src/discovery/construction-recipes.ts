@@ -240,4 +240,54 @@ function build() {
       ],
     },
   },
+  {
+    version: 'kiln.catalog-entry.v1',
+    id: 'recipe:visible-pipe-segments-v1',
+    kind: 'recipe',
+    name: 'Visible pipe or hull segment count',
+    summary:
+      'Compare default eight-segment cylinders with segmentsFromRadius for camera-visible pipes, ducts and nozzles without changing global primitive defaults.',
+    family: 'structure',
+    tags: ['cylinder', 'segments', 'pipe', 'hard surface', 'faceting'],
+    aliases: ['round pipe segments', 'faceted cylinder fix', 'nozzle segments'],
+    intents: ['avoid faceted hero pipes', 'pick cylinder segment count from radius'],
+    stability: 'experimental',
+    related: [
+      { id: 'operation:cylinderGeo', relation: 'prerequisite' },
+      { id: 'operation:segmentsFromRadius', relation: 'prerequisite' },
+    ],
+    references: ['docs/geometry.md', 'src/geometry-segments.ts'],
+    limitations: [
+      'segmentsFromRadius recommends a count only; hidden fasteners can keep the default eight segments.',
+      'Does not subdivide along the length — add height segments before bend/twist operations separately.',
+    ],
+    recipe: {
+      prerequisites: [
+        'operation:createPart',
+        'operation:cylinderGeo',
+        'operation:segmentsFromRadius',
+      ],
+      steps: [
+        'Place a default cylinder and a second with segmentsFromRadius(radius) side by side in a scratch build or review grid.',
+        'Use the recommended count for any pipe, nozzle or rim that appears in hero views; keep defaults for pins and bolts.',
+      ],
+      example: `const meta = { name: 'PipeSegments' };
+function build() {
+  const root = createRoot(meta.name);
+  const r = 0.25;
+  createPart('Pipe_Default', cylinderGeo(r, r, 1.2, 8), gameMaterial('#888888'), { parent: root, position: [-0.35, 0.6, 0] });
+  const segs = segmentsFromRadius(r);
+  createPart('Pipe_Recommended', cylinderGeo(r, r, 1.2, segs), gameMaterial('#aaaaaa'), { parent: root, position: [0.35, 0.6, 0] });
+  return root;
+}`,
+      adaptations: [
+        'Use coneGeo or capsuleGeo with the same segment count when the cross-section is not a straight cylinder.',
+        'For path-based tubes, sample the path first, then apply segmentsFromRadius to each straight run separately.',
+      ],
+      checks: [
+        'Inspect the top and three-quarter views: the recommended pipe should read circular under default review lighting.',
+        'geometryDiagnostics is not required for segment choice; compare silhouettes in kiln_render instead.',
+      ],
+    },
+  },
 ];

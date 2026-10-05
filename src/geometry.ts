@@ -2,6 +2,7 @@ import { GEOMETRY_ALLOCATION_LIMITS } from './geometry-budget';
 /** Owned custom meshes, surface sampling, and explicit topology diagnostics. */
 import * as THREE from 'three';
 import { AuthoringDiagnosticError } from './evaluator/authoring-diagnostic';
+export { segmentsFromRadius, type SegmentsFromRadiusOptions } from './geometry-segments';
 
 export type Point3 = readonly [number, number, number];
 export interface MeshGeoData {
@@ -215,6 +216,33 @@ export function geometryDiagnostics(
     else if (edge.direction !== 0) result.orientationConflicts++;
   }
   return result;
+}
+
+/** Lightweight companion notes authors can log after `geometryDiagnostics`. */
+export function geometryTopologyAdvisories(
+  diagnostics: GeometryDiagnostics,
+  geometry?: THREE.BufferGeometry,
+): string[] {
+  const advisories: string[] = [];
+  if (diagnostics.orientationConflicts > 0) {
+    advisories.push(
+      `orientationConflicts=${diagnostics.orientationConflicts}: inconsistent triangle winding inside one mesh — split into separate parts or rebuild with consistent counterclockwise winding.`,
+    );
+  }
+  if (geometry?.userData?.kilnCsgSmooth === true) {
+    advisories.push(
+      'CSG used smooth: true, which softens sharp rims in lighting. Try geometry = creaseNormals(geometry, { angle: 60 }) when the silhouette is correct but shading looks scalloped.',
+    );
+  }
+  return advisories;
+}
+
+export function topologyAdvisoriesForGeometry(
+  geometry: THREE.BufferGeometry,
+  tolerance?: number,
+): { diagnostics: GeometryDiagnostics; advisories: string[] } {
+  const diagnostics = geometryDiagnostics(geometry, tolerance);
+  return { diagnostics, advisories: geometryTopologyAdvisories(diagnostics, geometry) };
 }
 
 export interface ParametricSurfaceOptions {
