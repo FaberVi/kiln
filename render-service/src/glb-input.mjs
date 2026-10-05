@@ -92,41 +92,46 @@ export function validateSelfContainedGlb(input, overrides = {}) {
     });
     return values;
   };
+  const geometryCompression = new Set(['KHR_draco_mesh_compression', 'EXT_meshopt_compression']);
   for (const extension of document.extensionsUsed ?? []) {
+    if (geometryCompression.has(extension)) continue;
     if (
-      [
-        'KHR_draco_mesh_compression',
-        'EXT_meshopt_compression',
-        'KHR_texture_basisu',
-        'EXT_texture_webp',
-        'EXT_texture_avif',
-        'MSFT_texture_dds',
-      ].includes(extension)
+      ['KHR_texture_basisu', 'EXT_texture_webp', 'EXT_texture_avif', 'MSFT_texture_dds'].includes(
+        extension,
+      )
     ) {
       throw fail(
-        `unsupported compressed/image extension ${extension}; use uncompressed geometry and PNG images`,
+        `unsupported compressed/image extension ${extension}; use PNG images and Draco/meshopt geometry only when the loader provides decoders`,
       );
     }
   }
+  const compressedGeometry = (document.extensionsUsed ?? []).some((name) =>
+    geometryCompression.has(name),
+  );
   const declaredBuffers = list('buffers');
   let bufferBytes = 0;
+  let embeddedOffset = 0;
   const buffers = declaredBuffers.map((buffer, index) => {
     const length = integer(buffer.byteLength, `buffers[${index}].byteLength`, 1);
     bufferBytes += length;
     if (bufferBytes > limits.maxBufferBytes) throw fail('buffer byte budget exceeded', 413);
-    let bytes;
     if (buffer.uri !== undefined) {
-      bytes = dataUri(buffer.uri, 'buffer', limits.maxBufferBytes);
+      const bytes = dataUri(buffer.uri, 'buffer', limits.maxBufferBytes);
       if (bytes.length !== length)
         throw fail(`buffer ${index} byteLength must match its data URI length`);
-    } else {
-      if (index !== 0 || !binary) throw fail(`buffer ${index} has no embedded BIN data`);
-      bytes = binary;
-      if (bytes.length - length > 3) throw fail('embedded buffer length does not match BIN chunk');
+      return bytes;
     }
-    if (length > bytes.length) throw fail(`buffer ${index} byteLength exceeds its data`);
-    return bytes.subarray(0, length);
+    if (!binary) throw fail(`buffer ${index} has no embedded BIN data`);
+    if (compressedGeometry) return binary;
+    if (embeddedOffset + length > binary.length)
+      throw fail(`embedded buffer ${index} exceeds BIN chunk`);
+    const bytes = binary.subarray(embeddedOffset, embeddedOffset + length);
+    embeddedOffset += length;
+    embeddedOffset = Math.ceil(embeddedOffset / 4) * 4;
+    return bytes;
   });
+  if (!compressedGeometry && binary && embeddedOffset > binary.length)
+    throw fail('embedded buffers exceed BIN chunk length');
   const views = list('bufferViews').map((view, index) => {
     const bytes = getIndex(buffers, view.buffer, `bufferViews[${index}].buffer`);
     const start = integer(view.byteOffset ?? 0, `bufferViews[${index}].byteOffset`);
@@ -167,7 +172,7 @@ export function validateSelfContainedGlb(input, overrides = {}) {
       throw fail('accessor element budget exceeded', 413);
     const columns = accessor.type.startsWith('MAT') ? Number(accessor.type.slice(3)) : 1;
     const elementSize = columns > 1 ? columns * Math.ceil((columns * size) / 4) * 4 : width * size;
-    if (accessor.bufferView !== undefined)
+    if (accessor.bufferView !== undefined && !compressedGeometry)
       range(
         accessor.bufferView,
         accessor.byteOffset ?? 0,

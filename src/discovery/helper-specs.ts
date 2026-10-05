@@ -941,6 +941,37 @@ const PRIMITIVES: HelperSpec[] = [
     example:
       'const unwrapped = await autoUnwrap(someCsgResult, { resolution: 1024 });\nconst mesh = new THREE.Mesh(unwrapped, bakedPbr);',
   },
+  {
+    name: 'analyzeUvStretch',
+    signature: 'analyzeUvStretch(geometry: BufferGeometry)',
+    returns: 'UvStretchStats',
+    category: 'uv',
+    description:
+      'Measures per-triangle L² stretch and per-chart texel scale on geometry that already has UV0. Use to compare analytic primitive UVs against post-CSG autoUnwrap charts.',
+    example:
+      'const stats = analyzeUvStretch(mesh.geometry);\nif (stats.stretch.median > 1.3) { /* prefer projectUV/remapUV on primitives */ }',
+  },
+  {
+    name: 'normalizeAtlasTexelScale',
+    signature:
+      'normalizeAtlasTexelScale(geometry: BufferGeometry, opts?: { targetScale?: number, fitUnitSquare?: true })',
+    returns: 'THREE.BufferGeometry',
+    category: 'uv',
+    description:
+      'Opt-in post-pass after autoUnwrap: scales each xatlas chart toward a common √(3D/UV area) so texel density is more uniform. Does not replace projectUV/remapUV on primitives with good built-in UVs.',
+    example:
+      'let geo = await autoUnwrap(csgMesh.geometry);\ngeo = normalizeAtlasTexelScale(geo);',
+  },
+  {
+    name: 'uvWorkflowAdvisory',
+    signature:
+      "uvWorkflowAdvisory(geometry: BufferGeometry, context?: 'generic' | 'csg')",
+    returns: 'UvWorkflowAdvisory',
+    category: 'uv',
+    description:
+      'Returns stretch/texel metrics plus short guidance on when to use projectUV/remapUV vs autoUnwrap and whether normalizeAtlasTexelScale may help.',
+    example: "const { messages } = uvWorkflowAdvisory(geo, 'csg');",
+  },
 
   // ---------------------------------------------------------------------------
   // Textures + PBR (Wave 3B)

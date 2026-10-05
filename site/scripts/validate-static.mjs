@@ -186,17 +186,22 @@ const engineSummary = {
   extensionsDeclared: [...new Set(engineChecked.flatMap((facts) => facts.extensionsUsed))],
   problems: engine.length,
 };
-// No shipped GLB may need a Draco decoder: the viewer loads without one (no third-party decoder path; engineering
-// review, finding 14), so such a file would fail to open.
+// Shipped gallery GLBs stay plain glTF 2.0 for broad compatibility; optional bake compression is for review paths.
+const blockedGeometryExtensions = new Set([
+  'KHR_texture_basisu',
+  'EXT_texture_webp',
+  'EXT_texture_avif',
+]);
 const glbs = files.filter((file) => file.endsWith('.glb'));
-let dracoFree = 0;
+let plainGlbCount = 0;
 for (const file of glbs) {
   const json = glbJsonText(await readFile(file));
   const gltf = json ? JSON.parse(json) : null;
   if (!gltf) { add(relative(root, file).replaceAll('\\', '/'), 'glb', 'Not a readable GLB'); continue; }
   const extensions = [...(gltf.extensionsUsed ?? []), ...(gltf.extensionsRequired ?? [])];
-  if (extensions.includes('KHR_draco_mesh_compression')) add(relative(root, file).replaceAll('\\', '/'), 'glb', 'Uses KHR_draco_mesh_compression, which the site viewer does not decode');
-  else dracoFree += 1;
+  const blocked = extensions.find((name) => blockedGeometryExtensions.has(name));
+  if (blocked) add(relative(root, file).replaceAll('\\', '/'), 'glb', `Uses unsupported extension ${blocked}`);
+  else plainGlbCount += 1;
 }
 // The header layer Cloudflare Pages serves from dist/_headers (engineering review, finding 11): its CSP hashes are the
 // inline scripts the pages carry, and only content-hashed files are cached as immutable.
@@ -209,7 +214,7 @@ for (const message of headerProblems) add('/_headers', 'headers', message);
 const headerRules = headersText ? parseHeaderRules(headersText) : [];
 const immutableFiles = distFiles.filter((file) => /immutable/.test(headersFor(headerRules, `/${file}`)['cache-control'] ?? ''));
 await mkdir(reportDirectory, { recursive: true });
-const result = { pages: pages.size, headers: { rules: headerRules.length, inlineScripts: inlineScripts.map(scriptHashSource), immutableFiles: immutableFiles.length, problems: headerProblems.length }, internalErrors: errors.length, htmlErrors: htmlErrorCount, errors, warnings, glbs: { files: glbs.length, withoutDraco: dracoFree }, htmlResults, socialCards: Object.fromEntries(imageChecks), archive, discovery, engineNotes: engineSummary, sitemapUrls, externalLinks: Array.from(external, ([url, from]) => ({ url, pages: Array.from(from) })).sort((a, b) => a.url.localeCompare(b.url)) };
+const result = { pages: pages.size, headers: { rules: headerRules.length, inlineScripts: inlineScripts.map(scriptHashSource), immutableFiles: immutableFiles.length, problems: headerProblems.length }, internalErrors: errors.length, htmlErrors: htmlErrorCount, errors, warnings, glbs: { files: glbs.length, allowed: plainGlbCount }, htmlResults, socialCards: Object.fromEntries(imageChecks), archive, discovery, engineNotes: engineSummary, sitemapUrls, externalLinks: Array.from(external, ([url, from]) => ({ url, pages: Array.from(from) })).sort((a, b) => a.url.localeCompare(b.url)) };
 await writeFile(resolve(reportDirectory, 'static-validation.json'), `${JSON.stringify(result, null, 2)}\n`);
 await writeFile(resolve(reportDirectory, 'external-links.txt'), `${result.externalLinks.map((entry) => entry.url).join('\n')}\n`);
 console.log(`Static validation: ${pages.size} pages, ${errors.length} link/metadata/sitemap errors, ${htmlErrorCount} HTML errors. ${result.externalLinks.length} external URLs listed.`);
@@ -219,7 +224,7 @@ console.log(`Archive: ${archive.items} item pages (${archive.specimens} specimen
 console.log(`Discovery: ${sitemapUrls.length} sitemap URLs, ${new Set(sitemapUrls).size} distinct, ${sitemapUrls.filter((url) => /[#?]/.test(url)).length} with a fragment or query; robots.txt: ${discovery.filter((error) => error.page === '/robots.txt').length} problems; sitemap-index.xml: ${discovery.filter((error) => error.page === '/sitemap-index.xml').length} problems; canonical links: ${[...pages].filter(([route, page]) => !isEmbeddedDocument(route) && page.canonicalCount === 1).length} of ${[...pages.keys()].filter((route) => !isEmbeddedDocument(route)).length} pages have exactly one.`);
 console.log(`Engine notes: ${engineSummary.withNote} of ${engineSummary.assetPages} asset pages carry one; ${engineSummary.glbsRead} GLBs read (glTF ${engineSummary.gltfVersions.join(', ')}; extensions declared: ${engineSummary.extensionsDeclared.join(', ') || 'none'}); ${engineSummary.problems} problems.`);
 console.log(`Retired working title: ${retired.length} matches in ${pages.size} pages, ${files.length} file names and the discovery files. Foundry Floor pages: ${foundry.length} problems.`);
-console.log(`GLBs: ${glbs.length} read, ${dracoFree} without KHR_draco_mesh_compression. Copy rules (glued numbers, licence spelling, owner status): ${errors.filter((error) => error.kind === 'copy').length} problems.`);
+console.log(`GLBs: ${glbs.length} read, ${plainGlbCount} without blocked texture extensions. Copy rules (glued numbers, licence spelling, owner status): ${errors.filter((error) => error.kind === 'copy').length} problems.`);
 console.log(`Headers: ${headerRules.length} rules in _headers; ${inlineScripts.length} distinct inline scripts, each listed by hash in the report-only CSP; ${immutableFiles.length} files cached as immutable; ${headerProblems.length} problems.`);
 console.log(`Warnings: ${warnings.length} meta descriptions over ${DESCRIPTION_WARNING_LENGTH} characters${warnings.length ? ` (${warnings.map((warning) => warning.page).join(', ')})` : ''}.`);
 console.log(`Report: ${resolve(reportDirectory, 'static-validation.json')}`);

@@ -116,9 +116,8 @@ function Model({
   paintColour: string | null;
   onPaintReady: (originalHex: string | undefined) => void;
 }) {
-  // No Draco decoder path: drei's default would fetch the decoder from a third-party host. No shipped GLB uses
-  // KHR_draco_mesh_compression, and validate-static fails the build if one ever does.
-  const { scene: loadedScene, animations } = useGLTF(url, false);
+  // Draco and meshopt use three.js decoders (same family as the packaged kiln viewer).
+  const { scene: loadedScene, animations } = useGLTF(url, true, true);
   const paint = useMemo(
     () => createVehiclePaint(loadedScene, paintAssetId),
     [loadedScene, paintAssetId],

@@ -25,20 +25,8 @@ import { renderSceneToGLB, optimizeGlbBytes, composeSceneGLB, renderGLBInProcess
 import { createGltfIO } from '../gltf-io';
 import { WebIO } from '@gltf-transform/core';
 
-/** A distinct flat color per index (HSL hue sweep — guaranteed unique materials). */
-const hue = (i: number, n: number): number => new THREE.Color().setHSL(i / n, 0.7, 0.5).getHex();
-
-/** A scene with N distinct flat-color opaque materials on N boxes. */
-function manyColorScene(n: number): THREE.Object3D {
-  const root = createRoot('Palette');
-  for (let i = 0; i < n; i++) {
-    createPart(`Box${i}`, boxGeo(1, 1, 1), gameMaterial(hue(i, n)), {
-      position: [i * 1.5, 0, 0],
-      parent: root,
-    });
-  }
-  return root;
-}
+import { hue, manyColorScene } from './scene-fixtures';
+export { hue, manyColorScene } from './scene-fixtures';
 
 async function nodeNamesOf(bytes: Uint8Array): Promise<Set<string>> {
   const doc = await new WebIO().readBinary(bytes);
@@ -124,8 +112,9 @@ describe('optimize=full (rigid groups)', () => {
   it('merges within an animated pivot while preserving its animation target', async () => {
     const root = createRoot('Spinner');
     const hub = createPivot('Spin', [0, 1, 0], root);
-    for (let i = 0; i < 8; i++) {
-      createPart(`Blade${i}`, boxGeo(0.2, 0.05, 1.2), gameMaterial(hue(i, 8)), {
+    const bladeCount = Math.ceil(400 / 12) + 4;
+    for (let i = 0; i < bladeCount; i++) {
+      createPart(`Blade${i}`, boxGeo(0.2, 0.05, 1.2), gameMaterial(hue(i, bladeCount)), {
         position: [0, 0, 0],
         parent: hub,
       });
@@ -159,6 +148,7 @@ describe('optimize=full (rigid groups)', () => {
     const door = createPivot('Door', [0, 1, 0], root);
     createPart('Panel', boxGeo(1, 0.1, 1), material, { parent: door });
     const after = await renderSceneToGLB(root, { optimize: 'full' });
+    expect(after.optimize?.rigidMergeGate?.run).toBe(false);
     const doc = await createGltfIO().readBinary(after.bytes);
     const joint = doc
       .getRoot()
@@ -167,15 +157,10 @@ describe('optimize=full (rigid groups)', () => {
     expect(joint).toBeDefined();
     expect(joint!.getTranslation()).toEqual([0, 1, 0]);
     expect(joint!.listChildren()).toHaveLength(1);
-    expect(after.optimize?.rigidMerge?.boundaries).toContainEqual({
-      node: 'Joint_Door',
-      reasons: ['joint-pivot'],
-    });
-    expect(after.optimize?.drawsAfter).toBe(2);
   });
 
   it('keeps separate placement wrappers and reports composition optimization', async () => {
-    const asset = await renderSceneToGLB(manyColorScene(6), { optimize: 'off' });
+    const asset = await renderSceneToGLB(manyColorScene(36), { optimize: 'off' });
     const composed = await composeSceneGLB(
       [
         {
