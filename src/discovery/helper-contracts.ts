@@ -539,6 +539,59 @@ define(
   },
 );
 define(
+  'geometryMinFeatureAdvisory',
+  {
+    units: lengthUnits,
+    axes: 'Reads source XYZ without changing it.',
+    ownership: 'Advisory only; returns warnings, not repaired geometry.',
+    parameters: [
+      'Optional tolerance matches geometryDiagnostics; default ratio is 8× that effective tolerance.',
+      'Uses the smaller of bounding-box thickness and shortest triangle edge as feature scale.',
+    ],
+    topology: [
+      'Does not certify solids; warns when features may collapse under diagnostic grid matching or erosion.',
+    ],
+    preservation: ['Read-only inspection.'],
+    cost: 'O(triangles) edge scan plus diagnostics.',
+  },
+  {
+    references: ['src/geometry.ts', 'src/geometry-min-feature.ts'],
+    tags: ['diagnostics', 'thin feature', 'boolean', 'bevel'],
+    aliases: ['thin feature warning', 'pre-boolean advisory'],
+    intents: ['inspect plates and edges before CSG or bevel erosion'],
+    related: [
+      { name: 'geometryDiagnostics', relation: 'companion' },
+      { name: 'boolDiff', relation: 'companion' },
+      { name: 'extrudeProfile', relation: 'companion' },
+    ],
+  },
+);
+define(
+  'subdividePathByCurvature',
+  {
+    units: lengthUnits,
+    axes: 'Path points are world/asset meters in XYZ.',
+    ownership: 'Pure function; returns a new point list.',
+    parameters: [
+      'At least two finite points; maxStations defaults to 512; minTurnDegrees defaults to 20; degreesPerStation defaults to 15.',
+      'minSegmentLength defaults to 1e-4 of path extent (minimum 1e-9 m).',
+    ],
+    topology: ['Does not build geometry; prepares polylines for sweepProfile.'],
+    preservation: ['Endpoints preserved when spacing allows.'],
+    cost: 'O(stations × splits); bounded by maxStations.',
+  },
+  {
+    references: ['src/sweep-path-curvature.ts', 'src/sweep.ts'],
+    tags: ['sweep', 'path', 'curvature', 'hard surface'],
+    aliases: ['densify sweep path', 'curvature path stations'],
+    intents: ['add sweep stations at tight bends', 'smooth polyline rails'],
+    related: [
+      { name: 'sweepProfile', relation: 'companion' },
+      { name: 'pipeAlongPath', relation: 'alternative' },
+    ],
+  },
+);
+define(
   'creaseNormals',
   {
     ...ownedGeometry,
@@ -671,6 +724,7 @@ define(
       { name: 'loftProfiles', relation: 'alternative' },
       { name: 'pipeAlongPath', relation: 'alternative' },
       { name: 'extrudeProfile', relation: 'alternative' },
+      { name: 'subdividePathByCurvature', relation: 'companion' },
     ],
   },
 );
