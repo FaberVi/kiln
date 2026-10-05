@@ -3,8 +3,8 @@ import { assertDimension, GEOMETRY_ALLOCATION_LIMITS } from './geometry-budget';
 export interface SegmentsFromRadiusOptions {
   /**
    * Maximum physical chord length (meters) between adjacent rim vertices.
-   * Defaults to `max(radius * 0.12, 1 mm)` so visible pipes stay round without
-   * changing global cylinder defaults.
+   * Defaults to `0.01` (1 cm), i.e. `ceil(pi * radius / maxChordLength)` segments
+   * before min/max clamps. Override for tighter or coarser visible pipes.
    */
   maxChordLength?: number;
   /** Lower clamp; default 8 (still rounder than the primitive default of 8 only at large radius). */
