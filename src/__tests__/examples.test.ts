@@ -94,12 +94,15 @@ describe('examples', () => {
         /^GEO_MESH_ORIENTATION_CONFLICTS: \d+ orientation conflicts across \d+ mesh(?:es)? /;
       const csgSmoothNotice =
         /^(?:.+: )?CSG_SMOOTH_CREASE(?: \(\d+ meshes: .+\))?: smooth: true averaged normals across sharp rims\./;
+      const minFeatureNotice =
+        /^(?:.+: )?GEO_MIN_FEATURE(?: \(\d+ meshes: .+\))?: Profile min feature /;
       expect(
         out.warnings.filter(
           (warning) =>
             !precisionNotice.test(warning) &&
             !orientationNotice.test(warning) &&
-            !csgSmoothNotice.test(warning),
+            !csgSmoothNotice.test(warning) &&
+            !minFeatureNotice.test(warning),
         ),
       ).toEqual(expected);
     });
