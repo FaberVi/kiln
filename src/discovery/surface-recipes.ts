@@ -127,4 +127,66 @@ function build() {
       ],
     },
   },
+  {
+    version: 'kiln.catalog-entry.v1',
+    id: 'recipe:post-csg-uv-v1',
+    kind: 'recipe',
+    name: 'Texture coordinates after CSG',
+    summary:
+      'Pick preservation + explicit projection for tileable machined surfaces, or a final autoUnwrap atlas for baked textures, then measure texel density before shipping materials.',
+    family: 'materials',
+    tags: ['UV', 'CSG', 'boolean', 'hard surface', 'atlas', 'tileable'],
+    aliases: ['UV after boolean', 'machined part texturing', 'CSG unwrap'],
+    intents: [
+      'texture a boolean result',
+      'keep brick or metal scale on a cut housing',
+      'unwrap CSG for baked textures',
+    ],
+    stability: 'experimental',
+    related: [
+      { id: 'operation:boolDiff', relation: 'prerequisite' },
+      { id: 'operation:autoUnwrap', relation: 'companion' },
+      { id: 'operation:projectUV', relation: 'alternative' },
+      { id: 'operation:remapUV', relation: 'companion' },
+      { id: 'operation:measureUvTexelDensity', relation: 'companion' },
+      { id: 'operation:equalizeUvChartTexelScale', relation: 'companion' },
+    ],
+    references: ['docs/geometry.md', 'src/uv-stretch.ts'],
+    limitations: [
+      'autoUnwrap runs only after the last boolean; intermediate atlases are discarded by later CSG.',
+      'equalizeUvChartTexelScale adjusts chart scale but does not repack overlapping islands.',
+      'preserveAttributes cannot invent UVs on faces that had none on the operands.',
+    ],
+    recipe: {
+      prerequisites: ['operation:boolDiff', 'operation:geometryDiagnostics'],
+      steps: [
+        'Decide tileable vs baked: tileable flats usually keep preserveAttributes and remapUV/projectUV; full-part bakes use autoUnwrap once modeling is finished.',
+        'Run geometryDiagnostics and read advisories for orientation, min-feature and uvTexelDensity notes.',
+        'For atlases, await autoUnwrap on the final mesh; optionally equalizeChartTexelScale or call equalizeUvChartTexelScale when measureUvTexelDensity reports high spread.',
+        'Bind materials and inspect GPU views at the intended scale; reimport TEXCOORD_0 when the destination must match Kiln.',
+      ],
+      example: `const meta = { name: 'PostCsgUvTeachingBlock' };
+async function build() {
+  const root = createRoot(meta.name);
+  const mat = gameMaterial(0x8899aa);
+  const body = new THREE.Mesh(boxGeo(1.2, 0.5, 0.8), mat);
+  const cutter = new THREE.Mesh(boxGeo(0.4, 0.6, 0.4), mat);
+  cutter.position.set(0.35, 0, 0);
+  cutter.updateMatrixWorld(true);
+  const housing = await boolDiff('Housing', body, cutter);
+  housing.geometry = await autoUnwrap(housing.geometry, { equalizeChartTexelScale: true });
+  measureUvTexelDensity(housing.geometry);
+  createPart('Housing', housing.geometry, mat, { parent: root });
+  return root;
+}`,
+      adaptations: [
+        'Split into separate meshes when tileable faces need incompatible projection frames.',
+        'Use projectUV on cut faces that inherited zero UVs despite preservation.',
+      ],
+      checks: [
+        'Confirm spreadRatio and minMedianRatio before release when texture scale must look uniform.',
+        'Compare a preserved remap against an atlas on the same part when the brief allows both.',
+      ],
+    },
+  },
 ];

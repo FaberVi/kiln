@@ -15,6 +15,7 @@
  */
 
 import * as THREE from 'three';
+import { equalizeUvChartTexelScale } from './uv-stretch';
 
 // Lazy xatlas init — pays ~100-200ms on first call, then free.
 let _xatlasReady: Promise<unknown> | null = null;
@@ -91,6 +92,11 @@ export interface AutoUnwrapOptions {
   padding?: number;
   /** Bake surface normals when determining seams. Default false (faster). */
   useNormals?: boolean;
+  /**
+   * When true, run `equalizeUvChartTexelScale` on the packed atlas so each chart's
+   * median texel density matches the mesh median. Opt-in; does not repack UV islands.
+   */
+  equalizeChartTexelScale?: boolean;
 }
 
 /**
@@ -215,6 +221,10 @@ export async function autoUnwrap(
   }
 
   xa.destroyAtlas();
+
+  if (opts.equalizeChartTexelScale) {
+    return equalizeUvChartTexelScale(out).geometry;
+  }
   return out;
 }
 

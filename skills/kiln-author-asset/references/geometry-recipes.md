@@ -184,7 +184,9 @@ Caps default on; `cap: 'start'` or `'end'` caps one end of an open path. `crease
 const housing = await boolDiff('Housing', body, portCutter, { preserveAttributes: true });
 ```
 
-Preservation mode carries UV0 and material groups; exposed cuts inherit the cutter's UVs/material. Missing input UVs produce a warning. Normals are regenerated; tangents are not retained. Without the option, legacy calls keep the first material and discard UVs. Use `autoUnwrap` afterward for a new atlas. Convex hulls create new faces and cannot promise source UV/material provenance.
+Preservation mode carries UV0 and material groups; exposed cuts inherit the cutter's UVs/material. Missing input UVs produce a warning. Normals are regenerated; tangents are not retained. Without the option, legacy calls keep the first material and discard UVs. Convex hulls create new faces and cannot promise source UV/material provenance.
+
+For machined parts with tileable materials, prefer preservation plus `remapUV` / `projectUV` on the faces that matter instead of a fresh atlas. When you need a baked atlas on CSG output, call `autoUnwrap` only after the last boolean, then `measureUvTexelDensity` — if spread is high, `equalizeUvChartTexelScale` or `autoUnwrap(..., { equalizeChartTexelScale: true })` (opt-in; does not repack charts). `geometryDiagnostics` advisories mention badly uneven texel scale.
 
 `smooth: true` averages normals across sharp boundaries too. If a Boolean rim
 looks scalloped in lighting, compare `housing.geometry = creaseNormals(housing.geometry,
@@ -299,5 +301,6 @@ For textures, preserve valid primitive UVs. Use `copyGeometry` before independen
 buffer edits, `remapUV` to scale/offset UVs, and `projectUV` for explicit planar,
 box or cylindrical mapping in a geometry-local frame. Fetch its exact Discovery
 contract for rotated frames, partial angular ranges, caps and seam sampling.
-`autoUnwrap` is the separate atlas operation. Removed shape unwrap names do not
-select a preservation or projection fallback.
+`autoUnwrap` is the separate atlas operation; pair it with the stretch helpers when
+uniform texel scale matters. Removed shape unwrap names do not select a preservation
+or projection fallback.

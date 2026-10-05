@@ -67,11 +67,23 @@ import {
 } from './contracts';
 import * as uv from './uv';
 import * as uvShapes from './uv-shapes';
+import * as uvStretch from './uv-stretch';
 import { projectUV } from './uv-project';
 export { projectUV } from './uv-project';
 export type { ProjectUVOptions } from './uv-project';
 export { remapUV } from './uv-shapes';
 export type { RemapUVOptions } from './uv-shapes';
+export {
+  equalizeUvChartTexelScale,
+  measureUvTexelDensity,
+  UV_TEXEL_MIN_MEDIAN_ADVISORY_RATIO,
+  UV_TEXEL_SPREAD_ADVISORY_RATIO,
+} from './uv-stretch';
+export type {
+  EqualizeUvChartTexelScaleOptions,
+  EqualizeUvChartTexelScaleResult,
+  UvTexelDensityMetrics,
+} from './uv-stretch';
 
 export {
   createGableEndPanel,
@@ -2284,6 +2296,11 @@ export function buildSandboxGlobals(
     bezierCurve: wrap('bezierCurve', ops.bezierCurve),
     // UV (async)
     autoUnwrap: wrap('autoUnwrap', uv.autoUnwrap),
+    equalizeUvChartTexelScale: wrap(
+      'equalizeUvChartTexelScale',
+      uvStretch.equalizeUvChartTexelScale,
+    ),
+    measureUvTexelDensity: wrap('measureUvTexelDensity', uvStretch.measureUvTexelDensity),
     // Shape-aware unwraps (sync — preserve built-in directional UVs)
     projectUV: wrap('projectUV', projectUV),
     remapUV: wrap('remapUV', uvShapes.remapUV),
