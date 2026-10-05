@@ -1,0 +1,42 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {gzipSync} from 'node:zlib';
+import {createServer} from 'node:http';
+import {createRuntimeReader} from '../web/runtime-transport.mjs';
+const digest=bytes=>'sha256:'+createHash('sha256').update(bytes).digest('hex');
+const raw=Buffer.from('pose banks retain exactly the same decoded matrices '.repeat(1000)),gz=gzipSync(raw),base=new URL('https://fixture.test/scene/');
+function fixture({corrupt=false,decodedBytes=raw.byteLength,concurrency=2}={}){
+ const paths=[],manifest={schema:'troy.runtime-transport/1',files:{'runtime/a.bin':{file:'runtime/a.bin.gz',encoding:'gzip',bytes:gz.byteLength,sha256:digest(gz),decodedBytes,decodedSha256:digest(raw)},'runtime/b.bin':{file:'runtime/a.bin.gz',encoding:'gzip',bytes:gz.byteLength,sha256:digest(gz),decodedBytes,decodedSha256:digest(raw)}}};
+ const fetch=async url=>{paths.push(new URL(url).pathname);return new Response(new URL(url).pathname.endsWith('transport.json')?JSON.stringify(manifest):corrupt?Buffer.from('bad'):gz);};
+ return {reader:createRuntimeReader({base,fetch,concurrency}),paths};
+}
+test('compressed banks decode exactly and identical payloads share one fetch',async()=>{const {reader,paths}=fixture();const [a,b]=await Promise.all([reader.read('runtime/a.bin'),reader.read('runtime/b.bin')]);assert.deepEqual(Buffer.from(a),raw);assert.equal(a,b);assert.equal(paths.filter(p=>p.endsWith('.gz')).length,1);assert.equal(paths.filter(p=>p.endsWith('transport.json')).length,1);reader.close();});
+test('corrupt compressed bytes and decoded length mismatches reject without raw fallback',async()=>{await assert.rejects(fixture({corrupt:true}).reader.read('runtime/a.bin'),/transport.*(size|hash)/i);await assert.rejects(fixture({decodedBytes:raw.byteLength-1}).reader.read('runtime/a.bin'),/decoded.*(size|limit)/i);});
+test('404 transport manifest supports exact raw reads; gzip capability absence uses bounded raw fallback',async()=>{let calls=0;const fetch=async url=>{calls++;return new URL(url).pathname.endsWith('transport.json')?new Response('',{status:404}):new Response(raw);};const reader=createRuntimeReader({base,fetch,decode:null});assert.deepEqual(Buffer.from(await reader.read('raw.bin')),raw);assert.equal(calls,2);reader.close();});
+test('unavailable gzip decoder fetches only the original and still verifies its decoded identity',async()=>{const paths=[],entry={file:'runtime/a.bin.gz',encoding:'gzip',bytes:gz.byteLength,sha256:digest(gz),decodedBytes:raw.byteLength,decodedSha256:digest(raw)},reader=createRuntimeReader({base,manifest:{schema:'troy.runtime-transport/1',files:{'runtime/a.bin':entry}},decode:null,fetch:async url=>{paths.push(new URL(url).pathname);return new Response(raw);}});assert.deepEqual(Buffer.from(await reader.read('runtime/a.bin')),raw);assert.deepEqual(paths,['/scene/runtime/a.bin']);reader.close();});
+test('invalid transport traversal fails before requesting a payload',async()=>{let calls=0;const reader=createRuntimeReader({base,fetch:async()=>{calls++;return new Response(JSON.stringify({schema:'troy.runtime-transport/1',files:{'runtime/a.bin':{file:'../escape.gz'}}}));}});await assert.rejects(reader.read('runtime/a.bin'),/transport manifest/i);assert.equal(calls,1);});
+test('bounded fetch scheduler and close reject queued reads and abort admitted reads',async()=>{let live=0,peak=0;const fetch=async(url,{signal}={})=>{if(new URL(url).pathname.endsWith('transport.json'))return new Response('',{status:404});live++;peak=Math.max(peak,live);await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,30);signal.addEventListener('abort',()=>{clearTimeout(timer);reject(signal.reason);},{once:true});});live--;return new Response(raw);};const reader=createRuntimeReader({base,fetch,concurrency:2});await Promise.all([1,2,3,4].map(i=>reader.read(i+'.bin')));assert.equal(peak,2);const pending=[5,6,7].map(i=>reader.read(i+'.bin'));reader.close();const outcomes=await Promise.allSettled(pending);assert.ok(outcomes.every(x=>x.status==='rejected'));});
+test('raw payloads exceeding the byte budget reject and do not enter the cache',async()=>{const reader=createRuntimeReader({base,manifest:null,maxBytes:8,fetch:async()=>new Response(raw)});await assert.rejects(reader.read('raw.bin'),/byte limit/i);reader.close();});
+
+function httpFixture(body=raw,headers={'Content-Encoding':'gzip','Content-Length':String(gz.byteLength)},extra={}){
+ const entry={file:'runtime/a.bin.gz',encoding:'gzip',bytes:gz.byteLength,sha256:digest(gz),decodedBytes:raw.byteLength,decodedSha256:digest(raw)},paths=[];
+ const reader=createRuntimeReader({base,manifest:{schema:'troy.runtime-transport/1',files:{'runtime/a.bin':entry}},fetch:async url=>{paths.push(new URL(url).pathname);return new Response(body,{headers});},...extra});return {reader,paths};
+}
+test('HTTP auto-decoded gzip uses the decoded bound and exact original identity',async()=>{const {reader,paths}=httpFixture();assert.deepEqual(Buffer.from(await reader.read('runtime/a.bin')),raw);assert.deepEqual(paths,['/scene/runtime/a.bin.gz']);reader.close();});
+test('nested HTTP gzip retains the exact compressed seal and bounded manual decode',async()=>{const {reader}=httpFixture(gz);assert.deepEqual(Buffer.from(await reader.read('runtime/a.bin')),raw);reader.close();});
+test('HTTP encoding claims cannot accept corrupt gzip, truncated or corrupted decoded payloads',async()=>{
+ const corruptGzip=Buffer.from(gz);corruptGzip[20]^=1;
+ for(const [body,error]of [[corruptGzip,/decoded size/i],[raw.subarray(0,-1),/decoded size/i],[Buffer.alloc(raw.length),/decoded hash/i]]){const {reader,paths}=httpFixture(body);await assert.rejects(reader.read('runtime/a.bin'),error);assert.equal(paths.length,1);assert.equal(reader.stats().cached,0);reader.close();}
+ const {reader}=httpFixture(raw,{'Content-Encoding':'identity','Content-Length':String(gz.byteLength)});await assert.rejects(reader.read('runtime/a.bin'),/transport payload byte limit/i);reader.close();
+});
+test('HTTP decoded body exceeding its exact bound rejects despite a compressed Content-Length',async()=>{let cancelled=false;const body=new ReadableStream({start(controller){controller.enqueue(raw);controller.enqueue(new Uint8Array(1));},cancel(){cancelled=true;}}),{reader}=httpFixture(body);await assert.rejects(reader.read('runtime/a.bin'),/decoded payload byte limit/i);assert.equal(cancelled,true);reader.close();});
+test('closing an active HTTP decoded read cancels its body and rejects promptly',async()=>{let cancelled=false,started;const began=new Promise(resolve=>{started=resolve;}),body=new ReadableStream({pull(){started();return new Promise(()=>{});},cancel(){cancelled=true;}},{highWaterMark:0}),{reader}=httpFixture(body);const pending=reader.read('runtime/a.bin');await began;reader.close();await assert.rejects(pending,/runtime reader closed/i);assert.equal(cancelled,true);});
+test('decoder absence still fetches the original and verifies an HTTP decoded raw fallback',async()=>{const {reader,paths}=httpFixture(raw,{'Content-Encoding':'gzip','Content-Length':String(gz.byteLength)},{decode:null});assert.deepEqual(Buffer.from(await reader.read('runtime/a.bin')),raw);assert.deepEqual(paths,['/scene/runtime/a.bin']);reader.close();});
+test('native HTTP fetch preserves exact banks for file gzip, HTTP gzip and nested gzip',async()=>{
+ let mode='file';const server=createServer((request,response)=>{const wire=mode==='nested'?gzipSync(gz):gz;response.writeHead(200,{'Content-Length':wire.length,...(mode==='file'?{}:{'Content-Encoding':'gzip'})});response.end(wire);});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const entry={file:'runtime/a.bin.gz',encoding:'gzip',bytes:gz.byteLength,sha256:digest(gz),decodedBytes:raw.byteLength,decodedSha256:digest(raw)};
+ try{for(mode of ['file','http','nested']){const reader=createRuntimeReader({base:`http://127.0.0.1:${server.address().port}/`,manifest:{schema:'troy.runtime-transport/1',files:{'runtime/a.bin':entry}}});try{assert.deepEqual(Buffer.from(await reader.read('runtime/a.bin')),raw);}finally{reader.close();}}}
+ finally{await new Promise(resolve=>server.close(resolve));}
+});
