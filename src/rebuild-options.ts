@@ -12,5 +12,6 @@ export const rebuildOptionsSchema = z.object({
   optimize: z.enum(['off', 'auto', 'palette', 'full']),
   optimizationPipeline: z.literal(FULL_OPTIMIZATION_PIPELINE).optional(),
   instance: z.enum(['off', 'auto', 'on']),
+  compress: z.enum(['off', 'meshopt', 'draco']).optional(),
 });
 export type RebuildOptions = z.infer<typeof rebuildOptionsSchema>;

@@ -423,6 +423,21 @@ Keep valid built-in UVs by sharing the geometry or using `copyGeometry`. Use
 `remapUV` to transform existing U/V values and `autoUnwrap` for an xatlas chart atlas.
 `projectUV` replaces UV0 with a named planar, box or cylindrical projection:
 
+### CSG and atlas UV workflow
+
+Primitives with built-in per-face UVs (box, cylinder, plane) already give uniform
+texel density for tileable materials. Use `remapUV` with explicit `[width/tileW,
+height/tileH]` scale and offset to align courses; use `projectUV` when you need a
+fresh mapping in a declared frame. Reserve `autoUnwrap` for topology that has no
+good analytic UVs (CSG, booleans, heavy deformation): xatlas packs charts but
+chart scales often differ, which shows up as uneven stretch in `analyzeUvStretch`.
+
+After `autoUnwrap` on CSG output, call `normalizeAtlasTexelScale` (opt-in) to scale
+each chart toward a common √(3D area / UV area), then `uvWorkflowAdvisory` when you
+want a short recommendation. Prefer preserving operand UVs with
+`boolDiff(..., { preserveAttributes: true })` when cutters should inherit tileable
+coordinates instead of rebuilding an atlas.
+
 ```js
 const mapped = projectUV(rawGeometry, {
   projection: 'cylindrical',

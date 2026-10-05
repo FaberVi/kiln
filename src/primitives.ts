@@ -67,11 +67,22 @@ import {
 } from './contracts';
 import * as uv from './uv';
 import * as uvShapes from './uv-shapes';
+import * as uvTexel from './uv-texel';
 import { projectUV } from './uv-project';
 export { projectUV } from './uv-project';
 export type { ProjectUVOptions } from './uv-project';
 export { remapUV } from './uv-shapes';
 export type { RemapUVOptions } from './uv-shapes';
+export {
+  analyzeUvStretch,
+  normalizeAtlasTexelScale,
+  uvWorkflowAdvisory,
+} from './uv-texel';
+export type {
+  NormalizeAtlasTexelScaleOptions,
+  UvStretchStats,
+  UvWorkflowAdvisory,
+} from './uv-texel';
 
 export {
   createGableEndPanel,
@@ -2272,6 +2283,9 @@ export function buildSandboxGlobals(
     bezierCurve: wrap('bezierCurve', ops.bezierCurve),
     // UV (async)
     autoUnwrap: wrap('autoUnwrap', uv.autoUnwrap),
+    analyzeUvStretch: wrap('analyzeUvStretch', uvTexel.analyzeUvStretch),
+    normalizeAtlasTexelScale: wrap('normalizeAtlasTexelScale', uvTexel.normalizeAtlasTexelScale),
+    uvWorkflowAdvisory: wrap('uvWorkflowAdvisory', uvTexel.uvWorkflowAdvisory),
     // Shape-aware unwraps (sync — preserve built-in directional UVs)
     projectUV: wrap('projectUV', projectUV),
     remapUV: wrap('remapUV', uvShapes.remapUV),

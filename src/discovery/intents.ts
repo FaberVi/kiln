@@ -57,6 +57,9 @@ export const discoveryIntents: Readonly<Record<string, readonly string[]>> = {
   boolIntersect: ['intersection of solids', 'overlapping volume'],
   beamBetween: ['beam between points', 'bar connecting endpoints'],
   autoUnwrap: ['unwrap texture coordinates', 'UV atlas', 'unfold mesh'],
+  analyzeUvStretch: ['UV stretch metrics', 'texel density measure'],
+  normalizeAtlasTexelScale: ['even atlas texel scale', 'normalize UV charts'],
+  uvWorkflowAdvisory: ['UV workflow advice', 'projectUV vs autoUnwrap'],
   foliageCardGeo: ['thin leaf cutout', 'foliage card'],
   foliageMaterial: ['leaf transparency', 'foliage cutout', 'alpha mask'],
 };
