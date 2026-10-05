@@ -49,6 +49,7 @@ import type * as THREE from 'three';
 import type { CrossSection, JoinType, Manifold, Vec2 } from 'manifold-3d';
 import { getManifoldModule, manifoldToGeometry } from './solids';
 import { AuthoringDiagnosticError } from './evaluator/authoring-diagnostic';
+import { attachProfileMinFeatureWarnings } from './geometry-min-feature';
 
 /** A closed 2D outline as `[x, y]` pairs — same convention as `lathe`. */
 export type Profile2D = Array<[number, number]>;
@@ -303,7 +304,9 @@ export async function extrudeProfile(
     const nDivisions = divisions ?? (twist !== 0 ? 16 : 0);
     const solid = section.extrude(depth, nDivisions, twist, normalizeTaper(taper), center);
     try {
-      return orientSweep(manifoldToGeometry(solid, { smooth }), axis);
+      const geo = orientSweep(manifoldToGeometry(solid, { smooth }), axis);
+      attachProfileMinFeatureWarnings(geo, profile, bevel);
+      return geo;
     } finally {
       solid.delete();
     }
@@ -364,7 +367,9 @@ export async function revolveProfile(
     }
     const solid = section.revolve(segments, angle);
     try {
-      return orientSweep(manifoldToGeometry(solid, { smooth }), axis);
+      const geo = orientSweep(manifoldToGeometry(solid, { smooth }), axis);
+      attachProfileMinFeatureWarnings(geo, profile, bevel);
+      return geo;
     } finally {
       solid.delete();
     }
