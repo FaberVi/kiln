@@ -5,6 +5,13 @@ separate milestones. The package is not published on the npm registry.
 
 ## Unreleased
 
+- UV helpers after CSG unwrap: `analyzeUvStretch`, `normalizeAtlasTexelScale`, and
+  `uvWorkflowAdvisory` document and optionally even per-chart texel density after
+  `autoUnwrap`; geometry docs describe `projectUV` / `remapUV` vs atlas workflow.
+- `optimize: 'full'` skips rigid-group merge on small assets (triangle/draw thresholds);
+  palette consolidation is unchanged. Summaries record `rigidMergeGate` when merge is skipped.
+- Optional bake compression: `compress: 'meshopt' | 'draco'` on render options (default off).
+
 Changes since the 0.10.0 tagged package release. The package version stays 0.10.0
 until the next package release; source/main and website deployment are separate
 from publishing a new installable package.

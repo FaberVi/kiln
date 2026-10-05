@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "entries": {
     "worker": {
-      "identity": "sha256:1fb3aa57f0347896e6ac9e86e5f41dd7e27366d0993ae4b3febd6c5db5d120b6",
+      "identity": "sha256:cdb4d1a5dd67ba75ee67491e7e16b5da384de58df16fc73889fda9eead38ff58",
       "engineVersion": "0.10.0",
       "toolchain": "bun@1.4.2",
-      "sourceHash": "1fd0f29051b091bd2474a3c0481a192c299e107b2b2f907ada818f67119bdbd1",
+      "sourceHash": "df3e19b51b96e10d391608c59eb0ff66ede19384963c8694fb154cd9fedd6a85",
       "rendererSourceHash": "27927c48b377f7694251a76c0cecd05216fcbbb8a7d03e8bf2bd681dabb5573a",
-      "dependencyHash": "bc5b0968ad7298be37eaf7db2585ba6168c0cfcd8f33114dfd2d93ed4749a933",
+      "dependencyHash": "dd79804576ef1c198131e3cf10d6103ac55b032ec3002891e713587d36d5a92d",
       "dependencies": {
         "@gltf-transform/core": "4.5.1",
         "@gltf-transform/extensions": "4.5.1",
@@ -18,8 +18,10 @@
         "@types/three": "^0.186.0",
         "acorn": "^8.18.0",
         "acorn-walk": "^8.3.5",
+        "draco3dgltf": "^1.5.7",
         "gltf-validator": "2.0.0-dev.3.10",
         "manifold-3d": "^3.5.4",
+        "meshoptimizer": "^1.3.0",
         "minisearch": "7.2.0",
         "pngjs": "7.0.0",
         "sharp": "^0.35.5",
@@ -34,15 +36,15 @@
       },
       "target": "node",
       "file": "evaluator-worker.mjs",
-      "bundleHash": "sha256:f80ac04d1bedbe9cfd0cc5816becc726bf400552b8b8bd0c85f375dc04a26051"
+      "bundleHash": "sha256:834d00ab680aa8f9ad7b093224b28587bd34e83d7160307c21dc60c8ce0cb6c1"
     },
     "agent-run": {
-      "identity": "sha256:1fb3aa57f0347896e6ac9e86e5f41dd7e27366d0993ae4b3febd6c5db5d120b6",
+      "identity": "sha256:cdb4d1a5dd67ba75ee67491e7e16b5da384de58df16fc73889fda9eead38ff58",
       "engineVersion": "0.10.0",
       "toolchain": "bun@1.4.2",
-      "sourceHash": "1fd0f29051b091bd2474a3c0481a192c299e107b2b2f907ada818f67119bdbd1",
+      "sourceHash": "df3e19b51b96e10d391608c59eb0ff66ede19384963c8694fb154cd9fedd6a85",
       "rendererSourceHash": "27927c48b377f7694251a76c0cecd05216fcbbb8a7d03e8bf2bd681dabb5573a",
-      "dependencyHash": "bc5b0968ad7298be37eaf7db2585ba6168c0cfcd8f33114dfd2d93ed4749a933",
+      "dependencyHash": "dd79804576ef1c198131e3cf10d6103ac55b032ec3002891e713587d36d5a92d",
       "dependencies": {
         "@gltf-transform/core": "4.5.1",
         "@gltf-transform/extensions": "4.5.1",
@@ -53,8 +55,10 @@
         "@types/three": "^0.186.0",
         "acorn": "^8.18.0",
         "acorn-walk": "^8.3.5",
+        "draco3dgltf": "^1.5.7",
         "gltf-validator": "2.0.0-dev.3.10",
         "manifold-3d": "^3.5.4",
+        "meshoptimizer": "^1.3.0",
         "minisearch": "7.2.0",
         "pngjs": "7.0.0",
         "sharp": "^0.35.5",
@@ -69,15 +73,15 @@
       },
       "target": "node",
       "file": "agent-run.mjs",
-      "bundleHash": "sha256:da77dd7dbc1a0454d22bc76bd94d9dd5b3c54b19d285e7c7916d2dc111fb0d91"
+      "bundleHash": "sha256:8c4ff280e3cd5d594412d9009614c71eaf854f7bf4ce0d95879ae786ed51f0ac"
     },
     "agent-providers": {
-      "identity": "sha256:1fb3aa57f0347896e6ac9e86e5f41dd7e27366d0993ae4b3febd6c5db5d120b6",
+      "identity": "sha256:cdb4d1a5dd67ba75ee67491e7e16b5da384de58df16fc73889fda9eead38ff58",
       "engineVersion": "0.10.0",
       "toolchain": "bun@1.4.2",
-      "sourceHash": "1fd0f29051b091bd2474a3c0481a192c299e107b2b2f907ada818f67119bdbd1",
+      "sourceHash": "df3e19b51b96e10d391608c59eb0ff66ede19384963c8694fb154cd9fedd6a85",
       "rendererSourceHash": "27927c48b377f7694251a76c0cecd05216fcbbb8a7d03e8bf2bd681dabb5573a",
-      "dependencyHash": "bc5b0968ad7298be37eaf7db2585ba6168c0cfcd8f33114dfd2d93ed4749a933",
+      "dependencyHash": "dd79804576ef1c198131e3cf10d6103ac55b032ec3002891e713587d36d5a92d",
       "dependencies": {
         "@gltf-transform/core": "4.5.1",
         "@gltf-transform/extensions": "4.5.1",
@@ -88,8 +92,10 @@
         "@types/three": "^0.186.0",
         "acorn": "^8.18.0",
         "acorn-walk": "^8.3.5",
+        "draco3dgltf": "^1.5.7",
         "gltf-validator": "2.0.0-dev.3.10",
         "manifold-3d": "^3.5.4",
+        "meshoptimizer": "^1.3.0",
         "minisearch": "7.2.0",
         "pngjs": "7.0.0",
         "sharp": "^0.35.5",
@@ -107,12 +113,12 @@
       "bundleHash": "sha256:9d6faf03d307321bc2e3bd5ce5bdee0bbbf61e0ebed8bfebfa1fb072287b83fa"
     },
     "mcp": {
-      "identity": "sha256:1fb3aa57f0347896e6ac9e86e5f41dd7e27366d0993ae4b3febd6c5db5d120b6",
+      "identity": "sha256:cdb4d1a5dd67ba75ee67491e7e16b5da384de58df16fc73889fda9eead38ff58",
       "engineVersion": "0.10.0",
       "toolchain": "bun@1.4.2",
-      "sourceHash": "1fd0f29051b091bd2474a3c0481a192c299e107b2b2f907ada818f67119bdbd1",
+      "sourceHash": "df3e19b51b96e10d391608c59eb0ff66ede19384963c8694fb154cd9fedd6a85",
       "rendererSourceHash": "27927c48b377f7694251a76c0cecd05216fcbbb8a7d03e8bf2bd681dabb5573a",
-      "dependencyHash": "bc5b0968ad7298be37eaf7db2585ba6168c0cfcd8f33114dfd2d93ed4749a933",
+      "dependencyHash": "dd79804576ef1c198131e3cf10d6103ac55b032ec3002891e713587d36d5a92d",
       "dependencies": {
         "@gltf-transform/core": "4.5.1",
         "@gltf-transform/extensions": "4.5.1",
@@ -123,8 +129,10 @@
         "@types/three": "^0.186.0",
         "acorn": "^8.18.0",
         "acorn-walk": "^8.3.5",
+        "draco3dgltf": "^1.5.7",
         "gltf-validator": "2.0.0-dev.3.10",
         "manifold-3d": "^3.5.4",
+        "meshoptimizer": "^1.3.0",
         "minisearch": "7.2.0",
         "pngjs": "7.0.0",
         "sharp": "^0.35.5",
@@ -142,12 +150,12 @@
       "bundleHash": "sha256:aff8b03e5146a9e7bc32f0fcb7dea5e46d1e47634046b1df09b86f4cdc73b772"
     },
     "cli": {
-      "identity": "sha256:1fb3aa57f0347896e6ac9e86e5f41dd7e27366d0993ae4b3febd6c5db5d120b6",
+      "identity": "sha256:cdb4d1a5dd67ba75ee67491e7e16b5da384de58df16fc73889fda9eead38ff58",
       "engineVersion": "0.10.0",
       "toolchain": "bun@1.4.2",
-      "sourceHash": "1fd0f29051b091bd2474a3c0481a192c299e107b2b2f907ada818f67119bdbd1",
+      "sourceHash": "df3e19b51b96e10d391608c59eb0ff66ede19384963c8694fb154cd9fedd6a85",
       "rendererSourceHash": "27927c48b377f7694251a76c0cecd05216fcbbb8a7d03e8bf2bd681dabb5573a",
-      "dependencyHash": "bc5b0968ad7298be37eaf7db2585ba6168c0cfcd8f33114dfd2d93ed4749a933",
+      "dependencyHash": "dd79804576ef1c198131e3cf10d6103ac55b032ec3002891e713587d36d5a92d",
       "dependencies": {
         "@gltf-transform/core": "4.5.1",
         "@gltf-transform/extensions": "4.5.1",
@@ -158,8 +166,10 @@
         "@types/three": "^0.186.0",
         "acorn": "^8.18.0",
         "acorn-walk": "^8.3.5",
+        "draco3dgltf": "^1.5.7",
         "gltf-validator": "2.0.0-dev.3.10",
         "manifold-3d": "^3.5.4",
+        "meshoptimizer": "^1.3.0",
         "minisearch": "7.2.0",
         "pngjs": "7.0.0",
         "sharp": "^0.35.5",
@@ -174,15 +184,15 @@
       },
       "target": "node",
       "file": "cli.mjs",
-      "bundleHash": "sha256:513748d0a88c850239f023ee5470a16679165dd6db240d429b9692030850f025"
+      "bundleHash": "sha256:56f013bce5d17078f034c702fcc8eb8916a607309ff9303eadc9789c71549ec8"
     },
     "engine": {
-      "identity": "sha256:1fb3aa57f0347896e6ac9e86e5f41dd7e27366d0993ae4b3febd6c5db5d120b6",
+      "identity": "sha256:cdb4d1a5dd67ba75ee67491e7e16b5da384de58df16fc73889fda9eead38ff58",
       "engineVersion": "0.10.0",
       "toolchain": "bun@1.4.2",
-      "sourceHash": "1fd0f29051b091bd2474a3c0481a192c299e107b2b2f907ada818f67119bdbd1",
+      "sourceHash": "df3e19b51b96e10d391608c59eb0ff66ede19384963c8694fb154cd9fedd6a85",
       "rendererSourceHash": "27927c48b377f7694251a76c0cecd05216fcbbb8a7d03e8bf2bd681dabb5573a",
-      "dependencyHash": "bc5b0968ad7298be37eaf7db2585ba6168c0cfcd8f33114dfd2d93ed4749a933",
+      "dependencyHash": "dd79804576ef1c198131e3cf10d6103ac55b032ec3002891e713587d36d5a92d",
       "dependencies": {
         "@gltf-transform/core": "4.5.1",
         "@gltf-transform/extensions": "4.5.1",
@@ -193,8 +203,10 @@
         "@types/three": "^0.186.0",
         "acorn": "^8.18.0",
         "acorn-walk": "^8.3.5",
+        "draco3dgltf": "^1.5.7",
         "gltf-validator": "2.0.0-dev.3.10",
         "manifold-3d": "^3.5.4",
+        "meshoptimizer": "^1.3.0",
         "minisearch": "7.2.0",
         "pngjs": "7.0.0",
         "sharp": "^0.35.5",
@@ -209,7 +221,7 @@
       },
       "target": "node",
       "file": "mcp-engine.mjs",
-      "bundleHash": "sha256:1234d4393e7f69a8c474b3655b5f45e3468f20fe449e82eace2b2dff50693306"
+      "bundleHash": "sha256:6c7e977e67cd6784e47e6d712862d185acfe86a7c4e556bb08fcc3a125556022"
     }
   }
 }
