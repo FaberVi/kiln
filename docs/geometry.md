@@ -91,6 +91,16 @@ const triangle = meshGeo({
 
 Positions contain XYZ triples; each index triple is a counterclockwise triangle. Without indices, every three vertices form one triangle. Optional `normals`, `uvs`, and `tangents` must match the vertex count. Normals are computed when omitted and normalized when supplied. Tangents use unit XYZ plus handedness +1 or -1. Validation rejects nonfinite data and invalid indices. Raw Three.js can carry additional attributes, but check Kiln's export diagnostics before assuming every Three.js feature survives GLB export.
 
+## Thin features and sweep path curvature
+
+`geometryMinFeatureAdvisory(geometry)` compares the smallest bounding-box thickness
+and shortest triangle edge against **8×** the same tolerance `geometryDiagnostics`
+would use (override with `tolerance` or `toleranceRatio`). It **warns only** — it does
+not reject geometry. Use it on thin plates, short edges and pre-Boolean operands when
+detail might collapse under diagnostic grid matching or profile/bevel erosion.
+`geometryDiagnostics` also appends these warnings in its `advisories` companion list.
+CSG and profile bevel paths record `GEO_MIN_FEATURE` notes on the result when triggered.
+
 ## Bend, twist, taper, and displace
 
 ```js
@@ -188,13 +198,14 @@ with their clips and use the returned remapped targets.
 
 ```js
 const profile = [[-0.12, -0.2], [0.12, -0.2], [0.12, 0.2], [-0.12, 0.2]];
-const rail = sweepProfile(profile, [[0, 0, 0], [0, 1, 0], [0.5, 2, 0]], {
+const path = subdividePathByCurvature([[0, 0, 0], [0, 1, 0], [0.5, 2, 0]]);
+const rail = sweepProfile(profile, path, {
   twist: 20,
   scale: [[1, 1], [0.9, 0.9], [0.7, 0.7]],
 });
 ```
 
-Profiles use local `[x,z]` coordinates. Sweep paths are **polyline stations**, not automatically smoothed splines. Sample a curve first for smooth curvature. The initial `up` vector defines profile +Z after projection perpendicular to the path. If omitted, Kiln chooses a stable cardinal direction. Subsequent frames use parallel transport instead of repeatedly projecting a global up vector.
+Profiles use local `[x,z]` coordinates. Sweep paths are **polyline stations**, not automatically smoothed splines. For tight bends, call `subdividePathByCurvature(path)` first — it inserts bounded stations where turns are sharp (`maxStations` default 512, `minSegmentLength` and `minTurnDegrees` keep counts safe). Sample a curve into a polyline when you need smooth curvature from an equation. The initial `up` vector defines profile +Z after projection perpendicular to the path. If omitted, Kiln chooses a stable cardinal direction. Subsequent frames use parallel transport instead of repeatedly projecting a global up vector.
 
 Profile validity and path-station tolerances scale with their respective extents,
 so changing units does not introduce a fixed minimum size. `up` is a direction;

@@ -161,6 +161,14 @@ parametricSurface(sample: (u,v) => [x,y,z], opts?: { u?: [0,1], v?: [0,1], uSegm
   // normals. A surface is not automatically a watertight solid.
   // e.g. const canopy = parametricSurface((u,v) => [u, 0.3*Math.sin(u*3)*Math.cos(v*2), v], {
   // u: [-2,2], v: [-1,1] });
+subdividePathByCurvature(path: [x,y,z][], opts?: { maxStations?: 512, minSegmentLength?: number, minTurnDegrees?: 20, degreesPerStation?: 15 })
+  // Inserts bounded polyline stations where path turns are sharp, for sweepProfile and similar
+  // workflows. Straight spans stay sparse; maxStations and minSegmentLength prevent runaway
+  // point counts.
+  // NOTE: Sample curved rails with subdividePathByCurvature(path) before sweepProfile when
+  // corners look faceted or self-intersect.
+  // e.g. const path = subdividePathByCurvature([[0,0,0],[1,0,0],[1,0,1]]); createPart("Rail",
+  // sweepProfile(profile, path), steel, { parent: root });
 await implicitSurface(sample: ([x,y,z]) => signedValue, { bounds: { min, max }, edgeLength, maxCells?: 1000000, maxEvaluations?: 8000000, level?: 0, tolerance?: -1, smooth?: true })
   // Experimental positive-inside implicit field sampled into a solid mesh. Requires explicit
   // bounds and resolution; checks grid size and actual evaluation count. Output has no UVs.
@@ -668,6 +676,12 @@ geometryDiagnostics(geometry: BufferGeometry, tolerance?: number)
   // tolerance and scale. Open boundaries are valid for sheets; closed edges do not certify a
   // self-intersection-free solid.
   // e.g. const topology = geometryDiagnostics(shell);
+  // topology.advisories?.forEach(console.log);
+geometryMinFeatureAdvisory(geometry: BufferGeometry, opts?: { tolerance?: number, toleranceRatio?: 8 })
+  // Compares the smallest bounding-box thickness and shortest triangle edge against ratio ×
+  // geometryDiagnostics tolerance. Warns before Boolean/bevel erosion paths when detail may
+  // collapse at export topology checks.
+  // e.g. const thin = geometryMinFeatureAdvisory(shell); thin.warnings.forEach(console.warn);
 countTriangles(root: Object3D)
   // Sums placed mesh triangles across the subtree, including active InstancedMesh copies and
   // two triangles per sprite. Not draw calls or visible-frame cost.

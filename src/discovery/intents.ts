@@ -33,7 +33,10 @@ export const discoveryIntents: Readonly<Record<string, readonly string[]>> = {
     'boundary nonmanifold edges',
     'welded seam topology',
     'degenerate triangle orientation',
+    'thin feature before boolean',
   ],
+  geometryMinFeatureAdvisory: ['thin plate warning', 'feature vs tolerance'],
+  subdividePathByCurvature: ['densify sweep path', 'curvature path stations'],
   remapUV: [
     'rescale texture repetition',
     'existing UV tiling scale offset',

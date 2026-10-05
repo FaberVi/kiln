@@ -480,3 +480,6 @@ export function sweepProfile(
   out.userData.kilnGeometryWarnings = warnings;
   return out;
 }
+
+export { subdividePathByCurvature, SUBDIVIDE_PATH_MAX_STATIONS } from './sweep-path-curvature';
+export type { SubdividePathByCurvatureOptions } from './sweep-path-curvature';

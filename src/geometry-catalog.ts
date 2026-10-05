@@ -123,6 +123,31 @@ export const geometryPrimitives: readonly HelperSpec[] = [
     example: 'const topology = geometryDiagnostics(shell);',
   },
   {
+    name: 'geometryMinFeatureAdvisory',
+    signature:
+      'geometryMinFeatureAdvisory(geometry: BufferGeometry, opts?: { tolerance?: number, toleranceRatio?: 8 })',
+    returns:
+      '{ measures, threshold, belowThreshold, warnings } — advisory only; does not reject geometry.',
+    category: 'utility',
+    description:
+      'Compares the smallest bounding-box thickness and shortest triangle edge against ratio × geometryDiagnostics tolerance. Warns before Boolean/bevel erosion paths when detail may collapse at export topology checks.',
+    example:
+      'const thin = geometryMinFeatureAdvisory(shell);\nthin.warnings.forEach(console.warn);',
+  },
+  {
+    name: 'subdividePathByCurvature',
+    signature:
+      'subdividePathByCurvature(path: [x,y,z][], opts?: { maxStations?: 512, minSegmentLength?: number, minTurnDegrees?: 20, degreesPerStation?: 15 })',
+    returns: '[x,y,z][]',
+    category: 'geometry',
+    description:
+      'Inserts bounded polyline stations where path turns are sharp, for sweepProfile and similar workflows. Straight spans stay sparse; maxStations and minSegmentLength prevent runaway point counts.',
+    promptNotes:
+      'Sample curved rails with subdividePathByCurvature(path) before sweepProfile when corners look faceted or self-intersect.',
+    example:
+      'const path = subdividePathByCurvature([[0,0,0],[1,0,0],[1,0,1]]);\ncreatePart("Rail", sweepProfile(profile, path), steel, { parent: root });',
+  },
+  {
     name: 'creaseNormals',
     signature: 'creaseNormals(geometry: BufferGeometry, opts?: { angle?: 60, tolerance?: number })',
     returns: 'THREE.BufferGeometry',
