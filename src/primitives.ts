@@ -2245,7 +2245,14 @@ export function buildSandboxGlobals(
     meshGeo: wrap('meshGeo', geometry.meshGeo),
     parametricSurface: wrap('parametricSurface', geometry.parametricSurface),
     creaseNormals: wrap('creaseNormals', geometry.creaseNormals),
-    geometryDiagnostics: wrap('geometryDiagnostics', geometry.geometryDiagnostics),
+    geometryDiagnostics: wrap(
+      'geometryDiagnostics',
+      (geo: THREE.BufferGeometry, tolerance?: number) => {
+        const report = geometry.topologyAdvisoriesForGeometry(geo, tolerance);
+        return { ...report.diagnostics, advisories: report.advisories };
+      },
+    ),
+    segmentsFromRadius: wrap('segmentsFromRadius', geometry.segmentsFromRadius),
     createInstance: wrap('createInstance', createInstance),
     // CSG (async)
     boolUnion: wrap('boolUnion', solids.boolUnion),

@@ -91,6 +91,24 @@ const triangle = meshGeo({
 
 Positions contain XYZ triples; each index triple is a counterclockwise triangle. Without indices, every three vertices form one triangle. Optional `normals`, `uvs`, and `tangents` must match the vertex count. Normals are computed when omitted and normalized when supplied. Tangents use unit XYZ plus handedness +1 or -1. Validation rejects nonfinite data and invalid indices. Raw Three.js can carry additional attributes, but check Kiln's export diagnostics before assuming every Three.js feature survives GLB export.
 
+## Choose radial segments for visible pipes and hubs
+
+Primitive cylinders, cones and capsules default to eight radial segments. That is
+enough for small hidden bolts; camera-visible pipes, nozzles and wheel rims often
+look faceted at default counts.
+
+`segmentsFromRadius(radius)` recommends a segment count from the radius in meters
+without changing global defaults. Pass the result into `cylinderGeo`,
+`coneGeo`, `capsuleGeo`, or `beamBetween` options:
+
+```js
+const segs = segmentsFromRadius(0.35);
+createPart('Nozzle', cylinderGeo(0.35, 0.35, 0.6, segs), steel, { parent: root });
+```
+
+Optional `maxChordLength`, `min` and `max` clamp the recommendation. Keep the
+default eight segments for pins and fasteners that are never seen up close.
+
 ## Bend, twist, taper, and displace
 
 ```js
@@ -252,7 +270,7 @@ const report = geometryDiagnostics(shaded);
 - `subdivide(..., { preserveUV: true })` keeps per-corner UV charts while smoothing positions. The default position-only weld reports UV loss with `SUBDIVIDE_UV_DROPPED`; losses of other attributes, groups and morphs are also explicit.
 - `mergeVertices` normally keeps separate vertices where normals or UVs differ. `{ positionOnly: true }` explicitly drops other attributes to weld geometric topology.
 - `creaseNormals` preserves UV corners, averages neighboring face normals within the degree threshold, and invalidates tangents. Its position tolerance defaults to `1e-8` times the bounding-box diagonal, with no world-unit floor. An explicit positive `tolerance` overrides that distance.
-- `geometryDiagnostics` reports boundary edges, non-manifold edges, inconsistent edge orientation, degenerate triangles, invalid indices, and nonfinite vertices. Default seam tolerance is `1e-6` times the finite-position bounding-box diagonal. A supplied positive tolerance remains an absolute geometry-local distance. The result exposes `tolerance`, `toleranceMode`, and `positionScale`. Open boundaries are expected for sheets; the counts do not certify a valid solid or detect general self-intersections.
+- `geometryDiagnostics` reports boundary edges, non-manifold edges, inconsistent edge orientation, degenerate triangles, invalid indices, and nonfinite vertices. Default seam tolerance is `1e-6` times the finite-position bounding-box diagonal. A supplied positive tolerance remains an absolute geometry-local distance. The result exposes `tolerance`, `toleranceMode`, and `positionScale`, plus optional `advisories` companion notes (for example orientation conflicts or CSG `smooth: true` rims that may need `creaseNormals`). Open boundaries are expected for sheets; the counts do not certify a valid solid or detect general self-intersections. Export and compact QA also observe nonzero `orientationConflicts` per mesh so merged solids with opposite winding are visible before release.
 - `collapsedByToleranceTriangles` reports faces whose vertices merge in that diagnostic grid. Those faces are excluded from edge counts so their remaining edges are not counted twice. This is separate from the area-based `degenerateTriangles` count. A nonzero value means topology detail was lost at the chosen tolerance; inspect at a finer deliberate tolerance before interpreting the edge counts. The helper does not weld, remove or repair geometry.
 
 Both operations quantize positions relative to the bounds minimum. This is grid
@@ -318,6 +336,17 @@ reports `SOLID_FLOAT32_CANONICALIZED`; unresolved collapse is an explicit error.
 Boolean output restores asset units before materialization, keeping the large
 world origin in the node transform. This can change rounding-level positions and
 normals from older builds. It is not a general self-intersection or mesh-repair tool.
+
+## Round edges without a general mesh bevel
+
+Kiln does not ship a free-form edge bevel modifier. Minkowski-style experiments
+documented under `docs/experiments/` were declined as a general tool.
+
+Supported rounding instead:
+
+- `roundedBoxGeo(width, height, depth, radius, { style: 'round' | 'chamfer' })` — all twelve box edges at the requested outer size.
+- `extrudeProfile` / `revolveProfile` with `bevel` and `bevelStyle: 'chamfer' | 'round'` — profile corners along the sweep; cap edges stay sharp unless you use `roundedBoxGeo`.
+- `subdivide` — smoothing, not a dimension-preserving chamfer.
 
 ## Choose the path or revolution contract
 
