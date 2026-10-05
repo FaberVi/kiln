@@ -1,6 +1,6 @@
 /** Manifold-backed solid operations with explicit legacy and attribute-preserving modes. */
 import * as THREE from 'three';
-import { creaseNormals } from './geometry';
+import { creaseNormals, retainMinFeatureWarnings } from './geometry';
 import type { ManifoldToplevel, Manifold, Mesh as ManifoldMesh } from 'manifold-3d';
 import { AuthoringDiagnosticError } from './evaluator/authoring-diagnostic';
 
@@ -171,6 +171,7 @@ function threeToManifold(
     if (!position) return;
     retainNotes(context.attributeWarnings, geometry.userData.kilnAttributeWarnings);
     retainNotes(context.geometryWarnings, geometry.userData.kilnGeometryWarnings);
+    retainMinFeatureWarnings(context.geometryWarnings, geometry, mesh.name || label);
     const dropped = Object.keys(geometry.attributes)
       .filter((key) => !['position', 'normal', 'uv'].includes(key))
       .sort();

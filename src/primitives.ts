@@ -2253,6 +2253,11 @@ export function buildSandboxGlobals(
       },
     ),
     segmentsFromRadius: wrap('segmentsFromRadius', geometry.segmentsFromRadius),
+    geometryMinFeatureAdvisory: wrap(
+      'geometryMinFeatureAdvisory',
+      geometry.geometryMinFeatureAdvisory,
+    ),
+    subdividePathByCurvature: wrap('subdividePathByCurvature', sweep.subdividePathByCurvature),
     createInstance: wrap('createInstance', createInstance),
     // CSG (async)
     boolUnion: wrap('boolUnion', solids.boolUnion),

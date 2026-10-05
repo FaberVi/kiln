@@ -92,7 +92,7 @@ async function build() {
         'operation:pbrMaterial',
       ],
       steps: [
-        'Sample the path at sufficient stations and sweep a simple profile using an explicit up reference.',
+        'Sample the path at sufficient stations — use subdividePathByCurvature on polylines with tight corners — and sweep a simple profile using an explicit up reference.',
         'Keep the generated side UVs: U wraps around the profile; V progresses along path length. Choose a pattern varying across U for stripes that run along V.',
         'Bind the albedo using pbrMaterial. Rebuild from changed path parameters while retaining the intended UV convention.',
         'Inspect both bends, the UV seam and caps with GPU views; reimport and check texture direction in the intended destination.',

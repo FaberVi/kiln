@@ -2,7 +2,18 @@ import { GEOMETRY_ALLOCATION_LIMITS } from './geometry-budget';
 /** Owned custom meshes, surface sampling, and explicit topology diagnostics. */
 import * as THREE from 'three';
 import { AuthoringDiagnosticError } from './evaluator/authoring-diagnostic';
+import { DEFAULT_MIN_FEATURE_TOLERANCE_RATIO } from './geometry-min-feature';
+export {
+  DEFAULT_MIN_FEATURE_TOLERANCE_RATIO,
+  attachProfileMinFeatureWarnings,
+  profileMinFeatureWarnings,
+} from './geometry-min-feature';
 export { segmentsFromRadius, type SegmentsFromRadiusOptions } from './geometry-segments';
+export {
+  subdividePathByCurvature,
+  SUBDIVIDE_PATH_MAX_STATIONS,
+  type SubdividePathByCurvatureOptions,
+} from './sweep-path-curvature';
 
 export type Point3 = readonly [number, number, number];
 export interface MeshGeoData {
@@ -218,6 +229,119 @@ export function geometryDiagnostics(
   return result;
 }
 
+export interface MinFeatureMeasure {
+  tolerance: number;
+  positionScale: number;
+  bboxThinExtent: number;
+  minEdgeLength: number;
+  featureScale: number;
+}
+
+export interface MinFeatureAdvisoryOptions {
+  tolerance?: number;
+  toleranceRatio?: number;
+}
+
+export interface MinFeatureAdvisory {
+  measures: MinFeatureMeasure;
+  threshold: number;
+  belowThreshold: boolean;
+  warnings: string[];
+}
+
+function bboxThinExtent(geometry: THREE.BufferGeometry): number {
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  if (!box || box.isEmpty()) return 0;
+  const size = box.getSize(new THREE.Vector3());
+  return Math.min(size.x, size.y, size.z);
+}
+
+function minEdgeLength(geometry: THREE.BufferGeometry): number {
+  const position = geometry.getAttribute('position');
+  if (!position || position.count < 3) return 0;
+  const index = geometry.index;
+  const triCount = (index?.count ?? position.count) / 3;
+  let min = Number.POSITIVE_INFINITY;
+  const a = new THREE.Vector3(),
+    b = new THREE.Vector3(),
+    c = new THREE.Vector3();
+  for (let t = 0; t < triCount; t++) {
+    const ia = index ? index.getX(t * 3) : t * 3;
+    const ib = index ? index.getX(t * 3 + 1) : t * 3 + 1;
+    const ic = index ? index.getX(t * 3 + 2) : t * 3 + 2;
+    a.fromBufferAttribute(position, ia);
+    b.fromBufferAttribute(position, ib);
+    c.fromBufferAttribute(position, ic);
+    for (const [u, v] of [
+      [a, b],
+      [b, c],
+      [c, a],
+    ] as const) {
+      const len = u.distanceTo(v);
+      if (len > 0 && len < min) min = len;
+    }
+  }
+  return Number.isFinite(min) ? min : 0;
+}
+
+/** Smallest meaningful thickness/edge scale in geometry-local meters. */
+export function measureMinFeatureScale(
+  geometry: THREE.BufferGeometry,
+  tolerance?: number,
+): MinFeatureMeasure {
+  const diagnostics = geometryDiagnostics(geometry, tolerance);
+  const thin = bboxThinExtent(geometry);
+  const edge = minEdgeLength(geometry);
+  const finiteEdge = edge === Number.POSITIVE_INFINITY ? 0 : edge;
+  const candidates = [thin, finiteEdge].filter((n) => n > 0);
+  const featureScale = candidates.length ? Math.min(...candidates) : 0;
+  return {
+    tolerance: diagnostics.tolerance,
+    positionScale: diagnostics.positionScale,
+    bboxThinExtent: thin,
+    minEdgeLength: finiteEdge,
+    featureScale,
+  };
+}
+
+/** Warn when measured feature scale falls below ratio × diagnostic tolerance. */
+export function geometryMinFeatureAdvisory(
+  geometry: THREE.BufferGeometry,
+  options: MinFeatureAdvisoryOptions = {},
+): MinFeatureAdvisory {
+  const ratio = options.toleranceRatio ?? DEFAULT_MIN_FEATURE_TOLERANCE_RATIO;
+  if (!Number.isFinite(ratio) || ratio <= 0) {
+    throw new Error('geometryMinFeatureAdvisory toleranceRatio must be positive and finite');
+  }
+  const measures = measureMinFeatureScale(geometry, options.tolerance);
+  const threshold = measures.tolerance * ratio;
+  const belowThreshold = measures.featureScale > 0 && measures.featureScale < threshold;
+  const warnings: string[] = [];
+  if (belowThreshold) {
+    warnings.push(
+      `Min feature scale ${measures.featureScale} m is below ${ratio}× diagnostic tolerance (${threshold} m). Thin plates, short edges and bevel/Boolean erosion can collapse or degenerate at export topology checks — thicken the feature, coarsen deliberately, or inspect with a finer absolute geometryDiagnostics tolerance.`,
+    );
+  }
+  return { measures, threshold, belowThreshold, warnings };
+}
+
+type MinFeatureGeometryNote = string | { code: string; message?: string };
+
+/** Merge min-feature advisories into CSG/solid warning maps without duplicating entries. */
+export function retainMinFeatureWarnings(
+  target: Map<string, MinFeatureGeometryNote>,
+  geometry: THREE.BufferGeometry,
+  label: string,
+): void {
+  const { warnings, belowThreshold } = geometryMinFeatureAdvisory(geometry);
+  if (!belowThreshold) return;
+  for (const message of warnings) {
+    const note = { code: 'GEO_MIN_FEATURE', message: `${label}: ${message}` };
+    target.set(JSON.stringify(note), note);
+  }
+}
+
 /** Lightweight companion notes authors can log after `geometryDiagnostics`. */
 export function geometryTopologyAdvisories(
   diagnostics: GeometryDiagnostics,
@@ -234,6 +358,7 @@ export function geometryTopologyAdvisories(
       'CSG used smooth: true, which softens sharp rims in lighting. Try geometry = creaseNormals(geometry, { angle: 60 }) when the silhouette is correct but shading looks scalloped.',
     );
   }
+  if (geometry) advisories.push(...geometryMinFeatureAdvisory(geometry).warnings);
   return advisories;
 }
 
