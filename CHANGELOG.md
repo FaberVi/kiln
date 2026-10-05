@@ -11,6 +11,8 @@ separate milestones. The package is not published on the npm registry.
 - `optimize: 'full'` skips rigid-group merge on small assets (triangle/draw thresholds);
   palette consolidation is unchanged. Summaries record `rigidMergeGate` when merge is skipped.
 - Optional bake compression: `compress: 'meshopt' | 'draco'` on render options (default off).
+- Viewer, site 3D preview, and render-service admission/load paths decode meshopt and Draco
+  GLBs from that export option; default bakes stay uncompressed.
 
 Changes since the 0.10.0 tagged package release. The package version stays 0.10.0
 until the next package release; source/main and website deployment are separate

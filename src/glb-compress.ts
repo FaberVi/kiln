@@ -3,8 +3,8 @@
  *
  * Meshopt (`EXT_meshopt_compression`) is the default when enabled: broad three.js
  * support with the meshoptimizer decoder. Draco (`KHR_draco_mesh_compression`) shrinks
- * further but is not decoded by the Kiln site viewer or render-service admission path;
- * use only when the destination runtime advertises Draco.
+ * further; the kiln viewer, site R3F preview, and render-service GPU path decode both
+ * extensions when `compress` is enabled. Gallery-shipped GLBs remain plain by policy.
  */
 import type { Document } from '@gltf-transform/core';
 import { draco, meshopt, quantize } from '@gltf-transform/functions';
