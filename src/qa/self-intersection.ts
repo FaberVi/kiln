@@ -88,6 +88,29 @@ export const MAX_BROAD_PHASE_PAIRS = 250_000;
  * it means the same thing on a 2 cm bolt and a 20 m wall.
  */
 export const CONTACT_VOLUME_FRACTION = 0.001;
+/**
+ * Higher contact threshold for assemblies where small embedded overlaps are expected
+ * (timber joints, vehicle brackets, wall contacts). Large penetrations still report.
+ */
+export const ASSEMBLY_PENETRATION_CONTACT_FRACTION = 0.012;
+
+export interface PartPenetrationPolicy {
+  /** Descriptive host labels; never select enforcement alone. */
+  labels?: readonly string[];
+  structureRequested?: boolean;
+  mobilityRequested?: boolean;
+}
+
+export function partPenetrationContactFraction(policy?: PartPenetrationPolicy): number {
+  if (!policy) return CONTACT_VOLUME_FRACTION;
+  const labels = policy.labels ?? [];
+  const assemblyLabel = labels.some((label) =>
+    ['architecture', 'vehicle', 'environment'].includes(label.toLowerCase()),
+  );
+  const assembly =
+    assemblyLabel || policy.structureRequested === true || policy.mobilityRequested === true;
+  return assembly ? ASSEMBLY_PENETRATION_CONTACT_FRACTION : CONTACT_VOLUME_FRACTION;
+}
 
 export interface PartPenetrationPairV1 {
   a: string;
@@ -129,6 +152,13 @@ export interface PartPenetrationEvidenceV1 {
   skipped: { part: string; reason: string }[];
   /** Pairs whose shared volume exceeds the contact threshold, worst first. */
   penetrations: PartPenetrationPairV1[];
+  /** Contact fraction used when classifying penetrations for this run. */
+  contactVolumeFraction?: number;
+  /**
+   * Pairs that shared measurable volume above {@link CONTACT_VOLUME_FRACTION} but below the
+   * assembly threshold — summarized instead of listed one-by-one.
+   */
+  assemblyJointsSuppressed?: number;
   /**
    * Parts marked with `markOpenShell` that could not be built as a closed solid, in traversal
    * order: `reason` is why, as in `skipped`; `intent` is the author's reason for the mark.
@@ -329,9 +359,12 @@ function meshToArrays(
  */
 export async function analyzePartPenetration(
   root: THREE.Object3D,
+  policy: PartPenetrationPolicy = {},
 ): Promise<PartPenetrationEvidenceV1> {
   const skipped: PartPenetrationEvidenceV1['skipped'] = [];
   const parts = collectParts(root, skipped);
+  const contactVolumeFraction = partPenetrationContactFraction(policy);
+  let assemblyJointsSuppressed = 0;
 
   const base: PartPenetrationEvidenceV1 = {
     schemaVersion: 1,
@@ -345,6 +378,7 @@ export async function analyzePartPenetration(
     truncated: false,
     skipped,
     penetrations: [],
+    contactVolumeFraction,
   };
   if (parts.length < 2) return base;
 
@@ -488,7 +522,12 @@ export async function analyzePartPenetration(
         if (volume > 0) {
           const smaller = Math.min(Math.abs(pa.volume()), Math.abs(pb.volume()));
           const fraction = smaller > 0 ? volume / smaller : 0;
-          if (fraction > CONTACT_VOLUME_FRACTION) {
+          if (fraction <= CONTACT_VOLUME_FRACTION) continue;
+          if (fraction <= contactVolumeFraction) {
+            if (contactVolumeFraction > CONTACT_VOLUME_FRACTION) assemblyJointsSuppressed++;
+            continue;
+          }
+          {
             const assetVolume = volume * scale ** 3;
             if (!Number.isFinite(assetVolume) || !(assetVolume > 0)) {
               rangeSkips.push({
@@ -548,9 +587,10 @@ export async function analyzePartPenetration(
 
   // Worst first, then by name so equal-volume pairs keep a stable order.
   penetrations.sort(
-    (x, y) => y.fraction - x.fraction || `${x.a}:${x.b}`.localeCompare(`${y.a}:${y.b}`),
+    (x, y) => y.fraction - x.fraction || `${x.a}:${x.b}`.localeCompare(`${y.a}:${x.b}`),
   );
   base.penetrations = penetrations;
+  if (assemblyJointsSuppressed > 0) base.assemblyJointsSuppressed = assemblyJointsSuppressed;
   return base;
 }
 
@@ -673,7 +713,7 @@ export function inspectPartPenetration(evidence?: PartPenetrationEvidenceV1): re
     measurement: {
       name: 'intersectionVolumeFraction',
       actual: pair.fraction,
-      expected: CONTACT_VOLUME_FRACTION,
+      expected: evidence.contactVolumeFraction ?? CONTACT_VOLUME_FRACTION,
     },
     repairText:
       'Check whether this overlap is intentional, such as a joined beam or embedded detail. For unintended solid overlap, move a part or use boolDiff to cut clearance. This observation does not test intersections within a single mesh, open surfaces, empty passage space or motion.',
@@ -736,6 +776,27 @@ export function inspectPartPenetration(evidence?: PartPenetrationEvidenceV1): re
     });
   }
   if (acknowledged.length) findings.push(acknowledgedFinding(acknowledged, pairsAcknowledged));
+
+  const suppressed = evidence.assemblyJointsSuppressed ?? 0;
+  if (suppressed > 0) {
+    const threshold = evidence.contactVolumeFraction ?? ASSEMBLY_PENETRATION_CONTACT_FRACTION;
+    findings.push({
+      code: 'GEO_PART_SELF_INTERSECTION_ASSEMBLY_JOINTS',
+      disposition: 'observe',
+      dimension: 'visualQuality',
+      profile: 'geometry.selfIntersection',
+      message:
+        `${suppressed} overlapping part pair${suppressed === 1 ? '' : 's'} share a small embedded volume typical of joined beams, brackets or wall contacts. ` +
+        `Assembly-oriented labels use a ${(threshold * 100).toFixed(1)}% volume threshold before listing each pair; larger overlaps still report individually.`,
+      measurement: {
+        name: 'assemblyJointPairsSuppressed',
+        actual: suppressed,
+        expected: threshold,
+      },
+      repairText:
+        'Confirm these are intentional joints. For unintended solid overlap, move a part or use boolDiff to cut clearance.',
+    });
+  }
 
   return findings;
 }

@@ -209,6 +209,11 @@ alone or overwriting the returned position loses that placement. Read world boun
 with `new THREE.Box3().setFromObject(housing)` and preserve world placement when
 attaching beneath a transformed parent.
 
+There is no general mesh edge bevel. Use `roundedBoxGeo` for all twelve box edges,
+`extrudeProfile` / `revolveProfile` `bevel` with `bevelStyle: 'chamfer' | 'round'`
+for profile corners (caps stay sharp), and read `docs/experiments/geometry-frontier.md`
+before attempting Minkowski-style rounding. `segmentsFromRadius(r)` recommends
+radial segments for visible pipes without raising global cylinder defaults.
 `roundedBoxGeo` rounds a box's twelve edges. Profile beveling rounds profile corners; extrusion cap edges remain sharp. Subdivision is smoothing, not a dimension-preserving general bevel.
 
 ## Reuse structure without a new language

@@ -462,6 +462,7 @@ function outputMesh(
     smooth: opts.smooth,
     preserveUV: context.preserve && context.anyUV && !isHull,
   });
+  if (opts.smooth) geometry.userData.kilnCsgSmooth = true;
   const native = materialized.mesh,
     materials: THREE.Material[] = [],
     sourceRuns: CsgSourceRun[] = [];
@@ -514,6 +515,12 @@ function outputMesh(
       code: 'HULL_ATTRIBUTES_GENERATED',
       message:
         'A convex hull creates new faces. Source UVs and material boundaries cannot be assigned faithfully; output uses the first material and no UVs.',
+    });
+  if (opts.smooth)
+    warnings.push({
+      code: 'CSG_SMOOTH_CREASE',
+      message:
+        'smooth: true averaged normals across sharp rims. If lighting looks scalloped, assign mesh.geometry = creaseNormals(mesh.geometry, { angle: 60 }) and inspect the silhouette separately from the shading.',
     });
   geometry.userData.kilnAttributeWarnings = [...context.attributeWarnings.values(), ...warnings];
   retainNotes(context.geometryWarnings, geometry.userData.kilnGeometryWarnings);

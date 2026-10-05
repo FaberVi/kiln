@@ -32,6 +32,7 @@ import {
   SELF_INTERSECTION_QA_RULE,
   type PartPenetrationEvidenceV1,
 } from './self-intersection';
+import { inspectMeshOrientationConflicts } from './mesh-topology';
 import { inspectMobility, VEHICLE_QA_RULES } from './vehicle';
 import { inspectMobilityAdvisory } from './vehicle-advisory';
 import { inspectFoliageContact, inspectFoliageAdvisory, VEGETATION_QA_RULES } from './vegetation';
@@ -107,7 +108,14 @@ export async function collectRequirementsSceneEvidence(
   )
     return {};
   try {
-    return { partPenetration: await analyzePartPenetration(scene) };
+    const needs = context.requirements.requirements;
+    return {
+      partPenetration: await analyzePartPenetration(scene, {
+        labels: context.requirements.labels,
+        structureRequested: needs.structure?.state === 'requested',
+        mobilityRequested: needs.mobility?.state === 'requested',
+      }),
+    };
   } catch {
     // An optional observation can be unavailable; it cannot become a clean measurement.
     return { partPenetrationFailed: true };
@@ -132,6 +140,7 @@ export function runRequirementsSceneQa(
     needs.representation?.state === 'requested' &&
     needs.representation.value.precomputedTangents === true;
   const findings: QaFinding[] = [];
+  if (scene instanceof Object3D) findings.push(...inspectMeshOrientationConflicts(scene).findings);
   const decisions = sceneDecisions(context, policy);
   const geometryMetrics: Record<string, number | string | boolean | null> = {};
   const mobilityInput = {
