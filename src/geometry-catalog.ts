@@ -116,11 +116,25 @@ export const geometryPrimitives: readonly HelperSpec[] = [
     name: 'geometryDiagnostics',
     signature: 'geometryDiagnostics(geometry: BufferGeometry, tolerance?: number)',
     returns:
-      '{ tolerance, toleranceMode, positionScale, vertices, triangles, boundaryEdges, nonManifoldEdges, orientationConflicts, degenerateTriangles, invalidIndices, nonFiniteVertices }',
+      '{ tolerance, toleranceMode, positionScale, vertices, triangles, boundaryEdges, nonManifoldEdges, orientationConflicts, degenerateTriangles, invalidIndices, nonFiniteVertices, advisories?: string[] }',
     category: 'utility',
     description:
-      'Counts topology issues after position-grid matching. Default tolerance is 1e-6 times the finite-position diagonal; an explicit positive value is absolute. Reports effective tolerance and scale. Open boundaries are valid for sheets; closed edges do not certify a self-intersection-free solid.',
-    example: 'const topology = geometryDiagnostics(shell);',
+      'Counts topology issues after position-grid matching. Default tolerance is 1e-6 times the finite-position diagonal; an explicit positive value is absolute. Reports effective tolerance and scale. Open boundaries are valid for sheets; closed edges do not certify a self-intersection-free solid. Adds lightweight advisories for orientation conflicts and CSG smooth shading when relevant.',
+    example:
+      'const topology = geometryDiagnostics(shell); topology.advisories?.forEach(console.log);',
+  },
+  {
+    name: 'segmentsFromRadius',
+    signature:
+      'segmentsFromRadius(radius: number, opts?: { maxChordLength?: number, min?: 8, max?: 128 })',
+    returns: 'number',
+    category: 'geometry',
+    description:
+      'Recommends radial segment count for a visible pipe, hub or hull from radius in meters. Does not change cylinderGeo defaults — pass the result as the segments argument.',
+    promptNotes:
+      'Hero pipes and nozzles often need more than the default 8 segments. Use segmentsFromRadius(r) for camera-visible circular parts; keep defaults for hidden bolts and pins.',
+    example:
+      'const segs = segmentsFromRadius(0.35);\ncreatePart("Duct", cylinderGeo(0.35, 0.35, 2, segs), steel, { parent: root });',
   },
   {
     name: 'creaseNormals',

@@ -515,6 +515,27 @@ define(
     tags: ['diagnostics', 'topology'],
     aliases: ['mesh diagnostics', 'watertightness inspection'],
     intents: ['inspect open edges and malformed mesh data'],
+    related: [{ name: 'creaseNormals', relation: 'companion' }],
+  },
+);
+define(
+  'segmentsFromRadius',
+  {
+    units: lengthUnits,
+    axes: 'Radius uses geometry-local meters; output is a segment count.',
+    parameters: [
+      'Positive finite radius in meters; optional maxChordLength defaults from radius; min/max clamp the integer result (default 8..128).',
+    ],
+    topology: ['Does not build geometry; only recommends a segment count for circular primitives.'],
+    preservation: ['Pure function; no geometry side effects.'],
+    cost: 'O(1).',
+  },
+  {
+    references: ['src/geometry-segments.ts'],
+    tags: ['cylinder', 'cone', 'segments', 'hard surface'],
+    aliases: ['round pipe segments', 'visible hull segments'],
+    intents: ['avoid faceted hero pipes without raising global defaults'],
+    related: [{ name: 'cylinderGeo', relation: 'companion' }],
   },
 );
 define(

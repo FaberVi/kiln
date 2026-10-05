@@ -46,6 +46,7 @@ import {
   validateMaterialGroups,
   type GeometryExportPolicy,
 } from './geometry-export';
+import { inspectMeshOrientationConflicts } from './qa/mesh-topology';
 import { createHash } from 'node:crypto';
 import { Document, Logger } from '@gltf-transform/core';
 import { KHRMaterialsEmissiveStrength } from '@gltf-transform/extensions';
@@ -1564,6 +1565,7 @@ export async function renderSceneToGLB(
   // found - skipped" for each unresolved track (kept for compatibility).
   for (const w of inspectGeneratedAnimation(root, clips)) warnings.push(w);
   for (const w of inspectSceneStructure(root)) warnings.push(w);
+  for (const w of inspectMeshOrientationConflicts(root).warnings) warnings.push(w);
 
   // T2.2 — encode in-memory textures to PNG BEFORE QA, so QA judges the file
   // that will actually be written. A procedural DataTexture used to reach the
