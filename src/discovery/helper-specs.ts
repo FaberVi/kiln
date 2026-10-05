@@ -933,13 +933,35 @@ const PRIMITIVES: HelperSpec[] = [
   {
     name: 'autoUnwrap',
     signature:
-      'await autoUnwrap(geometry: BufferGeometry, opts?: { resolution?: 1024, padding?: 2, useNormals?: false })',
+      'await autoUnwrap(geometry: BufferGeometry, opts?: { resolution?: 1024, padding?: 2, useNormals?: false, equalizeChartTexelScale?: false })',
     returns: 'Promise<THREE.BufferGeometry>',
     category: 'uv',
     description:
-      'xatlas-based UV atlas for ANY geometry (CSG output, subdivided, deformed). Output is a packed atlas with arbitrary per-chart rotation — use for non-tileable baked textures. For directional tileable textures on box/cylinder/plane primitives, prefer the shape-aware unwraps below.',
+      'xatlas-based UV atlas for CSG output, subdivided or deformed meshes when you need a baked texture atlas. Charts may pack at uneven texel density versus analytic primitive UVs — use measureUvTexelDensity / equalizeUvChartTexelScale (opt-in equalizeChartTexelScale) or prefer projectUV + remapUV / preserveAttributes for machined tileable parts.',
     example:
-      'const unwrapped = await autoUnwrap(someCsgResult, { resolution: 1024 });\nconst mesh = new THREE.Mesh(unwrapped, bakedPbr);',
+      'const unwrapped = await autoUnwrap(csgMesh.geometry, { resolution: 1024, equalizeChartTexelScale: true });\nconst metrics = measureUvTexelDensity(unwrapped);',
+    promptNotes:
+      'Unwrap only after the last boolean. For brick/metal tiles on flats, boolDiff with preserveAttributes: true then remapUV per face often beats a fresh atlas.',
+  },
+  {
+    name: 'measureUvTexelDensity',
+    signature: 'measureUvTexelDensity(geometry: BufferGeometry)',
+    returns: '{ triangleCount, medianDensity, spreadRatio, minMedianRatio, chartCount } | null',
+    category: 'uv',
+    description:
+      'Reports per-triangle UV/world area ratios for existing UV0. spreadRatio is max/median; minMedianRatio is min/median. Returns null without matching UV0. Use after autoUnwrap or on preserved CSG UVs before shipping tileable materials.',
+    example:
+      'const m = measureUvTexelDensity(geo);\nif (m && m.spreadRatio > 2) geometry = equalizeUvChartTexelScale(geometry).geometry;',
+  },
+  {
+    name: 'equalizeUvChartTexelScale',
+    signature: 'equalizeUvChartTexelScale(geometry, opts?: { minSpreadToApply?: 1.05 })',
+    returns: '{ geometry, metricsBefore, metricsAfter, applied }',
+    category: 'uv',
+    description:
+      'Opt-in post-pass: uniformly scales each UV chart so its median texel density matches the mesh median. Does not repack islands — inspect overlap after aggressive correction. Skips when spread is already low.',
+    example:
+      'const { geometry: balanced, applied } = equalizeUvChartTexelScale(await autoUnwrap(csgGeo));',
   },
 
   // ---------------------------------------------------------------------------

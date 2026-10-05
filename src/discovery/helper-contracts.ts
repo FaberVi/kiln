@@ -2125,6 +2125,7 @@ define(
     parameters: [
       'Nonempty complete triangle geometry; resolution is a packing limit, not guaranteed final dimensions.',
       'padding defaults 2; useNormals defaults false.',
+      'equalizeChartTexelScale defaults false; when true, runs equalizeUvChartTexelScale on the packed atlas (does not repack).',
     ],
     topology: ['Reindexes/splits vertices for charts; does not repair malformed source topology.'],
     preservation: [
@@ -2140,6 +2141,67 @@ define(
     intents: ['create packed UVs for baked textures'],
     limitations: [
       'Arbitrary chart rotation is unsuitable when directional tileable textures should retain analytic mapping.',
+      'Chart packing can yield uneven texel density versus built-in primitive UVs; measure or equalize when tile scale must read uniform.',
+    ],
+    related: [
+      { name: 'measureUvTexelDensity', relation: 'companion' },
+      { name: 'equalizeUvChartTexelScale', relation: 'companion' },
+      { name: 'projectUV', relation: 'alternative' },
+      { name: 'remapUV', relation: 'companion' },
+    ],
+  },
+);
+define(
+  'measureUvTexelDensity',
+  {
+    ...uvFacts,
+    execution: 'sync',
+    parameters: ['Requires finite UV0 with two components per position vertex on a triangle mesh.'],
+    preservation: ['Read-only; returns metrics or null without modifying geometry.'],
+    cost: 'Linear in triangle count.',
+  },
+  {
+    references: ['src/uv-stretch.ts'],
+    tags: ['uv', 'inspection', 'texture'],
+    aliases: ['UV stretch metric', 'texel density spread'],
+    intents: ['check texture scale uniformity', 'UV stretch after boolean'],
+    limitations: [
+      'Image-free summary only; does not certify seam quality or destination filtering.',
+    ],
+    related: [
+      { name: 'equalizeUvChartTexelScale', relation: 'companion' },
+      { name: 'geometryDiagnostics', relation: 'companion' },
+      { name: 'autoUnwrap', relation: 'companion' },
+    ],
+  },
+);
+define(
+  'equalizeUvChartTexelScale',
+  {
+    ...uvFacts,
+    execution: 'sync',
+    parameters: [
+      'minSpreadToApply defaults 1.05; returns the input geometry unchanged when spread is already below that band.',
+    ],
+    preservation: [
+      'Returns an owned geometry clone when scaling runs; records UV_TEXEL_SCALE_EQUALIZED and may drop tangents.',
+      'Does not repack UV islands or change triangle topology.',
+    ],
+    cost: 'Linear in vertices and triangles.',
+  },
+  {
+    references: ['src/uv-stretch.ts'],
+    tags: ['uv', 'post-process', 'hard surface'],
+    aliases: ['uniform chart UV scale', 'texel density equalize'],
+    intents: ['even out atlas texel scale after unwrap', 'fix uneven UV chart density'],
+    limitations: [
+      'Scaling charts about their UV centroid can overlap islands; rebake or repack when overlap is visible.',
+    ],
+    related: [
+      { name: 'measureUvTexelDensity', relation: 'prerequisite' },
+      { name: 'autoUnwrap', relation: 'companion' },
+      { name: 'remapUV', relation: 'alternative' },
+      { name: 'projectUV', relation: 'alternative' },
     ],
   },
 );

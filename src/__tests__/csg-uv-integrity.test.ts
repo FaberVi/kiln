@@ -20,6 +20,7 @@ import { describe, expect, it } from 'bun:test';
 import * as THREE from 'three';
 import { boolDiff, boolIntersect, boolUnion, hull } from '../solids';
 import { autoUnwrap } from '../uv';
+import { measureUvTexelDensity } from '../uv-stretch';
 import { boxGeo, cylinderGeo, gameMaterial } from '../primitives';
 
 const mat = () => gameMaterial(0x8899aa);
@@ -118,35 +119,9 @@ describe('autoUnwrap guards', () => {
 // The matrix — a boolean destroys UVs, and unwrapping the result restores them
 // =============================================================================
 
-/** Per-triangle 3D area and UV area, for the distortion measure below. */
-function triangleAreas(geo: THREE.BufferGeometry): { world: number[]; uv: number[] } {
-  const pos = geo.getAttribute('position') as THREE.BufferAttribute;
-  const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
-  const idx = geo.getIndex();
-  const count = idx ? idx.count : pos.count;
-  const at = (i: number) => (idx ? (idx.getX(i) as number) : i);
-  const world: number[] = [];
-  const uvArea: number[] = [];
-  const a = new THREE.Vector3();
-  const b = new THREE.Vector3();
-  const c = new THREE.Vector3();
-  for (let t = 0; t < count; t += 3) {
-    const i0 = at(t);
-    const i1 = at(t + 1);
-    const i2 = at(t + 2);
-    a.fromBufferAttribute(pos, i0);
-    b.fromBufferAttribute(pos, i1);
-    c.fromBufferAttribute(pos, i2);
-    world.push(b.clone().sub(a).cross(c.clone().sub(a)).length() / 2);
-    const u0 = uv.getX(i0);
-    const v0 = uv.getY(i0);
-    const u1 = uv.getX(i1);
-    const v1 = uv.getY(i1);
-    const u2 = uv.getX(i2);
-    const v2 = uv.getY(i2);
-    uvArea.push(Math.abs((u1 - u0) * (v2 - v0) - (u2 - u0) * (v1 - v0)) / 2);
-  }
-  return { world, uv: uvArea };
+function densitySpread(geo: THREE.BufferGeometry): number {
+  const metrics = measureUvTexelDensity(geo);
+  return metrics?.spreadRatio ?? Number.POSITIVE_INFINITY;
 }
 
 /**
@@ -174,21 +149,6 @@ function triangleAreas(geo: THREE.BufferGeometry): { world: number[]; uv: number
  * 8x ceiling would have passed no matter how badly the unwrap degraded.
  */
 const MAX_DENSITY_RATIO = 2;
-
-function densitySpread(geo: THREE.BufferGeometry): number {
-  const { world, uv } = triangleAreas(geo);
-  const density: number[] = [];
-  for (let i = 0; i < world.length; i++) {
-    const w = world[i]!;
-    // Zero-area triangles carry no texture and cannot be stretched.
-    if (w < 1e-9) continue;
-    density.push(uv[i]! / w);
-  }
-  density.sort((x, y) => x - y);
-  const median = density[Math.floor(density.length / 2)] ?? 1;
-  if (median <= 0) return Number.POSITIVE_INFINITY;
-  return (density[density.length - 1] ?? 0) / median;
-}
 
 describe('post-CSG unwrap, textured operands', () => {
   const cases: Array<[string, () => Promise<THREE.Mesh>]> = [

@@ -320,7 +320,19 @@ Operands must be static triangle meshes. Instanced meshes, skinned meshes and
 active morph poses are rejected: bake the intended instances or pose into static
 meshes first. Reading only their base geometry would silently change the solid.
 
-Legacy calls retain their original first-material/no-UV behavior. Use `autoUnwrap` after a Boolean when you want a fresh atlas. Profile solids also generate their own surfaces without UVs.
+Legacy calls retain their original first-material/no-UV behavior. Profile solids also generate their own surfaces without UVs.
+
+### UVs after booleans (machined / hard-surface)
+
+Default booleans drop UV0. Choose a path before texturing:
+
+| Goal | Typical path |
+|------|----------------|
+| Tileable metal, brick or panel grain on flats you modeled as primitives | `boolDiff` / `boolUnion` with `{ preserveAttributes: true }`, then `remapUV` with explicit `[width/tileWidth, height/tileHeight]` per face or material group; use `projectUV` when you need a fresh planar/box/cylindrical frame on cut faces |
+| One baked albedo/normal atlas for the whole part | `autoUnwrap` **after the last boolean**; read `geometry.userData.atlas.width/height` (not `resolution` squared) for bakers |
+| Even texel scale across xatlas charts | `measureUvTexelDensity(geo)` (`spreadRatio`, `minMedianRatio`) and optional `equalizeUvChartTexelScale(geo)` or `autoUnwrap(..., { equalizeChartTexelScale: true })` — does not repack islands |
+
+`geometryDiagnostics` / `topologyAdvisoriesForGeometry` append a companion note when texel density is badly non-uniform (defaults: spread above 2 or min/median below 0.5). Unwrapping mid-chain is wasted: the next boolean removes UVs again.
 
 CSG metadata now records actual output runs and source face IDs, including the backside flag for subtraction, rather than allocating guessed triangle ranges. Nested preserving operations retain source names and material groups. A hull creates new faces, so it reports unknown provenance and retains only the first material with no UVs even when preservation was requested.
 
@@ -459,6 +471,8 @@ full diamond at `edgeBevel: 1`. See the [specialized-domain evidence](reviews/20
 
 Keep valid built-in UVs by sharing the geometry or using `copyGeometry`. Use
 `remapUV` to transform existing U/V values and `autoUnwrap` for an xatlas chart atlas.
+`measureUvTexelDensity` and `equalizeUvChartTexelScale` inspect or correct uneven
+chart scale after an atlas unwrap (opt-in; see the post-boolean table above).
 `projectUV` replaces UV0 with a named planar, box or cylindrical projection:
 
 ```js

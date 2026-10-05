@@ -2,6 +2,7 @@ import { GEOMETRY_ALLOCATION_LIMITS } from './geometry-budget';
 /** Owned custom meshes, surface sampling, and explicit topology diagnostics. */
 import * as THREE from 'three';
 import { AuthoringDiagnosticError } from './evaluator/authoring-diagnostic';
+import { measureUvTexelDensity, uvTexelDensityAdvisory } from './uv-stretch';
 import { DEFAULT_MIN_FEATURE_TOLERANCE_RATIO } from './geometry-min-feature';
 export {
   DEFAULT_MIN_FEATURE_TOLERANCE_RATIO,
@@ -359,6 +360,11 @@ export function geometryTopologyAdvisories(
     );
   }
   if (geometry) advisories.push(...geometryMinFeatureAdvisory(geometry).warnings);
+  if (geometry) {
+    const uvMetrics = measureUvTexelDensity(geometry);
+    const uvNote = uvMetrics ? uvTexelDensityAdvisory(uvMetrics) : null;
+    if (uvNote) advisories.push(uvNote);
+  }
   return advisories;
 }
 
