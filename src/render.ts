@@ -102,6 +102,8 @@ import { DEFAULT_TEXTURE_RESOLVER, type TextureResolver } from './texture-resolv
 import type { MaterialLibraryPayloadV1, MaterialManifestV1 } from './material-library';
 import { FULL_OPTIMIZATION_PIPELINE, type RebuildOptions } from './rebuild-options';
 import { rigidMerge, type RigidMergeSummary } from './rigid-merge';
+import { shouldRunRigidMerge, type RigidMergeGateDecision } from './optimize-gate';
+import { compressGlbBytes, type GlbCompressMode, type CompressGlbResult } from './glb-compress';
 import { assertGeneratedSourceSafe } from './validation';
 import { applyKitContract, type KitPackOptions, type KitPackSummary } from './kit';
 import {
@@ -1110,6 +1112,8 @@ export interface OptimizeSummary {
   drawsAfter: number;
   /** Full-mode boundaries, locks and rejected buckets, before final cleanup. */
   rigidMerge?: RigidMergeSummary;
+  /** When `full` ran palette steps but skipped rigid merge on a small asset. */
+  rigidMergeGate?: Extract<RigidMergeGateDecision, { run: false }>;
 }
 
 /**
@@ -1157,6 +1161,8 @@ export interface RenderSceneResult {
   optimize?: OptimizeSummary;
   /** Set when the GPU-instancing pass created batches (instance !== 'off'). */
   instancing?: InstancingSummary;
+  /** Set when `compress` produced smaller extension-compressed bytes. */
+  compression?: CompressGlbResult;
   /** Category captures selected only by trusted intent from the exact source scene. */
   diagnosticViews?: CapturedDiagnosticV1[];
   materialMetrics?: MaterialMetricsV1;
@@ -1202,6 +1208,11 @@ export interface RenderSceneOptions {
   instance?: InstanceMode;
   /** Agent-declared asset role — drives the `instance: 'auto'` gate. */
   role?: AssetRole;
+  /**
+   * Optional post-export geometry compression (`meshopt` or `draco`). Default `off`
+   * keeps plain glTF buffers (site viewer and render-service admission expect this).
+   */
+  compress?: GlbCompressMode;
   /**
    * Re-serialization of a scene that has already been adjudicated, so asset QA
    * observes rather than blocks.
@@ -1467,12 +1478,19 @@ async function consolidateMaterials(
     ? []
     : [palette({ min: PALETTE_MIN })];
   let merge: RigidMergeSummary | undefined;
-  if (mode === 'full')
-    steps.push(
-      rigidMerge({ keep }, (summary) => {
-        merge = summary;
-      }),
-    );
+  let rigidMergeGate: Extract<RigidMergeGateDecision, { run: false }> | undefined;
+  if (mode === 'full') {
+    const gate = shouldRunRigidMerge(before);
+    if (gate.run) {
+      steps.push(
+        rigidMerge({ keep }, (summary) => {
+          merge = summary;
+        }),
+      );
+    } else {
+      rigidMergeGate = gate;
+    }
+  }
   // A solid texture can be semantically meaningful in more than one slot (for
   // example the same unnamed bytes used as base color, normal, and packed MR).
   // gltf-transform's default solid-texture pruning folds base/MR pixels into
@@ -1492,14 +1510,20 @@ async function consolidateMaterials(
     drawsBefore: before.drawCalls,
     drawsAfter: after.drawCalls,
     ...(merge ? { rigidMerge: merge } : {}),
+    ...(rigidMergeGate ? { rigidMergeGate } : {}),
   };
 }
 
 /** Surface incomplete full-mode work without flooding compact render output per part. */
 function optimizeWarnings(summary: OptimizeSummary): string[] {
-  const merge = summary.rigidMerge;
-  if (!merge) return [];
   const warnings: string[] = [];
+  if (summary.rigidMergeGate) {
+    warnings.push(
+      `Rigid merge skipped (${summary.rigidMergeGate.reason}): ${summary.rigidMergeGate.triangles} triangles, ${summary.rigidMergeGate.drawCalls} draws, ${summary.rigidMergeGate.uniqueMaterials} materials — palette-only on this asset.`,
+    );
+  }
+  const merge = summary.rigidMerge;
+  if (!merge) return warnings;
   if (merge.skipped)
     warnings.push(`Rigid merge skipped: ${merge.skipped}; geometry left separate.`);
   if (merge.rejected.length)
@@ -1736,12 +1760,8 @@ export async function renderSceneToGLB(
 
   const io = engineIO();
   ensureDefaultScene(doc);
-  const bytes = await io.writeBinary(doc);
-  const artifactGlbSha256 = `sha256:${await sha256Hex(bytes)}` as const;
-  const boundBakedTextures = bakedTextures.map((entry) => ({
-    ...entry,
-    artifactGlbSha256,
-  }));
+  let bytes = await io.writeBinary(doc);
+  const compressMode = opts.compress ?? 'off';
   const gltfValidation = await validateFinalGlbBytes(bytes);
   const qaReport = await appendRequirementsFinalQa(
     requirements,
@@ -1770,6 +1790,23 @@ export async function renderSceneToGLB(
     validation: gltfValidation,
   });
   if (!integrationManifest) throw new Error('renderSceneToGLB: final GLB has no measurable scene');
+
+  let compression: CompressGlbResult | undefined;
+  if (compressMode !== 'off') {
+    try {
+      compression = await compressGlbBytes(bytes, compressMode);
+      if (compression) bytes = new Uint8Array(compression.bytes);
+    } catch (err) {
+      warnings.push(
+        `compress (${compressMode}) failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  const artifactGlbSha256 = `sha256:${await sha256Hex(bytes)}` as const;
+  const boundBakedTextures = bakedTextures.map((entry) => ({
+    ...entry,
+    artifactGlbSha256,
+  }));
 
   const diagnosticViews: CapturedDiagnosticV1[] = [];
   const rig = requirements.requirements.requirements.rig;
@@ -1815,6 +1852,7 @@ export async function renderSceneToGLB(
     metricsError,
     ...(optimize ? { optimize } : {}),
     ...(instancing ? { instancing } : {}),
+    ...(compression ? { compression } : {}),
     ...(materialMetrics ? { materialMetrics } : {}),
     ...(materialRecipeApplications.length ? { materialRecipeApplications } : {}),
     ...(materialResourceProvenance.length ? { materialResourceProvenance } : {}),
@@ -1849,6 +1887,8 @@ export interface RenderGlbOptions {
   materialResources?: MaterialLibraryPayloadV1;
   /** In-process host diagnostic sink; not serializable to evaluator workers. */
   diagnosticConsole?: DiagnosticConsole;
+  /** Optional post-export compression; default off. */
+  compress?: GlbCompressMode;
 }
 
 /**
@@ -1895,6 +1935,7 @@ export async function renderGLBInProcess(
     clips,
     requirements: requirements.binding,
     role: meta.role,
+    compress: opts.compress,
   });
 
   const {

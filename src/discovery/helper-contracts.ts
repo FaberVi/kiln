@@ -2141,6 +2141,66 @@ define(
     limitations: [
       'Arbitrary chart rotation is unsuitable when directional tileable textures should retain analytic mapping.',
     ],
+    related: [
+      { name: 'normalizeAtlasTexelScale', relation: 'companion' },
+      { name: 'uvWorkflowAdvisory', relation: 'companion' },
+      { name: 'analyzeUvStretch', relation: 'companion' },
+    ],
+  },
+);
+define(
+  'analyzeUvStretch',
+  {
+    ...uvFacts,
+    parameters: ['Indexed geometry with position and UV0 required.'],
+    preservation: ['Read-only; returns numeric stretch and chart scale summaries.'],
+    cost: 'Linear in triangle count.',
+  },
+  {
+    references: ['src/uv-texel.ts'],
+    tags: ['uv', 'metrics', 'advisory'],
+    aliases: ['UV stretch metrics'],
+    intents: ['measure atlas texel density imbalance'],
+  },
+);
+define(
+  'normalizeAtlasTexelScale',
+  {
+    ...uvFacts,
+    parameters: [
+      'Optional targetScale and fitUnitSquare (default true) after autoUnwrap.',
+    ],
+    preservation: [
+      'Returns owned geometry with adjusted UV0; tangents dropped when UVs change.',
+    ],
+    cost: 'Linear in triangle count.',
+  },
+  {
+    references: ['src/uv-texel.ts'],
+    tags: ['uv', 'atlas', 'post-process'],
+    aliases: ['even atlas texel scale'],
+    intents: ['normalize per-chart texel density after xatlas'],
+    related: [{ name: 'autoUnwrap', relation: 'companion' }],
+  },
+);
+define(
+  'uvWorkflowAdvisory',
+  {
+    ...uvFacts,
+    parameters: ["Optional context 'generic' or 'csg'."],
+    preservation: ['Read-only advisory messages alongside analyzeUvStretch stats.'],
+    cost: 'Linear in triangle count.',
+  },
+  {
+    references: ['src/uv-texel.ts'],
+    tags: ['uv', 'advisory'],
+    aliases: ['UV workflow guidance'],
+    intents: ['choose projectUV/remapUV vs autoUnwrap'],
+    related: [
+      { name: 'projectUV', relation: 'alternative' },
+      { name: 'remapUV', relation: 'companion' },
+      { name: 'autoUnwrap', relation: 'alternative' },
+    ],
   },
 );
 

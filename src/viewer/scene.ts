@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { createGLTFLoader } from './gltf-loader';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { validateAssetGlb } from '../assets';
@@ -270,7 +270,10 @@ export function createAssetStage(container: HTMLElement) {
           throw new Error('External model resources are not loaded');
         return url;
       });
-      const parsed = await new GLTFLoader(manager).parseAsync(Uint8Array.from(bytes).buffer, '');
+      const parsed = await (await createGLTFLoader(manager)).parseAsync(
+        Uint8Array.from(bytes).buffer,
+        '',
+      );
       // three's loader draws every node; hide what KHR_node_visibility hides before counting.
       applyNodeVisibility(parsed, [parsed.scene]);
       const parsedLevels = await loadViewerLevels(parsed);

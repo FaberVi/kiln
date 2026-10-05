@@ -27,21 +27,13 @@ export { MAX_VIEW_DIRS, validateViewDirs } from './contract.mjs';
 import { beautyCameraSpec, orthoDepth, orthoHalfExtent } from './framing.mjs';
 import { applyNodeVisibility, expandByDrawnObject } from './node-visibility.mjs';
 
-globalThis.self = globalThis;
+import { ensureGltfNodeEnvironment } from './gltf-node-env.mjs';
+ensureGltfNodeEnvironment();
 globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(performance.now()), 16);
 globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
 
-// PNG-only decode. Admission rejects other formats before GLTFLoader can
-// silently discard a map on decode failure.
-globalThis.createImageBitmap = async (blob) => {
-  const buf = Buffer.from(await blob.arrayBuffer());
-  if (buf[0] !== 0x89 || buf[1] !== 0x50) throw new Error('only PNG images supported in GLB');
-  const png = PNG.sync.read(buf);
-  return { width: png.width, height: png.height, data: new Uint8Array(png.data), close() {} };
-};
-
 const THREE = await import('three/webgpu');
-const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+import { createGltfLoader } from './gltf-loader.mjs';
 const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js');
 
 /**
@@ -141,7 +133,7 @@ export async function initRenderer(opts = {}) {
   );
   const environment = environments.get(PRESENTATION_PROFILE_ID);
 
-  const loader = new GLTFLoader();
+  const loader = await createGltfLoader();
   loader.manager.setURLModifier(selfContainedResourceUrl);
   ctx = { renderer, environment, environments, loader, gpuState, device: gpuState.device };
   return ctx;
