@@ -18,11 +18,11 @@ const PATHS = new Set([
   '/usr/bin/setpriv',
   '/usr/bin/prlimit',
   '/usr/local/bin/node',
-  '/app/node_modules/@kiln/engine/src/evaluator/worker.ts',
+  '/app/node_modules/@instruktlabs/kiln/src/evaluator/worker.ts',
 ]);
 
 function launch() {
-  return isolatedEvaluatorLaunch('/app/node_modules/@kiln/engine/src/evaluator/worker.ts', {
+  return isolatedEvaluatorLaunch('/app/node_modules/@instruktlabs/kiln/src/evaluator/worker.ts', {
     platform: 'linux',
     pathExists: (path) => PATHS.has(path),
   });
@@ -129,6 +129,9 @@ describe('isolated evaluator process contract', () => {
     ]);
     expect(spec.args).not.toContain('--bounding-set=-all');
     expect(spec.args).toContain('--unshare-all');
+    // --unshare-all implies --unshare-user-try, which does not satisfy
+    // Bubblewrap's --disable-userns precondition (observed with 0.12.0).
+    expect(spec.args).toContain('--unshare-user');
     expect(spec.args).not.toContain('--share-net');
     expect(spec.args).toContain('--disable-userns');
     expect(spec.args).toContain('--cap-drop');
@@ -142,6 +145,21 @@ describe('isolated evaluator process contract', () => {
     expect(spec.args).toContain('--max-old-space-size=512');
     expect(spec.args).not.toContain('/app/agent-runtime');
     expect(spec.args).not.toContain('/etc');
+  });
+
+  test('compiled workers retain isolation controls without requiring a TypeScript loader', () => {
+    const worker = '/app/node_modules/@instruktlabs/kiln/lib/evaluator/worker.js';
+    const spec = isolatedEvaluatorLaunch(worker, {
+      platform: 'linux',
+      pathExists: (path) => PATHS.has(path) || path === worker,
+    });
+    expect(spec.args.at(-1)).toBe(worker);
+    expect(spec.args).not.toContain('tsx');
+    expect(spec.args).not.toContain('--import');
+    expect(spec.args).toContain('--unshare-all');
+    expect(spec.args).toContain('--clearenv');
+    expect(spec.args).toContain('--cpu=65:65');
+    expect(spec.args).toContain('--max-old-space-size=512');
   });
 
   test('requires every Linux capability set to be present and empty', () => {
@@ -168,12 +186,12 @@ describe('isolated evaluator process contract', () => {
   test('refuses non-Linux hosts, missing binaries, and workers outside installed dependencies', () => {
     for (const invoke of [
       () =>
-        isolatedEvaluatorLaunch('/app/node_modules/@kiln/engine/src/evaluator/worker.ts', {
+        isolatedEvaluatorLaunch('/app/node_modules/@instruktlabs/kiln/src/evaluator/worker.ts', {
           platform: 'win32',
           pathExists: () => true,
         }),
       () =>
-        isolatedEvaluatorLaunch('/app/node_modules/@kiln/engine/src/evaluator/worker.ts', {
+        isolatedEvaluatorLaunch('/app/node_modules/@instruktlabs/kiln/src/evaluator/worker.ts', {
           platform: 'linux',
           pathExists: () => false,
         }),

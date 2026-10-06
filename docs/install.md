@@ -1,20 +1,22 @@
 # Install Kiln for your coding agent
 
-This guide installs Kiln **0.10.0**: standalone authoring with optional projects, a
-material library and Live Review in the local dashboard, served to a coding agent over
-the 2026-07-28 and 2025 protocol revisions. [CHANGELOG.md](../CHANGELOG.md)
-lists what changed. Existing users should read the [migration notes](migration.md)
-before upgrading a workspace. **0.10.0 is a source and site preview for dogfooding**, with its
-package tarball attached to the
-[v0.10.0 release](https://github.com/matthew-kissinger/kiln/releases/tag/v0.10.0).
-Package publication is deferred to v1.0.
+This checkout prepares **Kiln 1.0** under the package name `@instruktlabs/kiln`.
+Its development build is not published to npm. Build a [local package](#install-a-local-package)
+to test this checkout, or use a previously released tarball with that release's
+documentation. [CHANGELOG.md](../CHANGELOG.md) lists changes; read the
+[migration notes](migration.md) before upgrading an existing workspace.
+
+Kiln supports standalone authoring with optional projects, a material library and
+Live Review in the local dashboard. The [SDK](sdk.md), CLI and MCP server use the
+same engine and saved-source contracts.
 
 ## Install the package
 
-Kiln is distributed as a tarball, `kiln-engine-VERSION.tgz`, installed with Node.js and
+The unpublished candidate packs as `instruktlabs-kiln-VERSION.tgz`; earlier releases
+used `kiln-engine-VERSION.tgz`. Install the actual tarball with Node.js and
 npm. Use the tarball and checksum actually attached to the current
-[release](https://github.com/matthew-kissinger/kiln/releases) (for 0.10.0, the
-[v0.10.0 release](https://github.com/matthew-kissinger/kiln/releases/tag/v0.10.0)): download
+[release](https://github.com/instruktlabs/kiln/releases) (for 0.10.0, the
+[v0.10.0 release](https://github.com/instruktlabs/kiln/releases/tag/v0.10.0)): download
 the tarball and `SHA256SUMS.txt`, check the tarball against the checksum file before
 installing (`sha256sum -c SHA256SUMS.txt` beside it, or `Get-FileHash` on Windows), and read
 that release's documentation; the release also attaches the installed-package receipts that
@@ -29,13 +31,17 @@ use the CLI/MCP tools. Use the real tarball path and filename:
 mkdir kiln-install
 cd kiln-install
 npm init -y
-npm install /absolute/path/to/kiln-engine-VERSION.tgz --omit=dev --include=optional
+npm install /absolute/path/to/PACKAGE.tgz --omit=dev --include=optional
 npm exec --offline -- kiln-init ../my-assets --harness opencode  # or claude, codex, hermes, agy, copilot, cursor-agent
 cd ../my-assets
 # Follow START.md for your harness
 ```
 
-Kiln is not published to the npm registry; do not run a registry install command.
+Kiln is not published to the npm registry; do not run a registry install command yet.
+The installed package exposes `kiln`, `kiln-init` and `kiln-mcp`. The last command is
+a stdio server for MCP clients, not an interactive shell. A client can launch it
+from an existing installation with `npm exec --offline -- kiln-mcp`; package-based
+plugin definitions will pin an exact published version once the registry release exists.
 npm 11 may warn that the optional `webgpu` package's install script is not covered by
 `allowScripts` (`npm warn install-scripts`). That script only clears the macOS download
 quarantine from the prebuilt Dawn binary the package ships; Windows and Linux need
@@ -49,7 +55,7 @@ and `--upgrade` as described below to refresh managed workspace skills and launc
 Do not point an old package at new documentation and assume its tools have changed.
 
 Released-package checks cover Windows, Linux, and hosted Apple Silicon/Intel Mac;
-see the [dated platform receipts](evaluation/platform-matrix.md). A receipt qualifies
+see the [dated platform receipts](https://github.com/instruktlabs/kiln/blob/main/docs/evaluation/platform-matrix.md). A receipt qualifies
 the tarball it names, not a later build. Community reports on local Mac installations
 are welcome. CPU package setup and optional GPU support are separate checks.
 
@@ -103,18 +109,19 @@ node -p "process.platform + ' ' + process.arch"
 ```
 
 The last line should say `darwin arm64` or `darwin x64`. The npm supplied with Node
-can install the package; contributor CI pins npm 12.0.2 for reproducible receipts.
+can install the package; contributor CI pins npm 12.2.0 for reproducible receipts.
 You do not need to change global npm or install Homebrew for this workflow.
 
-The optional built-in Strands agent requires Node **22.2.0+** and its optional SDK
-and provider dependencies. Using Kiln from Cline or another MCP/CLI agent does not
-require Strands or its model-provider packages. TypeScript library exports require
-a TypeScript-capable loader or build system; the installed commands are compiled.
+The optional built-in Strands agent and SDK subpaths `agent` and `composer/agent`
+require Node **22.2.0+** and their optional SDK and provider dependencies.
+Using Kiln from Cline or another MCP/CLI agent does not
+require Strands or its model-provider packages. The v1 library and commands are
+compiled; package imports need no TypeScript loader.
 Maintainer release checks still use the exact versions in the source repository's
-`toolchain.json`. Current Node 20/22-minimum/24 evidence is from
-fresh Windows package installations (Node 20.15.0 and 22.23.2); Linux floor and
-macOS package jobs qualify the current release through CI. Physical GPU coverage
-and distribution-specific Debian/Cline setup remain separate checks.
+`toolchain.json`. Package CI checks Linux Node 20.15.0, 22.2.0 and 24.20.0,
+plus Node 22.23.3 on Linux, Windows and both macOS architectures. Each receipt
+qualifies only its named tarball; a later candidate needs its own passing checks.
+Physical GPU coverage and distribution-specific Debian/Cline setup remain separate checks.
 
 Cline CLI 3.0.64 and VS Code 4.1.20 Next/SDK have a known MCP-to-model limitation:
 image responses become text, with larger results also truncated. The tested
@@ -134,7 +141,7 @@ Choose a permanent installation directory and use the real tarball filename:
 mkdir -p "$HOME/Developer/kiln-install"
 cd "$HOME/Developer/kiln-install"
 npm init -y
-npm install "/absolute/path/to/kiln-engine-VERSION.tgz" --omit=dev --include=optional
+npm install "/absolute/path/to/PACKAGE.tgz" --omit=dev --include=optional
 npm exec --offline -- kiln-init ../my-assets --harness codex
 cd ../my-assets
 node kiln.mjs --help
@@ -168,7 +175,7 @@ by the package smoke alongside the native image dependency.
 ## Install from the repository
 
 ```sh
-git clone --filter=blob:none https://github.com/matthew-kissinger/kiln
+git clone --filter=blob:none https://github.com/instruktlabs/kiln
 cd kiln
 bun install --frozen-lockfile
 bun run build:runtime
@@ -215,16 +222,37 @@ Use the actual tarball path and filename returned by `npm pack`:
 mkdir kiln-install
 cd kiln-install
 npm init -y
-npm install /absolute/path/to/kiln-engine-VERSION.tgz --omit=dev --include=optional
+npm install /absolute/path/to/PACKAGE.tgz --omit=dev --include=optional
 npm exec --offline -- kiln-init ../my-assets --harness opencode  # or claude, codex, hermes, agy, copilot, cursor-agent
 ```
 
 `kiln` renders programs and imports/exports source revisions. `kiln-init` creates a
-workspace. These are installed package commands, not currently published npm
-package names. Library exports remain TypeScript source for Bun or a compatible
-bundler; ordinary Node callers should use the CLI/MCP bundles. The optional
+workspace, and `kiln-mcp` starts the stdio server. These are installed commands from
+the still-unpublished `@instruktlabs/kiln` package. Library consumers use its compiled
+ESM and TypeScript declarations through the [SDK entrypoints](sdk.md), without a
+source loader. The optional
 `kiln generate` adapter is separate and needs its agent/provider dependencies;
 connecting an existing harness does not load that stack.
+
+### Optional built-in agent dependencies
+
+Install these only when using Kiln's own generation loop or OpenRouter model
+adapter. Run npm in the engine installation directory created above, where its
+`package.json` lists `@instruktlabs/kiln`, rather than in an asset workspace or
+the disposable plugin cache:
+
+```sh
+npm install @strands-agents/sdk@1.19.0 @openrouter/ai-sdk-provider@2.10.0 @ai-sdk/provider@3.0.18
+```
+
+These exact versions passed a fresh installed-package check for all SDK imports
+and declarations, native render/completion tools and offline OpenRouter adapter
+construction. The declared minimum peers (Strands 1.18.0, OpenRouter 2.10.0,
+provider 3.0.0) passed the same bounded check. Native Anthropic, OpenAI, Google and
+Bedrock routes additionally require their selected adapter's dependencies.
+Live model availability and provider credentials are separate from installation;
+the package does not supply a model subscription. External Claude Code, Codex and
+other CLI/MCP workflows do not need any of these peers.
 
 ## Choose a harness
 
@@ -241,7 +269,7 @@ separate profile needs its own authentication or provider credentials supplied
 through the environment; setup does not copy credentials. The Antigravity launcher
 sets the absolute project directory and disables automatic skill expansion in print
 mode. Name `kiln_workspace` in the brief, use the project skill copies, and pass
-absolute task-file paths. See [clean-room setup](clean-room.md) for evaluation controls and limitations.
+absolute task-file paths. See [clean-room setup](https://github.com/instruktlabs/kiln/blob/main/docs/clean-room.md) for evaluation controls and limitations.
 
 ## Verify the connection
 
@@ -370,10 +398,55 @@ server session; changing the file requires a new session. The default remains
 neutral authoring. See [host requirements](migration.md#migrate-evaluator-integrations-together)
 for the binding format and task/asset lineage boundary.
 
-The Claude plugin manifest also launches the Node bundle. A plugin clone alone does
-not establish that its runtime dependencies were installed: verify tool discovery
-and a render before considering that path ready. Use project setup when the host
-cannot install the plugin's dependencies.
+The legacy root plugin manifests launch the Node bundle from an engine installation.
+The v1 local plugin below uses a smaller bundle and creates an explicit workspace.
+
+## Local Claude Code and Codex plugins
+
+**The current branch is a development candidate.** The `v1.0.0` tag and npm release
+must exist before using these release commands. Maintainers qualify development
+bundles with the reviewed local engine archive instead.
+
+The plugin is `kiln-engine` in the Instrukt Labs marketplace `instruktlabs`. Its
+cache contains setup guidance and an installer, while the pinned engine and asset
+workspaces stay in persistent directories outside that cache. Installing the plugin
+does not start a second global Kiln MCP server.
+
+For Claude Code:
+
+```sh
+claude plugin marketplace add instruktlabs/kiln#v1.0.0 --sparse .claude-plugin plugins/kiln-engine
+claude plugin install kiln-engine@instruktlabs
+```
+
+For Codex:
+
+```sh
+codex plugin marketplace add instruktlabs/kiln --ref v1.0.0 --sparse .agents/plugins --sparse plugins/kiln-engine
+codex plugin add kiln-engine@instruktlabs
+```
+
+Ask your agent to set up a Kiln asset workspace. The setup skill installs the exact
+package version in `runtime.json` through npm, with optional dependencies included
+and lifecycle scripts disabled. Node.js and npm are required; an engine checkout,
+Bun and a separate model API key are not. An existing working workspace can be used
+as-is. Otherwise choose an empty directory and follow its generated `START.md` to
+open a new authoring session. Accept the host's project/MCP trust prompts, then
+verify `kiln_discover({capabilities:true})` on `kiln_workspace` and an actual render.
+
+The workspace owns its author/refine/QA skills and MCP configuration. The plugin
+registers only setup, avoiding duplicate authoring skills and servers. It does not
+redirect saved assets or rewrite an existing workspace when its cached version
+changes. For an intended engine update, use the new plugin's helper with `--check`
+and `--upgrade`, following its bundled `references/plugin-install.md`; customized
+managed files require explicit conflict resolution. Select the desired release tag
+when changing the marketplace source. Removing the plugin leaves the persistent
+runtime and authored assets in place.
+
+An older `kiln@kiln` installation can expose a separate global `kiln` server.
+Disable or uninstall that old plugin in the relevant host before using the new
+workspace workflow, after recording any custom store paths. Do not delete its
+source store. See [the v1 migration notes](migration.md#local-plugin-transition).
 
 ## Verify a distribution as a contributor
 
@@ -388,19 +461,30 @@ in a temporary directory, tests CSG and UV WASM, CPU images, MCP discovery, refe
 editing, persistence across restart, and exact source export. It retains a JSON
 receipt and artifacts at the printed path. Normal unit tests do not run npm installs.
 
+The maintained local plugin is generated with
+`node scripts/package-local-plugin.mjs FRESH_OUTPUT_DIRECTORY`.
+Review the generated files before copying them into `plugins/kiln-engine`, then run
+`node scripts/package-local-plugin.mjs plugins/kiln-engine --check`.
+The unit suite checks those bytes, including the version pin and complete setup
+reference. The package smoke checks that the installed npm archive contains both
+catalogs and every file named by the plugin's hash inventory. Validate the plugin
+itself with `claude plugin validate plugins/kiln-engine --strict`, in addition to
+the marketplace manifest. A local-path Claude installation loads in place; use a
+Git-backed marketplace to qualify a copied cache installation.
+
 To test an existing package instead of packing the checkout, run
 `node scripts/smoke-package.mjs --tarball /absolute/candidate.tgz`. For Linux, run
 `node scripts/smoke-package-linux.mjs /absolute/candidate.tgz /absolute/receipt.json`
-with Docker running. See the [recorded Linux package check](evaluation/platform-matrix.md)
+with Docker running. See the [recorded Linux package check](https://github.com/instruktlabs/kiln/blob/main/docs/evaluation/platform-matrix.md)
 for the pinned image, exact candidate hash, coverage, and limitations.
 
 CI builds one tarball on Linux, then runs the same npm package smoke natively on
-`macos-15` (ARM64) and `macos-15-intel` (x64), with Node 22.23.2 and npm 12.0.2.
+`macos-15` (ARM64) and `macos-15-intel` (x64), with Node 22.23.3 and npm 12.2.0.
 The Mac jobs install no contributor dependencies and do not set up Bun. Their
 retained receipts include the tarball hash, native architecture and completed
 checks. These versioned runner labels follow [GitHub's runner catalog](https://docs.github.com/en/actions/reference/runners/github-hosted-runners);
 GitHub maintains the underlying images, so the labels are not immutable OS images.
-Both architectures passed all 16 package checks in [CI run 33996715717](https://github.com/matthew-kissinger/kiln/actions/runs/33996715717). The retained receipts are linked in the platform matrix.
+Both architectures passed all 16 package checks in [CI run 33996715717](https://github.com/instruktlabs/kiln/actions/runs/33996715717). The retained receipts are linked in the platform matrix.
 
 CI also runs Linux package jobs at Node 20.15.0, 22.2.0 and 24.20.0 using each
 distribution's npm. The release build retains its pinned maintainer toolchain.
@@ -413,7 +497,7 @@ and none of these jobs qualifies physical AMD, Intel or Apple GPU behavior.
 ## Embed the tools
 
 ```ts
-import { createKilnProgramToolRegistry } from '@kiln/engine/tools';
+import { createKilnProgramToolRegistry } from '@instruktlabs/kiln/tools';
 const tools = createKilnProgramToolRegistry();
 ```
 

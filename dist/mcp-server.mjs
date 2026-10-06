@@ -2085,7 +2085,7 @@ import { readFile } from "node:fs/promises";
 var KILN_ASSET_WIDGET_URI = "ui://kiln/asset-v5.html";
 
 // src/engine-identity.ts
-var ENGINE_VERSION = "0.10.0";
+var ENGINE_VERSION = "1.0.0-rc.1";
 var ENGINE_INSTALL_URL = new URL("../", import.meta.url).href;
 
 // src/requirements-json.ts
@@ -2355,12 +2355,27 @@ if (isDirectEntry(import.meta.url)) {
     process.exit(1);
   }
   const host = packagedEngineHost({ requirements });
+  let warmup;
+  const cancelWarmup = () => {
+    if (warmup !== undefined)
+      clearTimeout(warmup);
+    warmup = undefined;
+  };
+  process.stdin.once("end", cancelWarmup);
+  process.stdin.once("close", cancelWarmup);
   console.error(`kiln MCP server ${MCP_SERVER_VERSION} on stdio`);
   serveKilnStdio({
     manifest: manifestFor(process.env),
     host,
     afterFirstToolList: () => {
-      setTimeout(() => void host().catch(() => {}), 50);
+      if (process.stdin.readableEnded || process.stdin.destroyed)
+        return;
+      warmup = setTimeout(() => {
+        warmup = undefined;
+        if (!process.stdin.readableEnded && !process.stdin.destroyed)
+          host().catch(() => {});
+      }, 50);
+      warmup.unref();
     }
   });
 }

@@ -7,8 +7,8 @@ The packaged local host also supplies optional project, material-library and rev
 Compiled CLI/MCP commands share one Node compatibility check with workspace setup:
 20.x from 20.15.0, or 22.2.0 and later. Optional Strands generation requires 22.2.0+;
 the CLI checks this before loading its SDK or provider. These floors are separate
-from the exact maintainer versions in `toolchain.json`. Direct TypeScript library
-imports still need a loader or build system. See [installation](install.md) for
+from the exact maintainer versions in `toolchain.json`. The v1 SDK ships compiled
+ESM and declarations, so package imports need no TypeScript loader. See [installation](install.md) for
 recommended Node releases and the distinction between checkout and package evidence.
 
 ## Optional native Strands workflow
@@ -48,7 +48,7 @@ the official Google adapter with Gemini 3.8 Flash and high thinking, in 33, 15
 and 18 model calls. Retained source/export identities, GPU images, selected
 interfaces and protected components were independently reviewed. Earlier failed
 and partial provider attempts remain recorded. See the
-[native trace audit](reviews/2026-09-23-native-trace-audit.md#trial13-completed-baseline-and-both-refinements).
+[native trace audit](https://github.com/instruktlabs/kiln/blob/main/docs/reviews/2026-09-23-native-trace-audit.md#trial13-completed-baseline-and-both-refinements).
 
 That trial qualifies this bounded route, not every provider or asset type. Other
 adapters have offline contract evidence; their model access, quotas, tool schemas,
@@ -135,7 +135,7 @@ Advanced geometry callbacks also have operation-specific input limits. Those che
 
 The rigid-group `full` contract and `rigid-v1` rebuild policy below describe the
 unreleased alignment candidate planned for 0.11. They are not implemented by the
-downloadable 0.10.0 package; see the [migration notes](migration.md#unreleased-changes-planned-for-011).
+downloadable 0.10.0 package; see the [migration notes](migration.md#unreleased-changes-planned-for-10).
 
 `KILN_BAKE_OPTIMIZE` and `KILN_BAKE_INSTANCE` choose the bake passes for a render that does not pass `optimize` or `instance`; a value the call passes always wins.
 
