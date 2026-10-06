@@ -131,8 +131,18 @@ export async function compareReferenceGlbs(
   const rowCells: Uint8Array[] = [];
 
   for (const view of views) {
-    const refRgb = rasterizeView(referenceScene.root, view.dir, { size: cellSize, backdrop });
-    const candRgb = rasterizeView(candidateScene.root, view.dir, { size: cellSize, backdrop });
+    // Silhouette comparison, not shading QA: keep both faces so winding errors in
+    // third-party GLBs do not erase whole orthographic views.
+    const refRgb = rasterizeView(referenceScene.root, view.dir, {
+      size: cellSize,
+      backdrop,
+      backfaceCull: false,
+    });
+    const candRgb = rasterizeView(candidateScene.root, view.dir, {
+      size: cellSize,
+      backdrop,
+      backfaceCull: false,
+    });
     const evidence = analyzeReferenceComparison(
       rasterToRgb({ data: refRgb, width: cellSize, height: cellSize }),
       rasterToRgb({ data: candRgb, width: cellSize, height: cellSize }),
