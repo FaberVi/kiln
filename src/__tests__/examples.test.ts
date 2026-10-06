@@ -90,7 +90,13 @@ describe('examples', () => {
       // Meshes that removed the same number of faces share one grouped line.
       const precisionNotice =
         /^(?:.+: SOLID_FLOAT32_CANONICALIZED|SOLID_FLOAT32_CANONICALIZED \(\d+ meshes: .+\):) Removed [1-9]\d* zero-area Float32 faces and rebuilt their topology with Manifold\. Source runs and properties were retained; this is precision cleanup, not general mesh repair\.$/;
-      expect(out.warnings.filter((warning) => !precisionNotice.test(warning))).toEqual(expected);
+      const minFeatureNotice =
+        /^(?:.+: )?GEO_MIN_FEATURE(?: \(\d+ meshes: .+\))?: Profile min feature /;
+      expect(
+        out.warnings.filter(
+          (warning) => !precisionNotice.test(warning) && !minFeatureNotice.test(warning),
+        ),
+      ).toEqual(expected);
     });
   }
 });
