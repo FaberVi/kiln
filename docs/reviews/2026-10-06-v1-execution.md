@@ -21,7 +21,7 @@ published yet.
 | P4 | Clean installs and workspace upgrades | In progress: RC package passed all platform CI jobs; official 0.10.0-to-RC upgrades pass for Claude/Codex workspaces with conflict refusal, reapplied customizations and byte-exact old assets; final-version harness checks remain open |
 | P5 | Release automation and npm publication | In progress: manual exact-archive workflow and owner runbook; GitHub npm-release environment created with sole owner review, no admin bypass and protected branches; live npm trust, staging approval, registry provenance and fresh registry install remain open |
 | H1 | Native Cloudflare qualification | In progress: Linux image built, Trixie software renderer passes six textured views; Docker namespace probe fails closed, Bubblewrap launch-argument defect corrected; real Cloudflare isolation/execution, RSS, startup and measured cost remain pending |
-| H2 | Authenticated MCP and tenant boundary | In progress: Google and GitHub selected with one Kiln account; existing GitHub-only OAuth and native HTTP pass local two-user, storage and reconnect checks; provider-neutral account storage, Google/linking, branded real sign-in, container dispatch and evaluator isolation remain open |
+| H2 | Authenticated MCP and tenant boundary | In progress: Google/GitHub adapters, permanent D1 account IDs, atomic upstream login guards and current account/epoch checks pass 90 local hosted tests; linking, individual connection revocation, branded real sign-in, container dispatch and evaluator isolation remain open |
 | H3 | Artifact lifecycle | In progress: tenant SQLite/R2 bytes, ProgramStore and native AssetLibrary, atomic quotas/revision pins, material closures, authenticated downloads, deletion and seven-day unsaved retention pass local workerd and actual-engine checks; standalone MaterialLibrary, native dispatch, browser tickets, account deletion and deployed lifecycle proof remain open |
 | H4 | Capacity and operations | In progress: local native request admission, body/response/deadline bounds and cancellation pass; global operational quotas, process cleanup, load/cost measurements, alerts, deployed health/build identity and rollback remain open |
 | H5 | Production deployment | Pending: approved deployment at `kiln.instruktlabs.com`; live authenticated create/edit/render/save/download/reconnect flow |
@@ -1127,6 +1127,130 @@ fresh registry/plugin installation precede final 1.0 qualification. Apply the
 saved source/document changes selectively after the RC step, then regenerate plugin
 metadata and runtime bundles; never restore its stale generated build files.
 
+### Independent multi-provider account foundation
+
+The tested stdio correction was committed and pushed as
+`6a89d790ba2d786ad641bdab777a40535ef3c19c` on `codex/v1-publication`;
+[CI 37466581875](https://github.com/instruktlabs/kiln/actions/runs/37466581875)
+passed all twelve jobs, including Intel macOS shutdown, coverage and installed
+software Vulkan. Hosted gateway checks 37466581806 and Website 37466582044 also
+passed at the same commit; native preflight 37466581995 still fails isolation.
+PR 145 is ready for review, with approval to merge this exact RC requested through
+the question tool. No merge, npm stage or deployment has occurred.
+Hosting implementation continues on the local
+`codex/v1-hosted-identity` branch based on that commit, preserving the PR 145
+candidate while its release checks and owner handoffs proceed.
+
+The first account-directory contract and D1 migration are implemented independently
+of the OAuth gateway. Canonical verified issuer/subject pairs map to random Kiln
+account IDs; contact data and upstream credentials are not persisted. Atomic D1
+batches and uniqueness constraints prevent duplicate owners and orphan accounts.
+Every lookup starts a new `first-primary` session. Disabled/deleting records are
+returned by state lookup but cannot sign in or create a replacement account.
+
+Six focused tests failed against the initial unimplemented contract and pass with
+the D1 adapter. They include 24 concurrent first sign-ins, distinct issuers with
+matching emails/subjects and a trigger-induced identity failure proving transaction
+rollback. Full hosted suite: 75 passed, no failures; both typechecks and all five
+existing production builds pass. Receipts: `.cache/v1-accounts-before.log`,
+`.cache/v1-accounts-after.log`, `.cache/v1-accounts-full.log`.
+No live D1 database was created. The adapter is not yet wired to authorization or
+tenant selection; Google, linking, epoch enforcement and account lifecycle remain
+open. Simulated primary reads do not prove deployed cross-region revocation.
+
+## Hosted identity integration
+
+The owner-selected Google and GitHub flow is now connected to the D1 account
+directory on `codex/v1-hosted-identity`, separately from the frozen npm RC. Google
+uses pinned `oauth4webapi@3.8.8`; signatures, both documented Google issuers,
+audience/authorized-party, nonce, expiry, state and exact callback checks are
+exercised with locally generated signing keys. It requests `openid profile` and
+discards upstream credentials. GitHub continues to request no repository scopes.
+Only a permanent Kiln account ID enters a grant or tenant-routing hash.
+
+`0002_login_intents.sql` and its D1 adapter close the upstream same-browser KV
+replay window with atomic, origin/state/provider/purpose-bound claims, after the
+OAuth library verifies its browser cookie. Tests include 24 simultaneous consent
+claims and callback consumes, stale-KV replay, provider swaps, expiry and bounded
+input. No raw state or upstream credentials are stored in these D1 tables.
+Every protected access, code exchange and refresh also reads current primary
+account state and epoch. Disabled/deleting accounts, old epochs and missing
+authority fail closed. Re-enabling after an epoch increment does not restore old
+credentials. These checks use public provider hooks, with no vendor internals
+modified and no custom JWT decoder.
+
+The Google tests first failed against their stub, and a single-audience foreign
+`azp` fixture exposed an additional check now enforced. The login-intent stub
+failed all four contract tests; the new routing contract failed before wiring.
+Full hosted result: **90 passed, no failures**; both hosting typechecks, all five
+production builds and root lint (933 files) pass. Receipts:
+`.cache/v1-google-before.log`, `.cache/v1-google-after.log`,
+`.cache/v1-login-intents-before.log`, `.cache/v1-login-intents-after.log`,
+`.cache/v1-provider-routing-before.log`, `.cache/v1-hosted-identity-full.log`.
+
+This is local implementation evidence, not hosted launch acceptance. No provider
+app, live D1 resource or hosted deployment was created. Explicit account linking,
+browser account sessions, individual connection revocation, deletion orchestration,
+public-endpoint admission limits, completed branding/privacy/support pages and
+actual deployed provider/client and cross-region checks remain open. Native
+provider isolation and dispatch remain independent blockers. PR #145's npm RC
+head was unchanged during this work; its subsequent merge is recorded below.
+
+## RC merge and npm authentication handoff
+
+The owner explicitly approved merging PR #145 at reviewed head
+`6a89d790ba2d786ad641bdab777a40535ef3c19c`. Its complete check set was **15 passed,
+one failed**: all 12 engine/package jobs, both hosted gateway platform jobs and the
+website build passed. The native-hosting preflight remained failed. Its downloaded
+receipt reports `isolation / wrapper-launch`; diagnostics show `unshare` denied
+with `Operation not permitted` and Bubblewrap unable to create a namespace. The
+separate software-renderer receipt passed six views. This is an unresolved hosted
+launch blocker, not an all-green PR and not Cloudflare provider qualification.
+
+GitHub's required linear-history rule rejected a merge commit. A normal squash
+merge of the exact approved head succeeded, with no admin bypass or protection
+change, on 6 October at 13:31 UTC. Main commit:
+`ce640ccae0c621177aad176a03b5a214ae57d266`. The hosting identity branch was rebased
+onto that main commit without changing its implementation. Exact main CI, archive
+review and verify-mode release preparation are now required before staging.
+
+The owner also completed a fresh npm CLI browser sign-in in external Chrome. The
+CLI reported success and an independent `npm whoami` returned `matthew-kissinger`.
+No password, security-key response, recovery code or npm token was read into chat.
+Login and merge published no package and deployed no hosted service.
+
+## Isolation review and exact-main qualification
+
+The owner requested current-practice research on the Docker namespace failure and
+offered their HOL Guard fork as a possible reference. The
+[hosted isolation review](2026-10-06-hosted-isolation-review.md) records the actual
+CI denial, current Cloudflare microVM controls, the fork's local/OCI/gVisor code,
+and upstream's separately provisioned containment test environments. No HOL Guard
+code was installed or run. The owner explicitly deferred its contribution and
+integration work until after a polished v1.
+
+The next hosted implementation is an explicit adapter for a fresh Cloudflare
+microVM per evaluation job, with external network, lifetime and output controls.
+This does not weaken or bypass the existing Linux Bubblewrap readiness contract.
+Cloudflare deployment and adversarial qualification remain open; no workstation
+Docker change is required from the owner at this stage.
+
+All 12 engine/package jobs passed on exact merged main
+`ce640ccae0c621177aad176a03b5a214ae57d266` in
+[CI run 37471433457](https://github.com/instruktlabs/kiln/actions/runs/37471433457).
+Downloaded `node-package-candidate` without repacking: the RC archive is 9,154,941
+bytes, SHA-256
+`f2de7eb69f6e16dd618c77249b1f46eda1b5d032789f5b0d9048b2b2a08ea8c2`.
+Its SDK receipt agrees with that digest. Dispatched
+[release verification 37473250032](https://github.com/instruktlabs/kiln/actions/runs/37473250032)
+from the same main commit, in **verify** mode with no npm staging permission.
+Verification passed. Downloaded `npm-release-review`, inspected `review.json` and
+independently matched its archive digest. The stage job was skipped as intended.
+All 15 checks on hosted identity PR #146 at `255df6a` also passed; that PR remains
+unmerged and does not change this npm candidate. The owner staging/access-setup
+question is now pending because first-time npm staging creates a public placeholder.
+No npm package has been staged or published, and no hosted service has been deployed.
+
 ## Owner handoffs
 
 Cloudflare CLI consent is complete. After the earlier consent expired, the owner
@@ -1146,8 +1270,7 @@ usable disconnect/deletion controls and actual deployed consent, cancellation,
 expiry/revocation and cross-user denial checks. Local fixtures do not establish
 those results. No identity app or secret has been provisioned yet.
 
-The CLI's read-only `npm whoami` check reports that this machine is not signed in.
-A browser login was opened in external Chrome and the owner's password/security-key
-step was surfaced through the question tool. Login does not stage or publish a
-package. Publisher verification and final external approvals remain separate;
-missing human steps do not block independent package work.
+The initial npm browser login did not complete and its terminal-password fallback
+was cancelled. The fresh owner-attended attempt succeeded, as recorded above.
+Trusted publishing configuration, exact-archive staging and owner promotion remain
+separate steps. No package has been staged or published yet.
