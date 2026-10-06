@@ -676,7 +676,6 @@ geometryDiagnostics(geometry: BufferGeometry, tolerance?: number)
   // tolerance and scale. Open boundaries are valid for sheets; closed edges do not certify a
   // self-intersection-free solid.
   // e.g. const topology = geometryDiagnostics(shell);
-  // topology.advisories?.forEach(console.log);
 geometryMinFeatureAdvisory(geometry: BufferGeometry, opts?: { tolerance?: number, toleranceRatio?: 8 })
   // Compares the smallest bounding-box thickness and shortest triangle edge against ratio ×
   // geometryDiagnostics tolerance. Warns before Boolean/bevel erosion paths when detail may
