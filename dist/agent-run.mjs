@@ -33622,7 +33622,7 @@ define2("segmentsFromRadius", {
   units: lengthUnits,
   axes: "Radius uses geometry-local meters; output is a segment count.",
   parameters: [
-    "Positive finite radius in meters; optional maxChordLength defaults from radius; min/max clamp the integer result (default 8..128)."
+    "Positive finite radius in meters; optional maxChordLength defaults to 0.01 m; min/max clamp the integer result (default 8..128)."
   ],
   topology: ["Does not build geometry; only recommends a segment count for circular primitives."],
   preservation: ["Pure function; no geometry side effects."],
