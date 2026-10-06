@@ -2,16 +2,17 @@ import { describe, expect, test } from 'bun:test';
 import { Document } from '@gltf-transform/core';
 import { createGltfIO, MSFT_LOD, MSFTLod } from '../src/gltf-io';
 import { optimizeGlbBytes } from '../src/render';
+import { RIGID_MERGE_MIN_TRIANGLES } from '../src/optimize-gate';
 import { compareOptimizerEvidence, optimizerEvidence } from './qualify-full-optimizer.mjs';
 
-function fixture() {
+function fixture({ partCount = 2 } = {}) {
   const doc = new Document();
   const buffer = doc.createBuffer();
   const mat = doc.createMaterial('paint');
   const scene = doc.createScene();
   const pivot = doc.createNode('Joint_Door');
   scene.addChild(pivot);
-  const parts = [0, 1].map((index) => {
+  const parts = Array.from({ length: partCount }, (_, index) => {
     const position = doc
       .createAccessor()
       .setBuffer(buffer)
@@ -32,7 +33,9 @@ function fixture() {
 
 describe('full optimizer corpus evidence', () => {
   test('accepts intentional topology changes while preserving world geometry and named pivots', async () => {
-    const { doc } = fixture();
+    const { doc } = fixture({
+      partCount: RIGID_MERGE_MIN_TRIANGLES + 8,
+    });
     const io = createGltfIO();
     const result = await optimizeGlbBytes(await io.writeBinary(doc), {
       mode: 'full',
