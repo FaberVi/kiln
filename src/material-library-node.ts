@@ -28,6 +28,7 @@ import {
 } from './material-library';
 import { compileProceduralTextureSpecV2, normalMapFromHeight } from './procedural-texture';
 import type { ProceduralTextureSpecV2 } from './procedural-material-v2';
+import { normalizeMaterialMapBytes } from './material-map-normalize';
 import { loadTexture } from './textures';
 import { DEFAULT_TEXTURE_RESOLVER, type TextureResolver } from './texture-resolver';
 
@@ -162,7 +163,7 @@ export async function createMaterialRecordV1(draft: MaterialDraftV1): Promise<Ma
         throw new Error('External maps cannot declare a procedural derivation');
       if (!(input.bytes instanceof Uint8Array))
         throw new Error('Material map bytes must be Uint8Array');
-      bytes = Uint8Array.from(input.bytes);
+      bytes = await normalizeMaterialMapBytes(Uint8Array.from(input.bytes), input.slot);
     }
     if (bytes.length > MATERIAL_LIBRARY_LIMITS.maxMapBytes)
       throw new Error('Material map exceeds encoded byte limit');

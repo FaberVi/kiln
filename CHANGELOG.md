@@ -5,6 +5,12 @@ separate milestones. The package is not published on the npm registry.
 
 ## Unreleased
 
+- Optional `kiln-acquire-external-pbr` skill and docs for 3d-asset-server → `kiln_material`
+  import, licence provenance, and workspace `PROVENANCE.json` template.
+- Material library import normalizes JPEG/WebP and oversized maps to PNG ≤4096 px for GPU GLB
+  admission.
+- Offline `compare-reference-glb` script and `src/glb-reference-comparison.ts` harness (JSON
+  report + comparison grid); documented in `docs/reference-glb-comparison.md`, not wired into QA.
 - UV helpers after CSG unwrap: `analyzeUvStretch`, `normalizeAtlasTexelScale`, and
   `uvWorkflowAdvisory` document and optionally even per-chart texel density after
   `autoUnwrap`; geometry docs describe `projectUV` / `remapUV` vs atlas workflow.

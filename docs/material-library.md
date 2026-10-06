@@ -49,6 +49,13 @@ draft using the same bounded layer recipes as the existing procedural compiler. 
 height pixels through the existing wrapped normal derivation. `import` accepts a complete
 normalized payload. None of these operations acquires source images from a provider.
 
+At import time, external map bytes are normalized for GPU review: JPEG and WebP decode to
+PNG, and images larger than 4096 px on an edge are downscaled with aspect preserved.
+sRGB slots (`baseColor`, `emissive`) keep display encoding; data maps stay linear. Stored
+`sha256` values always refer to the normalized PNG bytes in the record. Original download
+digests belong in `sources[].originalFiles`. See the optional `kiln-acquire-external-pbr`
+skill for a 3d-asset-server → `kiln_material` workflow.
+
 Curated resource packs are complete normalized payloads: maps, recipes and source/license
 provenance, ready for explicit import. They are not npm package contents or public downloads;
 use a pack whose source and license you can verify, such as one exported from another

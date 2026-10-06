@@ -215,7 +215,8 @@ extra user-level registration that it prints for you.
 Try: “Read AGENTS.md, then make a wooden workbench with a lower shelf. Render it,
 review the result, and save the source and GLB.”
 
-Setup installs the core authoring, refinement and QA skills. Composition and batch workflows are opt-in.
+Setup installs the core authoring, refinement and QA skills. Composition, batch dispatch and
+external PBR acquire workflows are opt-in (`--skills compose,batch,acquire`).
 These skills work with your chosen harness through CLI/MCP. The optional built-in
 Strands agent adds its own workflow internally; do not copy that context into your
 harness. See [the workflow boundary](docs/runtime.md#optional-native-strands-workflow).

@@ -8513,6 +8513,58 @@ var init_procedural_texture = __esm(() => {
   init_procedural_material_v2();
 });
 
+// src/material-map-normalize.ts
+import sharp from "sharp";
+function isNormalizedPngWithinEdgeLimit(bytes) {
+  try {
+    const { width, height } = materialPngDimensions(bytes);
+    return width >= 1 && height >= 1 && width <= MATERIAL_LIBRARY_LIMITS.maxMapEdge && height <= MATERIAL_LIBRARY_LIMITS.maxMapEdge;
+  } catch {
+    return false;
+  }
+}
+async function normalizeMaterialMapBytes(bytes, slot) {
+  if (isNormalizedPngWithinEdgeLimit(bytes))
+    return Uint8Array.from(bytes);
+  const maxEdge = MATERIAL_LIBRARY_LIMITS.maxMapEdge;
+  let pipeline = sharp(Buffer.from(bytes), {
+    limitInputPixels: false,
+    failOn: "warning"
+  }).rotate().resize({
+    width: maxEdge,
+    height: maxEdge,
+    fit: "inside",
+    withoutEnlargement: true
+  });
+  pipeline = pipeline.ensureAlpha();
+  if (!SRGB_SLOTS.has(slot))
+    pipeline = pipeline.linear();
+  let out = await pipeline.png({ compressionLevel: 9, adaptiveFiltering: false }).toBuffer();
+  let normalized = Uint8Array.from(out);
+  let dimensions = materialPngDimensions(normalized);
+  const pixelBudget = MATERIAL_LIBRARY_LIMITS.maxRecordPixels;
+  if (dimensions.width * dimensions.height > pixelBudget) {
+    const scale = Math.sqrt(pixelBudget / (dimensions.width * dimensions.height));
+    out = await sharp(out).resize({
+      width: Math.max(1, Math.floor(dimensions.width * scale)),
+      height: Math.max(1, Math.floor(dimensions.height * scale)),
+      fit: "inside",
+      withoutEnlargement: true
+    }).png({ compressionLevel: 9, adaptiveFiltering: false }).toBuffer();
+    normalized = Uint8Array.from(out);
+    dimensions = materialPngDimensions(normalized);
+  }
+  if (dimensions.width > maxEdge || dimensions.height > maxEdge || dimensions.width * dimensions.height > pixelBudget) {
+    throw new Error("Material map exceeds pixel budget after normalization");
+  }
+  return normalized;
+}
+var SRGB_SLOTS;
+var init_material_map_normalize = __esm(() => {
+  init_material_library();
+  SRGB_SLOTS = new Set(["baseColor", "emissive"]);
+});
+
 // src/textures.ts
 import * as THREE3 from "three";
 async function loadTexture(source, opts = {}) {
@@ -9109,7 +9161,7 @@ var init_texture_resolver = __esm(() => {
 
 // src/material-library-node.ts
 import { createHash as createHash6, randomUUID } from "node:crypto";
-import sharp from "sharp";
+import sharp2 from "sharp";
 import { DataTexture as DataTexture3 } from "three";
 function revisionHash(manifest) {
   const { revisionId: _, ...content } = manifest;
@@ -9181,7 +9233,7 @@ async function createMaterialRecordV1(draft) {
       const compiled = materialPixels(input.procedural, input.derive);
       if (compiled.spec.usage !== MATERIAL_LIBRARY_USAGE[input.slot])
         throw new Error("Procedural map usage mismatch");
-      bytes = new Uint8Array(await sharp(compiled.pixels, {
+      bytes = new Uint8Array(await sharp2(compiled.pixels, {
         raw: { width: compiled.spec.size, height: compiled.spec.size, channels: 4 }
       }).png({ compressionLevel: 9, adaptiveFiltering: false }).toBuffer());
       procedural = {
@@ -9197,7 +9249,7 @@ async function createMaterialRecordV1(draft) {
         throw new Error("External maps cannot declare a procedural derivation");
       if (!(input.bytes instanceof Uint8Array))
         throw new Error("Material map bytes must be Uint8Array");
-      bytes = Uint8Array.from(input.bytes);
+      bytes = await normalizeMaterialMapBytes(Uint8Array.from(input.bytes), input.slot);
     }
     if (bytes.length > MATERIAL_LIBRARY_LIMITS.maxMapBytes)
       throw new Error("Material map exceeds encoded byte limit");
@@ -9252,7 +9304,7 @@ async function verifyMaterialRecordV1(record) {
     const bytes = record.files[map.file];
     if (digest2(bytes) !== map.sha256)
       throw new Error(`Material integrity hash mismatch: ${map.file}`);
-    const { data, info } = await sharp(bytes, {
+    const { data, info } = await sharp2(bytes, {
       limitInputPixels: MATERIAL_LIBRARY_LIMITS.maxRecordPixels,
       failOn: "warning"
     }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -9361,9 +9413,10 @@ var digest2 = (bytes) => `sha256:${createHash6("sha256").update(bytes).digest("h
 var init_material_library_node = __esm(() => {
   init_material_library();
   init_procedural_texture();
+  init_material_map_normalize();
   init_textures();
   init_texture_resolver();
-  encoder = { name: "sharp", version: sharp.versions.sharp };
+  encoder = { name: "sharp", version: sharp2.versions.sharp };
 });
 
 // src/rebuild-options.ts
