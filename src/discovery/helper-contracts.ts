@@ -2092,12 +2092,8 @@ define(
   'normalizeAtlasTexelScale',
   {
     ...uvFacts,
-    parameters: [
-      'Optional targetScale and fitUnitSquare (default true) after autoUnwrap.',
-    ],
-    preservation: [
-      'Returns owned geometry with adjusted UV0; tangents dropped when UVs change.',
-    ],
+    parameters: ['Optional targetScale and fitUnitSquare (default true) after autoUnwrap.'],
+    preservation: ['Returns owned geometry with adjusted UV0; tangents dropped when UVs change.'],
     cost: 'Linear in triangle count.',
   },
   {

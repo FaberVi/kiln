@@ -959,13 +959,11 @@ const PRIMITIVES: HelperSpec[] = [
     category: 'uv',
     description:
       'Opt-in post-pass after autoUnwrap: scales each xatlas chart toward a common √(3D/UV area) so texel density is more uniform. Does not replace projectUV/remapUV on primitives with good built-in UVs.',
-    example:
-      'let geo = await autoUnwrap(csgMesh.geometry);\ngeo = normalizeAtlasTexelScale(geo);',
+    example: 'let geo = await autoUnwrap(csgMesh.geometry);\ngeo = normalizeAtlasTexelScale(geo);',
   },
   {
     name: 'uvWorkflowAdvisory',
-    signature:
-      "uvWorkflowAdvisory(geometry: BufferGeometry, context?: 'generic' | 'csg')",
+    signature: "uvWorkflowAdvisory(geometry: BufferGeometry, context?: 'generic' | 'csg')",
     returns: 'UvWorkflowAdvisory',
     category: 'uv',
     description:
