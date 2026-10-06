@@ -9,6 +9,8 @@ Changes since the 0.10.0 tagged package release. The package version stays 0.10.
 until the next package release; source/main and website deployment are separate
 from publishing a new installable package.
 
+- Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
+- `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
 - **Breaking (planned 0.11):** `optimize: 'full'` replaces flatten/join with rigid-group
   merging. Its rigid-merge pass preserves node names, hierarchy and transforms, including animated targets,
   named joint pivots, semantic nodes, composition placements and LOD levels. Ordinary
