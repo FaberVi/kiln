@@ -26161,9 +26161,17 @@ var init_material_library = __esm(() => {
   }).strict();
 });
 
+// src/material-map-normalize.ts
+import sharp from "sharp";
+var SRGB_SLOTS;
+var init_material_map_normalize = __esm(() => {
+  init_material_library();
+  SRGB_SLOTS = new Set(["baseColor", "emissive"]);
+});
+
 // src/material-library-node.ts
 import { createHash as createHash6, randomUUID } from "node:crypto";
-import sharp from "sharp";
+import sharp2 from "sharp";
 import { DataTexture as DataTexture3 } from "three";
 function revisionHash(manifest) {
   const { revisionId: _, ...content } = manifest;
@@ -26200,7 +26208,7 @@ async function verifyMaterialRecordV1(record) {
     const bytes = record.files[map.file];
     if (digest(bytes) !== map.sha256)
       throw new Error(`Material integrity hash mismatch: ${map.file}`);
-    const { data, info } = await sharp(bytes, {
+    const { data, info } = await sharp2(bytes, {
       limitInputPixels: MATERIAL_LIBRARY_LIMITS.maxRecordPixels,
       failOn: "warning"
     }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -26309,9 +26317,10 @@ var digest = (bytes) => `sha256:${createHash6("sha256").update(bytes).digest("he
 var init_material_library_node = __esm(() => {
   init_material_library();
   init_procedural_texture();
+  init_material_map_normalize();
   init_textures();
   init_texture_resolver();
-  encoder = { name: "sharp", version: sharp.versions.sharp };
+  encoder = { name: "sharp", version: sharp2.versions.sharp };
 });
 
 // src/evaluator/protocol.ts
