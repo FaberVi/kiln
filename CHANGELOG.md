@@ -48,13 +48,9 @@ Hosted deployment and vendor directory acceptance remain separate milestones.
 
 - Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
 - `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
-<<<<<<< HEAD
 - Organic authoring helpers: `metaballSurface`, `taperedTube` (incl. `sectionScale`), `catmullRomPath`, `spiralPath`, `smoothOrganic`, `rockDisplace`, `rockBoulder`, and SDF utilities `smoothUnion` / `sphereInside`. Discovery catalog and geometry-recipes skill updates.
-- **Breaking (planned 0.11):** `optimize: 'full'` replaces flatten/join with rigid-group
-=======
 
 - **Breaking (v1 candidate):** `optimize: 'full'` replaces flatten/join with rigid-group
->>>>>>> upstream/organic-1-qa-guard
   merging. Its rigid-merge pass preserves node names, hierarchy and transforms, including animated targets,
   named joint pivots, semantic nodes, composition placements and LOD levels. Ordinary
   named mesh nodes can become empty or hold merged geometry. When geometry must remain
