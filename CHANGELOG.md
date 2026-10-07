@@ -12,11 +12,6 @@ Changes since the 0.10.0 tagged package release, qualified first through the pub
 the separate release gates in [the runbook](docs/releasing.md).
 Hosted deployment and vendor directory acceptance remain separate milestones.
 
-<<<<<<< HEAD
-- Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
-- `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
-- **Breaking (planned 0.11):** `optimize: 'full'` replaces flatten/join with rigid-group
-=======
 - **Breaking:** the npm identity is now `@instruktlabs/kiln`, with compiled ESM and
   TypeScript declarations for its public subpaths. The root is a library entrypoint;
   use the `kiln` executable for the CLI. `kiln-mcp` starts the stdio MCP server.
@@ -51,8 +46,10 @@ Hosted deployment and vendor directory acceptance remain separate milestones.
   before exporting. The eight-asset campaign records its incomplete handoffs and
   visual defects separately from valid exports.
 
+- Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
+- `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
+
 - **Breaking (v1 candidate):** `optimize: 'full'` replaces flatten/join with rigid-group
->>>>>>> upstream/main
   merging. Its rigid-merge pass preserves node names, hierarchy and transforms, including animated targets,
   named joint pivots, semantic nodes, composition placements and LOD levels. Ordinary
   named mesh nodes can become empty or hold merged geometry. When geometry must remain
