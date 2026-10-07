@@ -177,7 +177,7 @@ export interface KilnToolContext {
   /** Resolver configuration for this evaluator only. Read descriptors without resolving bytes. */
   approvedTextureResources?: () => import('../material-resources').ApprovedTextureCatalogEntryV1[];
   /** Native harness snapshot reader; absent from CLI/MCP and ordinary inline runs. */
-  skillResourceReader?: import('../agent/skill-resources').SkillResourceReader;
+  skillResourceReader?: import('./skill-resource').SkillResourceReader;
   /** Durable user collections, supplied by the host; never a disposable build cache. */
   assetLibrary?: import('../assets').AssetLibrary;
   /** Host-owned delivery URLs, for example expiring HTTPS links or a running local viewer. */
@@ -2974,7 +2974,10 @@ export function createKilnAssetDefs(context: KilnToolContext): KilnToolDef[] {
         if (!code) throw new Error('Source unavailable: this asset contains only a GLB');
         return {
           ...(await links(input.collection, record.manifest)),
-          programRef: await retainProgram(context.programStore!, new TextDecoder().decode(code)),
+          programRef: await retainProgram(
+            context.programStore!,
+            new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(code),
+          ),
           requirements: activeRequirements,
           savedRequirements: saved,
           acceptance: 'reevaluation-required',

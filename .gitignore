@@ -1,4 +1,6 @@
 node_modules/
+# Compiled module-preserving SDK and declarations, built for the release tarball.
+/lib/
 # `dist/*` and not `dist/`: git never descends into an excluded DIRECTORY, so a
 # negation under `dist/` can never match and the bundle below stayed ignored
 # while the docs said it was committed.
@@ -26,6 +28,12 @@ coverage/
 .env
 .env.*
 !.env.example
+# Cloudflare local secret bindings. Examples must contain placeholders only.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+# Generated cf CLI build output and local project state.
+.cloudflare/
 .localdata/
 tmp/
 # Disposable Node bundle for the checked-in Discovery research source.

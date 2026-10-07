@@ -28528,7 +28528,6 @@ var init_subprocess = __esm(() => {
   DEFAULT_MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
   MAX_STDERR_BYTES = 16 * 1024;
 });
-
 // src/evaluator/isolation.ts
 var MAX_READINESS_PROTOCOL_BYTES;
 var init_isolation = __esm(() => {
@@ -28551,7 +28550,7 @@ function engineVersion() {
     try {
       const raw = readFileSync(new URL(path, import.meta.url), "utf8");
       const pkg = JSON.parse(raw);
-      if (pkg.name === "@kiln/engine" && typeof pkg.version === "string" && pkg.version) {
+      if (pkg.name === "@instruktlabs/kiln" && typeof pkg.version === "string" && pkg.version) {
         return pkg.version;
       }
     } catch {}
@@ -32150,7 +32149,7 @@ async function programReference(code) {
   const bytes = new TextEncoder().encode(code);
   if (bytes.length > MAX_PROGRAM_BYTES)
     throw new Error("Program exceeds the 1 MiB source limit.");
-  if (new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes) !== code)
+  if (new TextDecoder("utf-8", { fatal: false, ignoreBOM: true }).decode(bytes) !== code)
     throw new Error("Program must be valid Unicode.");
   const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   return `sha256:${Array.from(hash, (b) => b.toString(16).padStart(2, "0")).join("")}`;
@@ -33001,7 +33000,7 @@ function createKilnSourceDef(store) {
 }
 
 // src/engine-identity.ts
-var ENGINE_VERSION = "0.10.0";
+var ENGINE_VERSION = "1.0.0";
 var ENGINE_INSTALL_URL = new URL("../", import.meta.url).href;
 function engineIdentity() {
   return { version: ENGINE_VERSION, installUrl: ENGINE_INSTALL_URL };
@@ -36633,7 +36632,7 @@ Not returned, over the result size: ${omitted.join(", ")}. Fetch them with anoth
           ...guidance,
           `Families: ${orientation.families.join(", ")}. Tags: ${orientation.tags.join(", ")}.`
         ] : [],
-        ...page.map((entry) => `${entry.id}${entry.execution ? ` (${entry.execution === "async" ? "async; await the result" : "sync"})` : ""}: ${entry.summary}${entry.limitations.length ? ` Limits: ${entry.limitations.join(" ")}` : ""}${formatMatch(entry.match)}`),
+        ...page.map((entry) => `${entry.id} [${entry.stability}]${entry.execution ? ` (${entry.execution === "async" ? "async; await the result" : "sync"})` : ""}: ${entry.summary}${entry.limitations.length ? ` Limits: ${entry.limitations.join(" ")}` : ""}${formatMatch(entry.match)}`),
         ...input.query && !page.length ? [
           "No lexical matches on this page. Try a narrower modeling operation, browse the overview for families/tags, or use custom geometry. This is not proof that the asset is impossible."
         ] : [],
@@ -37429,7 +37428,7 @@ function createKilnReviewDef(context) {
         throw new Error("Reviewed requirements do not match the current trusted host binding");
       if (input.assetId && input.parentRevision)
         assertSavedRequirementsAuthorized((await context.assetLibrary.read(collection, input.assetId, input.parentRevision)).manifest, active);
-      const code = new TextDecoder().decode(source);
+      const code = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(source);
       const checkpoint = evaluation.requirements.binding ? createRequirementsCheckpoint(await programReference(code), evaluation.requirements.binding) : undefined;
       const dependencies = [
         ...evaluation.materialResourceProvenance ?? [],
@@ -39558,7 +39557,7 @@ function createKilnAssetDefs(context) {
           throw new Error("Source unavailable: this asset contains only a GLB");
         return {
           ...await links(input.collection, record.manifest),
-          programRef: await retainProgram(context.programStore, new TextDecoder().decode(code)),
+          programRef: await retainProgram(context.programStore, new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(code)),
           requirements: activeRequirements,
           savedRequirements: saved,
           acceptance: "reevaluation-required"

@@ -25755,7 +25755,6 @@ var init_subprocess = __esm(() => {
   DEFAULT_MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
   MAX_STDERR_BYTES = 16 * 1024;
 });
-
 // src/evaluator/isolation.ts
 var MAX_READINESS_PROTOCOL_BYTES;
 var init_isolation = __esm(() => {
@@ -25781,7 +25780,7 @@ function engineVersion() {
     try {
       const raw = readFileSync(new URL(path, import.meta.url), "utf8");
       const pkg = JSON.parse(raw);
-      if (pkg.name === "@kiln/engine" && typeof pkg.version === "string" && pkg.version) {
+      if (pkg.name === "@instruktlabs/kiln" && typeof pkg.version === "string" && pkg.version) {
         return pkg.version;
       }
     } catch {}

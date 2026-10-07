@@ -1,17 +1,58 @@
 # Changelog
 
-Changes to `@kiln/engine`. Source releases and installable package publication are
-separate milestones. The package is not published on the npm registry.
+Changes to `@instruktlabs/kiln` (previously the private `@kiln/engine` package).
+Source releases and installable package publication are separate milestones.
+Published versions and tags are recorded by the npm registry; changing this file
+does not publish a package.
 
-## Unreleased
+## 1.0.0
 
-Changes since the 0.10.0 tagged package release. The package version stays 0.10.0
-until the next package release; source/main and website deployment are separate
-from publishing a new installable package.
+Changes since the 0.10.0 tagged package release, qualified first through the public
+`1.0.0-rc.1` prerelease. Promotion of the stable archive to npm `latest` requires
+the separate release gates in [the runbook](docs/releasing.md).
+Hosted deployment and vendor directory acceptance remain separate milestones.
 
+<<<<<<< HEAD
 - Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
 - `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
 - **Breaking (planned 0.11):** `optimize: 'full'` replaces flatten/join with rigid-group
+=======
+- **Breaking:** the npm identity is now `@instruktlabs/kiln`, with compiled ESM and
+  TypeScript declarations for its public subpaths. The root is a library entrypoint;
+  use the `kiln` executable for the CLI. `kiln-mcp` starts the stdio MCP server.
+- Consumer archives contain the maintained installation/API/workflow documentation;
+  historical plans, reviews and model traces remain in the repository. Current
+  repository links and package publisher metadata point to Instrukt Labs.
+- Installed isolated evaluation resolves compiled workers and readiness probes
+  without a TypeScript loader. Host isolation still requires its own readiness proof.
+- The stdio executable cancels pending engine warmup when its client disconnects;
+  a tool-list-only session no longer starts unused engine work after closing stdin.
+- Isolated evaluation explicitly requires a user namespace before disabling nested
+  namespaces, satisfying Bubblewrap's launch precondition. Unsupported hosts still
+  fail closed before source execution.
+- Windows asset saves retry transient directory-rename denials within a bounded
+  delay, preserving atomic publication and existing immutable revisions.
+- Source restoration, MCP source resources, reviewed saves and CLI rebuild
+  observations preserve an authored UTF-8 BOM instead of silently changing the
+  source and its program reference. Invalid source UTF-8 is rejected on those reads.
+- Custom asset-library hosts can reuse the canonical saved-material resolver
+  through `@instruktlabs/kiln/assets/node`.
+- The `kiln-engine` local plugin uses the Instrukt Labs marketplace and installs a
+  pinned engine outside its disposable cache. It registers setup only; managed
+  workspaces own the authoring skills and one MCP server. Upgrades preserve stores
+  and refuse conflicts. The npm archive includes the small bundle and both catalogs.
+  Replacing an older `kiln@kiln` installation requires the explicit plugin migration;
+  public directory submission and hosted access remain separate release work.
+
+- Blind-run receipts recognize OpenCode's recorded code-mode MCP calls and AGY's
+  generic MCP dispatcher without inferring execution from source or output text.
+  Setup and authoring guidance now covers waiting for independent authors, checking
+  sloping panel fit, retaining repeated parts during edits and saving child revisions
+  before exporting. The eight-asset campaign records its incomplete handoffs and
+  visual defects separately from valid exports.
+
+- **Breaking (v1 candidate):** `optimize: 'full'` replaces flatten/join with rigid-group
+>>>>>>> upstream/main
   merging. Its rigid-merge pass preserves node names, hierarchy and transforms, including animated targets,
   named joint pivots, semantic nodes, composition placements and LOD levels. Ordinary
   named mesh nodes can become empty or hold merged geometry. When geometry must remain
