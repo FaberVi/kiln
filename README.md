@@ -1,9 +1,19 @@
 # Kiln
 
-[![CI](https://github.com/matthew-kissinger/kiln/actions/workflows/ci.yml/badge.svg)](https://github.com/matthew-kissinger/kiln/actions/workflows/ci.yml)
+[![CI](https://github.com/instruktlabs/kiln/actions/workflows/ci.yml/badge.svg)](https://github.com/instruktlabs/kiln/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Build and revise 3D assets with your coding agent.**
+
+**The package name is `@instruktlabs/kiln`.** This checkout targets version 1.0.0.
+Stable releases use npm's `latest` tag; release candidates use `next`.
+Until 1.0.0 is available in the [npm registry](https://www.npmjs.com/package/@instruktlabs/kiln),
+install the public RC with `npm install @instruktlabs/kiln@next`, or pin
+`@instruktlabs/kiln@1.0.0-rc.1`. Do not use the unqualified name while `latest`
+still points to the temporary `0.0.0-stage` holding version.
+Package publication and the hosted service have separate release gates. The [SDK guide](docs/sdk.md)
+describes the compiled ESM library; use the [local package build](docs/install.md#install-a-local-package)
+to test this checkout. The 0.10.0 release described below remains a historical release.
 
 The agent writes JavaScript using Kiln's geometry and material helpers. Kiln runs the
 program and returns rendered views and structural checks so the agent can review its
@@ -69,12 +79,12 @@ builds on 0.9.0's optional projects, material library, Live Review and calibrate
 each breaking one marked, and the [migration notes](docs/migration.md#changes-in-0100)
 list what an existing author will notice.
 
-**0.10.0 is the source and site release for dogfooding.** Its package tarball is attached
-to the [v0.10.0 release](https://github.com/matthew-kissinger/kiln/releases/tag/v0.10.0)
+**0.10.0 was the source and site release for dogfooding.** Its package tarball is attached
+to the [v0.10.0 release](https://github.com/instruktlabs/kiln/releases/tag/v0.10.0)
 with `SHA256SUMS.txt` and the installed-package receipts, as later releases' tarballs are
-on the [releases page](https://github.com/matthew-kissinger/kiln/releases); registry
-publication is deferred to v1.0 after feedback, and the site deployment publishes no
-package.
+on the [releases page](https://github.com/instruktlabs/kiln/releases).
+The public npm release candidate and stable release process are described above;
+site deployment does not publish a package.
 
 ## Install and start an asset workspace
 
@@ -89,7 +99,7 @@ model API key are not required to install the tarball:
 mkdir kiln-install
 cd kiln-install
 npm init -y
-npm install /absolute/path/to/kiln-engine-VERSION.tgz --omit=dev --include=optional
+npm install /absolute/path/to/PACKAGE.tgz --omit=dev --include=optional
 npm exec --offline -- kiln-init ../my-assets --harness opencode  # or claude, codex, hermes, agy, copilot, cursor-agent
 cd ../my-assets
 # Follow START.md for your harness
@@ -107,7 +117,7 @@ compatibility accommodates existing distribution-managed installations.
 For engine development, install [Bun](https://bun.sh) 1.4.2, then:
 
 ```sh
-git clone --filter=blob:none https://github.com/matthew-kissinger/kiln
+git clone --filter=blob:none https://github.com/instruktlabs/kiln
 cd kiln
 bun install --frozen-lockfile
 bun run kiln render examples/crate.kiln.js --out crate.glb --views sheet.png
@@ -387,7 +397,7 @@ review; unresolved obligations prevent activation. See [migration](docs/migratio
 The
 [generated tool reference](docs/tools.md) covers source editing, validation,
 rendering, part inspection, animation and interior views. The shared factory is
-`createKilnProgramToolRegistry` in `@kiln/engine/tools`.
+`createKilnProgramToolRegistry` in `@instruktlabs/kiln/tools`.
 
 ## Uses and limitations
 

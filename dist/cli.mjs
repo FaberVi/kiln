@@ -29854,6 +29854,19 @@ var init_handler = __esm(() => {
   init_protocol();
 });
 
+// src/evaluator/worker-urls.ts
+function isolatedWorkerUrls(moduleUrl) {
+  const source = new URL(moduleUrl).pathname.endsWith(".ts");
+  const sdk = new URL(moduleUrl).pathname.endsWith("/isolation.js");
+  const base = new URL(source || sdk ? "./" : "../lib/evaluator/", moduleUrl);
+  const extension = source ? "ts" : "js";
+  return {
+    worker: new URL(`worker.${extension}`, base),
+    probe: new URL(`probe-worker.${extension}`, base),
+    transport: new URL("transport-worker.mjs", base)
+  };
+}
+
 // src/evaluator/isolation.ts
 import { existsSync } from "node:fs";
 import { posix } from "node:path";
@@ -29906,6 +29919,7 @@ function isolatedEvaluatorLaunchWithLoader(workerPath, host = {}, loader = "tsx"
     isolationUnavailable();
   const bwrapArgs = [
     "--unshare-all",
+    "--unshare-user",
     "--die-with-parent",
     "--new-session",
     "--disable-userns",
@@ -29952,10 +29966,10 @@ function isolatedEvaluatorLaunchWithLoader(workerPath, host = {}, loader = "tsx"
   };
 }
 function isolatedEvaluatorLaunch(workerPath, host = {}) {
-  return isolatedEvaluatorLaunchWithLoader(workerPath, host, "tsx");
+  return isolatedEvaluatorLaunchWithLoader(workerPath, host, /\.tsx?$/.test(workerPath) ? "tsx" : "module");
 }
 async function renderGLBViaIsolatedEvaluator(code, options = {}, controls = {}) {
-  const workerPath = fileURLToPath2(new URL("./worker.ts", import.meta.url));
+  const workerPath = fileURLToPath2(isolatedWorkerUrls(import.meta.url).worker);
   const launch = isolatedEvaluatorLaunch(workerPath, controls.host);
   const { host: _, ...processControls } = controls;
   return renderGLBViaProcessLaunch(code, options, processControls, launch);
@@ -30099,7 +30113,7 @@ function engineVersion() {
     try {
       const raw = readFileSync(new URL(path, import.meta.url), "utf8");
       const pkg = JSON.parse(raw);
-      if (pkg.name === "@kiln/engine" && typeof pkg.version === "string" && pkg.version) {
+      if (pkg.name === "@instruktlabs/kiln" && typeof pkg.version === "string" && pkg.version) {
         return pkg.version;
       }
     } catch {}
@@ -32429,7 +32443,8 @@ async function renderGLBViaProcessLaunch(code, options = {}, controls = {}, laun
     throw new EvaluatorSubprocessError("INPUT_INVALID", "Evaluator request exceeds its size limit.");
   }
   const sourceModule = import.meta.url.endsWith(".ts");
-  const workerPath = fileURLToPath3(new URL(process.versions.bun && sourceModule ? "./worker.ts" : sourceModule ? "../../dist/evaluator-worker.mjs" : "./evaluator-worker.mjs", import.meta.url));
+  const sdkModule = import.meta.url.endsWith("/subprocess.js");
+  const workerPath = fileURLToPath3(new URL(process.versions.bun && sourceModule ? "./worker.ts" : sourceModule || sdkModule ? "../../dist/evaluator-worker.mjs" : "./evaluator-worker.mjs", import.meta.url));
   const maxHeapMb = boundedInteger(controls.maxHeapMb, 512, 4096);
   if (maxHeapMb < 64 || process.versions.bun && controls.maxHeapMb !== undefined) {
     throw new EvaluatorSubprocessError("INPUT_INVALID", "Heap limits require a Node worker and 64–4096 MiB.");
@@ -32596,7 +32611,7 @@ async function programReference(code) {
   const bytes = new TextEncoder().encode(code);
   if (bytes.length > MAX_PROGRAM_BYTES)
     throw new Error("Program exceeds the 1 MiB source limit.");
-  if (new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes) !== code)
+  if (new TextDecoder("utf-8", { fatal: false, ignoreBOM: true }).decode(bytes) !== code)
     throw new Error("Program must be valid Unicode.");
   const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   return `sha256:${Array.from(hash, (b) => b.toString(16).padStart(2, "0")).join("")}`;
@@ -33119,7 +33134,7 @@ async function installedRuntimeIdentity(root, limits = {}) {
   };
   try {
     const pkg = await manifest(root);
-    if (pkg.name !== "@kiln/engine")
+    if (pkg.name !== "@instruktlabs/kiln")
       throw new Error("Not a Kiln installation.");
     const build = JSON.parse(await readFile4(join6(root, "dist", "build.json"), "utf8"));
     const worker = build.entries?.worker;
@@ -34799,6 +34814,32 @@ var init_asset_materials_node = __esm(() => {
   init_material_library_node();
 });
 
+// src/atomic-directory.ts
+import { lstat as lstat7, rename as rename5 } from "node:fs/promises";
+import { setTimeout as pause } from "node:timers/promises";
+async function renameDirectoryAtomically(source, destination, controls = {}) {
+  const renameOperation = controls.renameOperation ?? rename5;
+  const platform = controls.platform ?? process.platform;
+  const wait = controls.pause ?? pause;
+  const delays = [20, 50, 100, 200, 400];
+  for (let attempt = 0;; attempt++) {
+    try {
+      await renameOperation(source, destination);
+      return;
+    } catch (error) {
+      const delay = delays[attempt];
+      const code = error?.code;
+      if (platform !== "win32" || delay === undefined || !["EPERM", "EACCES", "EBUSY"].includes(code ?? ""))
+        throw error;
+      const absent = await lstat7(destination).then(() => false, (statError) => statError.code === "ENOENT");
+      if (!absent)
+        throw error;
+      await wait(delay);
+    }
+  }
+}
+var init_atomic_directory = () => {};
+
 // src/assets-node.ts
 var exports_assets_node = {};
 __export(exports_assets_node, {
@@ -34810,17 +34851,7 @@ __export(exports_assets_node, {
 });
 import { createHash as createHash14, randomUUID as randomUUID7 } from "node:crypto";
 import { readFileSync as readFileSync2 } from "node:fs";
-import {
-  link as link5,
-  lstat as lstat7,
-  mkdir as mkdir7,
-  readFile as readFile6,
-  readdir as readdir7,
-  realpath as realpath6,
-  rename as rename5,
-  rm as rm3,
-  writeFile as writeFile6
-} from "node:fs/promises";
+import { link as link5, lstat as lstat8, mkdir as mkdir7, readFile as readFile6, readdir as readdir7, realpath as realpath6, rm as rm3, writeFile as writeFile6 } from "node:fs/promises";
 import { homedir, platform } from "node:os";
 import { dirname as dirname5, join as join10, relative as relative5, resolve as resolve9, sep as sep4, win32 } from "node:path";
 function assertMaterialAllocation(records) {
@@ -34877,7 +34908,7 @@ class FileAssetLibrary {
       assetIdSchema.parse(part);
       path = join10(path, part);
       try {
-        const entry = await lstat7(path);
+        const entry = await lstat8(path);
         if (entry.isSymbolicLink())
           throw new Error("Collection symlinks are not supported");
         const rel = relative5(canonical, await realpath6(path));
@@ -34919,7 +34950,7 @@ class FileAssetLibrary {
   }
   async file(dir, name, limit = ASSET_LIMIT) {
     const path = join10(dir, name);
-    const info = await lstat7(path);
+    const info = await lstat8(path);
     if (!info.isFile() || info.isSymbolicLink() || info.size > limit)
       throw new Error("Invalid collection file");
     return new Uint8Array(await readFile6(path));
@@ -35046,7 +35077,7 @@ class FileAssetLibrary {
           flag: "wx"
         });
         try {
-          await rename5(stage, dest);
+          await renameDirectoryAtomically(stage, dest);
         } catch (error) {
           const existing = await this.read(collection, manifest.assetId, manifest.revisionId).catch(() => {
             return;
@@ -35128,6 +35159,8 @@ var init_assets_node = __esm(() => {
   init_workspace_location();
   init_assets();
   init_material_library_node();
+  init_asset_materials_node();
+  init_atomic_directory();
   init_asset_materials_node();
   windowsDrivePath = /^[A-Za-z]:[\\/]/;
   windowsSharePath = /^[\\/]{2}[^\\/]+[\\/][^\\/]+/;
@@ -35516,7 +35549,7 @@ var init_project_bundle = __esm(() => {
 
 // src/project-bundle-node.ts
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { link as link6, lstat as lstat8, mkdir as mkdir8, readFile as readFile7, realpath as realpath7, unlink as unlink6, writeFile as writeFile7 } from "node:fs/promises";
+import { link as link6, lstat as lstat9, mkdir as mkdir8, readFile as readFile7, realpath as realpath7, unlink as unlink6, writeFile as writeFile7 } from "node:fs/promises";
 import { join as join11, relative as relative6, resolve as resolve10, sep as sep5 } from "node:path";
 async function assetMaterials(workspace, asset) {
   return resolveSavedAssetMaterials(asset, workspace.materials);
@@ -35572,7 +35605,7 @@ async function retainArchive(workspace, bytes, digest) {
       if (error.code !== "EEXIST")
         throw error;
     });
-    const info = await lstat8(directory);
+    const info = await lstat9(directory);
     const rel = relative6(canonical, await realpath7(directory));
     if (!info.isDirectory() || info.isSymbolicLink() || rel === ".." || rel.startsWith(`..${sep5}`))
       throw new Error("Unsafe project import directory");
@@ -35586,7 +35619,7 @@ async function retainArchive(workspace, bytes, digest) {
     } catch (error) {
       if (error.code !== "EEXIST")
         throw error;
-      const info = await lstat8(file);
+      const info = await lstat9(file);
       if (!info.isFile() || info.isSymbolicLink() || info.size !== bytes.length || await projectBundleHash(new Uint8Array(await readFile7(file))) !== digest)
         throw new Error("Imported archive integrity mismatch");
     }
@@ -36664,7 +36697,7 @@ var init_program_artifacts = __esm(() => {
 function engineIdentity() {
   return { version: ENGINE_VERSION, installUrl: ENGINE_INSTALL_URL };
 }
-var ENGINE_VERSION = "0.10.0", ENGINE_INSTALL_URL;
+var ENGINE_VERSION = "1.0.0", ENGINE_INSTALL_URL;
 var init_engine_identity = __esm(() => {
   ENGINE_INSTALL_URL = new URL("../", import.meta.url).href;
 });
@@ -40472,7 +40505,7 @@ Not returned, over the result size: ${omitted.join(", ")}. Fetch them with anoth
           ...guidance,
           `Families: ${orientation.families.join(", ")}. Tags: ${orientation.tags.join(", ")}.`
         ] : [],
-        ...page.map((entry) => `${entry.id}${entry.execution ? ` (${entry.execution === "async" ? "async; await the result" : "sync"})` : ""}: ${entry.summary}${entry.limitations.length ? ` Limits: ${entry.limitations.join(" ")}` : ""}${formatMatch(entry.match)}`),
+        ...page.map((entry) => `${entry.id} [${entry.stability}]${entry.execution ? ` (${entry.execution === "async" ? "async; await the result" : "sync"})` : ""}: ${entry.summary}${entry.limitations.length ? ` Limits: ${entry.limitations.join(" ")}` : ""}${formatMatch(entry.match)}`),
         ...input.query && !page.length ? [
           "No lexical matches on this page. Try a narrower modeling operation, browse the overview for families/tags, or use custom geometry. This is not proof that the asset is impossible."
         ] : [],
@@ -41261,7 +41294,7 @@ function createKilnReviewDef(context) {
         throw new Error("Reviewed requirements do not match the current trusted host binding");
       if (input.assetId && input.parentRevision)
         assertSavedRequirementsAuthorized((await context.assetLibrary.read(collection, input.assetId, input.parentRevision)).manifest, active);
-      const code = new TextDecoder().decode(source);
+      const code = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(source);
       const checkpoint = evaluation.requirements.binding ? createRequirementsCheckpoint(await programReference(code), evaluation.requirements.binding) : undefined;
       const dependencies = [
         ...evaluation.materialResourceProvenance ?? [],
@@ -44359,7 +44392,7 @@ function createKilnAssetDefs(context) {
           throw new Error("Source unavailable: this asset contains only a GLB");
         return {
           ...await links(input.collection, record.manifest),
-          programRef: await retainProgram(context.programStore, new TextDecoder().decode(code)),
+          programRef: await retainProgram(context.programStore, new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(code)),
           requirements: activeRequirements,
           savedRequirements: saved,
           acceptance: "reevaluation-required"
@@ -45583,7 +45616,7 @@ function refuse(res, message) {
 `);
 }
 async function startAssetViewer(library, options = {}) {
-  const staticDirectory = options.staticDirectory ?? (import.meta.url.endsWith(".ts") ? join17(dirname8(fileURLToPath7(import.meta.url)), "..", "dist", "viewer") : join17(dirname8(fileURLToPath7(import.meta.url)), "viewer"));
+  const staticDirectory = options.staticDirectory ?? (!import.meta.url.endsWith(".mjs") ? join17(dirname8(fileURLToPath7(import.meta.url)), "..", "dist", "viewer") : join17(dirname8(fileURLToPath7(import.meta.url)), "viewer"));
   const server = createServer(async (req, res) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
@@ -45895,7 +45928,7 @@ async function assetMain(argv) {
             throw new Error("Saved revision uses an unversioned full optimization pipeline; rebuild with its original pinned engine, or explicitly author and save a new child revision to migrate.");
           const { optimizationPipeline: _pipeline, ...renderOptions } = parsed.data;
           const materialResources = await resolveAssetMaterialPayload(new FileWorkspace(localWorkspaceRoot()), record);
-          const code = new TextDecoder().decode(source);
+          const code = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(source);
           const rendered = await context.evaluatorPort.render(code, {
             ...renderOptions,
             materialResources,
