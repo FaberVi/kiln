@@ -80,6 +80,33 @@ test('plugin setup installs an exact package once outside the cache and delegate
   expect(f.calls).toHaveLength(1);
 });
 
+test.each(['opencode', 'hermes', 'agy', 'copilot', 'cursor-agent'])(
+  'the plugin helper can register the engine-supported %s adapter',
+  async (harness) => {
+    const f = await fixture();
+    await writeFile(
+      join(f.options.pluginRoot, 'runtime.json'),
+      JSON.stringify({ ...f.pin, harnesses: ['claude', 'codex', harness] }),
+    );
+    const result = await setupPluginWorkspace({ ...f.options, harness });
+    expect(result.workspace.harness).toBe(harness);
+    expect(f.calls).toHaveLength(1);
+  },
+);
+
+test('invalid advertised adapters fail before installation or workspace changes', async () => {
+  const f = await fixture();
+  for (const harnesses of [[], ['claude', 'claude'], ['../other'], 'claude']) {
+    await writeFile(
+      join(f.options.pluginRoot, 'runtime.json'),
+      JSON.stringify({ ...f.pin, harnesses }),
+    );
+    await expect(setupPluginWorkspace(f.options)).rejects.toThrow('harness');
+  }
+  expect(f.calls).toHaveLength(0);
+  await expect(readdir(f.options.directory)).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
 test.each(['latest', '^1.0.0', '../other', 'file:/private', 'https://example.com/p.tgz'])(
   'rejects a non-exact runtime pin %s before invoking npm',
   async (version) => {
@@ -128,6 +155,46 @@ test('does not install or touch an existing nonempty directory when creation was
   await expect(setupPluginWorkspace(f.options)).rejects.toThrow('empty');
   expect(await readFile(source, 'utf8')).toBe('keep me');
   expect(f.calls).toHaveLength(0);
+});
+
+test('explicit project adoption delegates to a capable pinned engine without touching owner files', async () => {
+  const f = await fixture();
+  await mkdir(f.options.directory);
+  await writeFile(join(f.options.directory, 'AGENTS.md'), 'Owner instructions');
+  const install = f.options.run;
+  const result = await setupPluginWorkspace({
+    ...f.options,
+    adopt: true,
+    run: async (...args) => {
+      await install(...args);
+      const module = join(args[1], 'node_modules/@instruktlabs/kiln/scripts/create-workspace.mjs');
+      await writeFile(
+        module,
+        (await readFile(module, 'utf8')) +
+          '\nexport const workspaceSetupCapabilities = {projectAdoption:1,recovery:1};\n',
+      );
+    },
+  });
+  expect(result.workspace.options.adopt).toBe(true);
+  expect(await readFile(join(f.options.directory, 'AGENTS.md'), 'utf8')).toBe('Owner instructions');
+});
+
+test('adoption never falls back to an older engine that can only create empty workspaces', async () => {
+  const f = await fixture();
+  await mkdir(f.options.directory);
+  await writeFile(join(f.options.directory, 'keep.txt'), 'owner');
+  await expect(setupPluginWorkspace({ ...f.options, adopt: true })).rejects.toThrow(
+    'does not support project adoption',
+  );
+  expect(await readFile(join(f.options.directory, 'keep.txt'), 'utf8')).toBe('owner');
+  expect(await readdir(f.options.directory)).toEqual(['keep.txt']);
+});
+
+test('CLI can preview project adoption and cannot combine recovery with setup changes', () => {
+  expect(
+    parseSetupArguments(['/project', '--adopt', '--check', '--harness', 'codex']),
+  ).toMatchObject({ adopt: true, mode: 'check', harness: 'codex' });
+  expect(() => parseSetupArguments(['/project', '--adopt', '--recover'])).toThrow('recover');
 });
 
 test('check is read-only when the pinned engine has not been installed', async () => {

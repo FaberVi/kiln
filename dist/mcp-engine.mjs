@@ -28525,7 +28525,7 @@ function isolatedWorkerUrls(moduleUrl) {
 }
 
 // src/evaluator/isolation.ts
-import { existsSync as existsSync3 } from "node:fs";
+import { existsSync as existsSync3, readlinkSync } from "node:fs";
 import { posix } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 function isolationUnavailable() {
@@ -28567,7 +28567,7 @@ function isolatedEvaluatorLaunchWithLoader(workerPath, host = {}, loader = "tsx"
   const setprivPath = requiredAbsolutePath(host.setprivPath ?? DEFAULT_SETPRIV_PATH);
   const prlimitPath = requiredAbsolutePath(host.prlimitPath ?? DEFAULT_PRLIMIT_PATH);
   const nodePath = requiredAbsolutePath(host.nodePath ?? DEFAULT_NODE_PATH);
-  for (const executable of [bwrapPath, setprivPath, prlimitPath, nodePath]) {
+  for (const executable of [bwrapPath, setprivPath, prlimitPath, nodePath, ENV_PATH]) {
     if (!pathExists(executable))
       isolationUnavailable();
   }
@@ -28603,11 +28603,11 @@ function isolatedEvaluatorLaunchWithLoader(workerPath, host = {}, loader = "tsx"
   for (const mount of runtimeMounts(runtimeRoot, pathExists)) {
     bwrapArgs.push("--ro-bind", mount, mount);
   }
-  const nodeArgs = [nodePath, "--max-old-space-size=512", "--disable-proto=throw"];
+  const nodeArgs = [nodePath, "--max-old-space-size=512", "--disable-proto=delete"];
   if (loader === "tsx")
     nodeArgs.push("--import", "tsx");
   nodeArgs.push(resolvedWorkerPath);
-  bwrapArgs.push("--chdir", runtimeRoot, "--preserve-fds", "1", "--", prlimitPath, "--cpu=65:65", "--as=6442450944:6442450944", "--fsize=100663296:100663296", "--nofile=64:64", "--nproc=64:64", "--", ...nodeArgs);
+  bwrapArgs.push("--chdir", runtimeRoot, "--", prlimitPath, "--cpu=65:65", "--as=6442450944:6442450944", "--fsize=100663296:100663296", "--nofile=64:64", "--nproc=64:64", "--", ENV_PATH, "-i", "NODE_ENV=production", "NO_COLOR=1", ...nodeArgs);
   return {
     command: setprivPath,
     args: [
@@ -28631,7 +28631,7 @@ async function renderGLBViaIsolatedEvaluator(code, options = {}, controls = {}) 
   const { host: _, ...processControls } = controls;
   return renderGLBViaProcessLaunch(code, options, processControls, launch);
 }
-var DEFAULT_RUNTIME_ROOT = "/app", DEFAULT_BWRAP_PATH = "/usr/local/bin/bwrap", DEFAULT_SETPRIV_PATH = "/usr/bin/setpriv", DEFAULT_PRLIMIT_PATH = "/usr/bin/prlimit", DEFAULT_NODE_PATH = "/usr/local/bin/node", MAX_READINESS_PROTOCOL_BYTES;
+var DEFAULT_RUNTIME_ROOT = "/app", DEFAULT_BWRAP_PATH = "/usr/local/bin/bwrap", DEFAULT_SETPRIV_PATH = "/usr/bin/setpriv", DEFAULT_PRLIMIT_PATH = "/usr/bin/prlimit", DEFAULT_NODE_PATH = "/usr/local/bin/node", ENV_PATH = "/usr/bin/env", MAX_READINESS_PROTOCOL_BYTES;
 var init_isolation = __esm(() => {
   init_subprocess();
   MAX_READINESS_PROTOCOL_BYTES = 16 * 1024;
@@ -36102,7 +36102,7 @@ import { readFile as readFile8 } from "node:fs/promises";
 var KILN_ASSET_WIDGET_URI = "ui://kiln/asset-v5.html";
 
 // src/engine-identity.ts
-var ENGINE_VERSION = "1.0.0";
+var ENGINE_VERSION = "1.1.0-dev.1";
 var ENGINE_INSTALL_URL = new URL("../", import.meta.url).href;
 function engineIdentity() {
   return { version: ENGINE_VERSION, installUrl: ENGINE_INSTALL_URL };

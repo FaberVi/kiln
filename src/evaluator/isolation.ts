@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readlinkSync } from 'node:fs';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isolatedWorkerUrls } from './worker-urls';
@@ -17,6 +17,7 @@ const DEFAULT_BWRAP_PATH = '/usr/local/bin/bwrap';
 const DEFAULT_SETPRIV_PATH = '/usr/bin/setpriv';
 const DEFAULT_PRLIMIT_PATH = '/usr/bin/prlimit';
 const DEFAULT_NODE_PATH = '/usr/local/bin/node';
+const ENV_PATH = '/usr/bin/env';
 const READINESS_VERSION = 'kiln.evaluator.isolation-readiness.v1';
 const TRANSPORT_VERSION = 'kiln.evaluator.isolation-transport.v1';
 const TRANSPORT_STDOUT_MARKER = 'kiln-evaluator-transport-boot-v1\n';
@@ -159,7 +160,7 @@ function isolatedEvaluatorLaunchWithLoader(
   const setprivPath = requiredAbsolutePath(host.setprivPath ?? DEFAULT_SETPRIV_PATH);
   const prlimitPath = requiredAbsolutePath(host.prlimitPath ?? DEFAULT_PRLIMIT_PATH);
   const nodePath = requiredAbsolutePath(host.nodePath ?? DEFAULT_NODE_PATH);
-  for (const executable of [bwrapPath, setprivPath, prlimitPath, nodePath]) {
+  for (const executable of [bwrapPath, setprivPath, prlimitPath, nodePath, ENV_PATH]) {
     if (!pathExists(executable)) isolationUnavailable();
   }
   const resolvedWorkerPath = workerInsideRuntime(workerPath, runtimeRoot);
@@ -195,14 +196,16 @@ function isolatedEvaluatorLaunchWithLoader(
   for (const mount of runtimeMounts(runtimeRoot, pathExists)) {
     bwrapArgs.push('--ro-bind', mount, mount);
   }
-  const nodeArgs = [nodePath, '--max-old-space-size=512', '--disable-proto=throw'];
+  // Remove the legacy mutation accessor. Throw mode breaks the Khronos
+  // validator's feature detection before any GLB can be validated.
+  const nodeArgs = [nodePath, '--max-old-space-size=512', '--disable-proto=delete'];
   if (loader === 'tsx') nodeArgs.push('--import', 'tsx');
   nodeArgs.push(resolvedWorkerPath);
   bwrapArgs.push(
     '--chdir',
     runtimeRoot,
-    '--preserve-fds',
-    '1',
+    // Bubblewrap passes inherited fds to the command. The spawn caller supplies
+    // only stdio and the fd3 protocol pipe; no descriptor-preservation flag exists.
     '--',
     prlimitPath,
     '--cpu=65:65',
@@ -211,6 +214,12 @@ function isolatedEvaluatorLaunchWithLoader(
     '--nofile=64:64',
     '--nproc=64:64',
     '--',
+    // Bubblewrap adds PWD after --clearenv. Clear the final worker environment
+    // again instead of weakening the exact two-variable readiness invariant.
+    ENV_PATH,
+    '-i',
+    'NODE_ENV=production',
+    'NO_COLOR=1',
     ...nodeArgs,
   );
 
@@ -435,7 +444,11 @@ async function runIsolationProbe(
 export async function assertIsolatedEvaluatorReady(
   host: IsolatedEvaluatorHost = {},
 ): Promise<EvaluatorIsolationReadiness> {
-  if (typeof process.getuid !== 'function' || process.getuid() === 0) {
+  if (
+    typeof process.getuid !== 'function' ||
+    process.getuid() === 0 ||
+    process.geteuid?.() !== process.getuid()
+  ) {
     throw new EvaluatorIsolationReadinessError('invariant-namespace');
   }
   const workers = isolatedWorkerUrls(import.meta.url);
@@ -446,6 +459,14 @@ export async function assertIsolatedEvaluatorReady(
   try {
     transportLaunch = isolatedEvaluatorLaunchWithLoader(transportPath, host, 'module');
     probeLaunch = isolatedEvaluatorLaunch(probePath, host);
+    // Trusted parent evidence is passed as bounded probe arguments, never
+    // through the source worker's environment or generated-source protocol.
+    probeLaunch.args.push(
+      '--kiln-host-uid',
+      String(process.getuid()),
+      '--kiln-host-userns',
+      readlinkSync('/proc/self/ns/user'),
+    );
   } catch {
     throw new EvaluatorIsolationReadinessError('wrapper-launch');
   }
