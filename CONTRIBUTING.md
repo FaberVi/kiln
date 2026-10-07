@@ -14,6 +14,7 @@ Read [AGENTS.md](AGENTS.md) and the [README](README.md). Contributor checks use 
 bun install --frozen-lockfile
 bun run check:toolchain
 bun run check:skills
+bun run build:sdk
 bun run typecheck
 bun run lint
 bun run test
@@ -56,6 +57,9 @@ run measured it. Note that `biome` prints at most 20 diagnostics by default, so 
 count read off the output is a floor.
 
 ### Version
+
+Maintainers should follow the [v1 release runbook](https://github.com/instruktlabs/kiln/blob/main/docs/releasing.md) for exact
+archive qualification, npm staging and owner promotion.
 
 `version` in `package.json` identifies the installable release. Changes on `main`
 ahead of that release go in the changelog's `Unreleased` section and can retain the

@@ -3,14 +3,17 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { smokePackageExporter } from './smoke-package-exporter.mjs';
+import { smokeSdkTypes } from './smoke-sdk-types.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const root = await mkdtemp(join(tmpdir(), 'kiln-package-café-'));
+// macOS exposes /var through /private/var. Match Node's canonical module URLs
+// before asserting that the installed SDK identifies its own package directory.
+const root = await realpath(await mkdtemp(join(tmpdir(), 'kiln-package-café-')));
 const receipt = {
   root,
   platform: process.platform,
@@ -75,7 +78,7 @@ async function npmCli() {
 }
 
 async function connect(server, cwd, store) {
-  const child = spawn(process.execPath, [server], {
+  const child = spawn(process.execPath, Array.isArray(server) ? server : [server], {
     cwd,
     windowsHide: true,
     env: { ...process.env, KILN_RENDER: 'cpu', KILN_PROGRAM_STORE: store },
@@ -121,9 +124,25 @@ async function connect(server, cwd, store) {
       });
       child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
     });
-  const close = () => {
-    child.kill();
-  };
+  // EOF also reaches the server when npm is its parent. Killing only the npm
+  // wrapper can leave a running server behind on Windows.
+  const close = () =>
+    new Promise((done, fail) => {
+      if (child.exitCode !== null || child.signalCode !== null) return done();
+      const timer = setTimeout(() => {
+        child.kill();
+        fail(
+          new Error(
+            `MCP process did not exit within 5000 ms after stdin closed: ${JSON.stringify(server)}; exit=${child.exitCode}, signal=${child.signalCode}; stderr: ${stderr}`,
+          ),
+        );
+      }, 5000);
+      child.once('exit', () => {
+        clearTimeout(timer);
+        done();
+      });
+      child.stdin.end();
+    });
   child.on('error', (error) => {
     for (const resolve of pending.values()) resolve({ error: { message: error.message } });
     pending.clear();
@@ -144,7 +163,7 @@ async function connect(server, cwd, store) {
     );
     return { call, close };
   } catch (error) {
-    close();
+    await close();
     throw error;
   }
 }
@@ -157,9 +176,10 @@ const textResult = (result) => {
 try {
   const npm = await npmCli();
   receipt.npm = (await command([npm, '--version'], root)).trim();
-  const args = process.argv.slice(2);
+  const checkTypes = process.argv.includes('--types');
+  const args = process.argv.slice(2).filter((argument) => argument !== '--types');
   if (args.length !== 0 && (args.length !== 2 || args[0] !== '--tarball'))
-    throw new Error('Usage: smoke-package.mjs [--tarball /absolute/package.tgz]');
+    throw new Error('Usage: smoke-package.mjs [--tarball /absolute/package.tgz] [--types]');
   if (args.length) {
     receipt.tarball = resolve(args[1]);
     assert((await stat(receipt.tarball)).isFile(), 'Tarball must be a file.');
@@ -196,14 +216,128 @@ try {
     [npm, 'install', receipt.tarball, '--omit=dev', '--no-audit', '--no-fund'],
     install,
   );
-  const runtime = join(install, 'node_modules/@kiln/engine');
+  const runtime = join(install, 'node_modules/@instruktlabs/kiln');
   const pkg = JSON.parse(await readFile(join(runtime, 'package.json'), 'utf8'));
+  receipt.engineName = pkg.name;
   receipt.engineVersion = pkg.version;
+  assert.equal(pkg.name, '@instruktlabs/kiln');
+  assert.equal(pkg.bin['kiln-mcp'], './dist/mcp-server.mjs');
+  const plugin = join(runtime, 'plugins/kiln-engine');
+  const pluginJson = async (path) => JSON.parse(await readFile(join(plugin, path), 'utf8'));
+  const portablePlugin = await pluginJson('plugin.json');
+  assert.equal(
+    portablePlugin.$schema,
+    'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+  );
+  assert.equal(portablePlugin.name, 'kiln-engine');
+  assert.equal(portablePlugin.version, pkg.version);
+  assert.equal((await pluginJson('.claude-plugin/plugin.json')).version, pkg.version);
+  assert.deepEqual(await pluginJson('runtime.json'), { name: pkg.name, version: pkg.version });
+  assert.deepEqual(await readdir(join(plugin, 'skills')), ['kiln-setup-workspace']);
+  const pluginReceipt = await pluginJson('package-provenance.json');
+  assert.equal(pluginReceipt.kind, 'kiln-local-plugin');
+  assert.equal(pluginReceipt.engineVersion, pkg.version);
+  for (const [name, digest] of Object.entries(pluginReceipt.files))
+    assert.equal(
+      `sha256:${sha(await readFile(join(plugin, name)))}`,
+      digest,
+      `Plugin file ${name}`,
+    );
+  for (const catalog of ['.agents/plugins/marketplace.json', '.claude-plugin/marketplace.json']) {
+    const marketplace = JSON.parse(await readFile(join(runtime, catalog), 'utf8'));
+    assert.equal(marketplace.name, 'instruktlabs');
+    assert.equal(marketplace.plugins[0].name, portablePlugin.name);
+    const source = marketplace.plugins[0].source;
+    assert.equal(typeof source === 'string' ? source : source.path, './plugins/kiln-engine');
+  }
+  receipt.checks.push('local-plugin-bundle');
+  // Check the installed tree too: CI consumers receive a prepacked archive,
+  // so checking only this checkout's `npm pack` inventory would miss them.
+  const docs = await readdir(join(runtime, 'docs'), { withFileTypes: true });
+  assert(docs.every((entry) => entry.isFile() && entry.name.endsWith('.md')));
+  assert.deepEqual(
+    docs.map((entry) => `docs/${entry.name}`).sort(),
+    pkg.files.filter((entry) => entry.startsWith('docs/')).sort(),
+    'Installed documentation must match the explicit consumer allowlist',
+  );
+  for (const entry of docs) {
+    const document = join(runtime, 'docs', entry.name);
+    const body = await readFile(document, 'utf8');
+    for (const [, href] of body.matchAll(/\]\(([^)\s]+)\)/g)) {
+      if (/^(?:[a-z]+:|\/|#)/i.test(href)) continue;
+      const target = fileURLToPath(new URL(href, pathToFileURL(document)));
+      assert(
+        await stat(target).then(
+          () => true,
+          () => false,
+        ),
+        `Broken installed documentation link in ${entry.name}: ${href}`,
+      );
+    }
+  }
+  receipt.checks.push('installed-consumer-documents');
+  const coreExports = Object.keys(pkg.exports).filter(
+    (name) => !['./agent', './composer/agent'].includes(name),
+  );
+  await writeFile(
+    join(install, 'sdk-check.mjs'),
+    `import assert from 'node:assert/strict';
+const name = ${JSON.stringify(pkg.name)};
+const sdk = await import(name);
+for (const subpath of ${JSON.stringify(coreExports)}) {
+  await import(subpath === '.' ? name : name + '/' + subpath.slice(2));
+}
+assert.equal(typeof sdk.validateKilnCode, 'function');
+assert.equal(typeof sdk.createDiscovery, 'function');
+const arena = await import(name + '/arena');
+assert.equal(arena.fitBradleyTerry([{winner:'a',loser:'b'}]).items[0].id, 'a');
+assert.deepEqual(arena.pickNextPair(['a','b'], []), {a:'a',b:'b'});
+const result = await sdk.renderGLB('function build() { return new THREE.Mesh(boxGeo(1, 1, 1), gameMaterial(0x888888)); }');
+assert.equal(result.glb.subarray(0, 4).toString('utf8'), 'glTF');
+assert.equal(sdk.engineIdentity().installUrl, ${JSON.stringify(pathToFileURL(`${runtime}/`).href)});
+console.log(JSON.stringify({ imports: ${coreExports.length}, renderBytes: result.glb.length }));
+`,
+  );
+  receipt.sdk = JSON.parse(
+    await command([join(install, 'sdk-check.mjs')], install, {
+      KILN_RENDER: 'cpu',
+      KILN_EVALUATOR_MODE: 'subprocess',
+    }),
+  );
+  receipt.checks.push('plain-node-sdk-exports', 'sdk-subprocess-render');
+  // Qualify the compiled worker's native imports and wire protocol. This runs
+  // trusted fixture code without an OS sandbox; provider isolation is a separate gate.
+  await writeFile(
+    join(install, 'compiled-worker-check.mjs'),
+    `import assert from 'node:assert/strict';
+import { renderGLBViaProcessLaunch, sanitizedEvaluatorEnv } from ${JSON.stringify(pathToFileURL(join(runtime, 'lib/evaluator/subprocess.js')).href)};
+const result = await renderGLBViaProcessLaunch(
+  'function build() { return new THREE.Mesh(boxGeo(1, 1, 1), gameMaterial(0x888888)); }',
+  {}, {}, {
+    command: process.execPath,
+    args: ['--max-old-space-size=512', ${JSON.stringify(join(runtime, 'lib/evaluator/worker.js'))}],
+    env: sanitizedEvaluatorEnv(),
+  });
+assert.equal(result.glb.subarray(0, 4).toString('utf8'), 'glTF');
+console.log(JSON.stringify({ renderBytes: result.glb.length }));
+`,
+  );
+  receipt.compiledWorker = JSON.parse(
+    await command([join(install, 'compiled-worker-check.mjs')], install),
+  );
+  receipt.checks.push('compiled-evaluator-worker');
+  if (checkTypes) {
+    receipt.sdkTypes = await smokeSdkTypes(runtime);
+    receipt.checks.push('sdk-consumer-types-without-optional-peers');
+  }
   for (const required of [
     'dist/cli.mjs',
     'dist/mcp-server.mjs',
     'dist/mcp-engine.mjs',
     'dist/evaluator-worker.mjs',
+    'lib/evaluator/worker.js',
+    'lib/evaluator/probe-worker.js',
+    'lib/evaluator/transport-worker.mjs',
     'scripts/create-workspace.mjs',
     'plugin.json',
     '.claude-plugin/plugin.json',
@@ -421,12 +555,42 @@ try {
   receipt.checks.push('community-exporter-textured-subprocess');
   const server = join(runtime, 'dist/mcp-server.mjs'),
     store = join(workspace, '.kiln/programs');
+  const binSession = await connect([npm, 'exec', '--offline', '--', 'kiln-mcp'], install, store);
+  try {
+    const listed = await binSession.call('tools/list', {});
+    assert(listed.tools.some((tool) => tool.name === 'kiln_render'));
+    receipt.checks.push('npm-mcp-entry');
+  } finally {
+    await binSession.close();
+  }
   const session = await connect(server, root, store);
   let changed;
   try {
     const listed = await session.call('tools/list', {});
     assert(listed.tools.some((tool) => tool.name === 'kiln_source'));
     assert(listed.tools.some((tool) => tool.name === 'kiln_render'));
+    for (const [id, stability] of [
+      ['operation:boxGeo', 'stable'],
+      ['operation:implicitSurface', 'experimental'],
+      ['recipe:steerable-wheel-v1', 'experimental'],
+    ]) {
+      const result = await session.call('tools/call', {
+        name: 'kiln_discover',
+        arguments: { query: id, limit: 1 },
+      });
+      assert.notEqual(result.isError, true);
+      assert(
+        result.content.some(
+          (item) => item.type === 'text' && item.text.includes(`${id} [${stability}]`),
+        ),
+      );
+    }
+    const cliDiscovery = await command(
+      [cli, 'discover', '--query', 'recipe:steerable-wheel-v1', '--limit', '1'],
+      root,
+    );
+    assert.match(cliDiscovery, /recipe:steerable-wheel-v1 \[experimental\]/);
+    receipt.checks.push('discovery-stability-labels');
     const read = textResult(
       await session.call('tools/call', {
         name: 'kiln_source',
@@ -447,7 +611,7 @@ try {
     assert(result.content.some((item) => item.type === 'image' && item.data.length > 100));
     receipt.editResult = { programRef: changed.programRef, parentRef: changed.parentRef };
   } finally {
-    session.close();
+    await session.close();
   }
   const restarted = await connect(server, install, store);
   try {
@@ -459,7 +623,7 @@ try {
     );
     assert.match(after.code, /0xaa8844/);
   } finally {
-    restarted.close();
+    await restarted.close();
   }
   await command(
     [cli, 'source', changed.programRef, '--out', join(workspace, 'revised.kiln.js')],
