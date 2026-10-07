@@ -10,6 +10,8 @@ export interface NativeStorageRequest {
   headers?: Record<string, string>;
   limit: number;
   statuses?: readonly number[];
+  /** Synchronous validation of metadata from the fixed private service. */
+  onResponseHeaders?: (headers: Headers) => void;
 }
 export class StorageFailure extends Error {
   constructor(
@@ -23,25 +25,34 @@ export class StorageFailure extends Error {
 export class NativeHttpClient {
   private readonly timeoutMs: number;
   private readonly send: (request: Request) => Promise<Response>;
+  private readonly origin: string;
   constructor(
     private readonly options: NativeStorageOptions = {},
     private readonly label = 'Storage',
+    private readonly service: 'storage' | 'evaluator' | 'renderer' = 'storage',
   ) {
+    if (service !== 'storage' && service !== 'evaluator' && service !== 'renderer')
+      throw new Error('Invalid private service');
+    this.origin = `http://kiln-${service}.internal`;
     this.timeoutMs = options.timeoutMs ?? 15_000;
     if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 60_000)
       throw new Error('Invalid storage timeout');
     this.send = options.fetch ?? ((request) => fetch(request));
   }
   async bytes(path: string, request: NativeStorageRequest): Promise<Uint8Array> {
-    const { body, limit, headers, method = 'GET', statuses = [200] } = request;
-    const url = new URL(path, 'http://kiln-storage.internal');
+    const { body, limit, headers, method = 'GET', statuses = [200], onResponseHeaders } = request;
+    const url = new URL(path, this.origin);
     if (
-      url.href !== `http://kiln-storage.internal${path}` ||
+      url.href !== `${this.origin}${path}` ||
       url.search ||
       url.hash ||
-      !(path.startsWith('/internal/') || /^\/mcp\/artifacts\/[a-f0-9]{32}$/.test(path))
+      !(this.service === 'evaluator'
+        ? path === '/evaluate'
+        : this.service === 'renderer'
+          ? path === '/render'
+          : path.startsWith('/internal/') || /^\/mcp\/artifacts\/[a-f0-9]{32}$/.test(path))
     )
-      throw new Error('Invalid private storage path');
+      throw new Error('Invalid private service path');
     if (
       !Number.isSafeInteger(limit) ||
       limit < 0 ||
@@ -50,18 +61,37 @@ export class NativeHttpClient {
     )
       throw new Error('Invalid storage size limit');
     const outgoing = new Headers(headers);
+    const allowedHeaders =
+      this.service !== 'storage'
+        ? ['content-type', 'x-kiln-deadline-ms', 'x-kiln-max-response-bytes']
+        : ['content-type', 'x-artifact-name', 'x-artifact-sha256'];
     for (const name of outgoing.keys())
-      if (!['content-type', 'x-artifact-name', 'x-artifact-sha256'].includes(name))
-        throw new Error('Invalid private storage header');
+      if (!allowedHeaders.includes(name)) throw new Error('Invalid private service header');
     if (body !== undefined) outgoing.set('content-length', String(body.byteLength));
     const parent = this.options.signal?.();
     if (parent?.aborted) throw new StorageFailure(499, `${this.label} request cancelled`);
     const controller = new AbortController();
+    const deadlineAt = Date.now() + this.timeoutMs;
     const cancel = () => controller.abort();
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let responseBody: ReadableStream<Uint8Array> | null | undefined;
     let timedOut = false;
     let finished = false;
     let abortListener: () => void = () => {};
+    const expired = () => {
+      if (Date.now() >= deadlineAt) {
+        timedOut = true;
+        controller.abort();
+      }
+      return controller.signal.aborted;
+    };
+    const check = () => {
+      if (expired())
+        throw new StorageFailure(
+          timedOut ? 504 : 499,
+          timedOut ? `${this.label} request timed out` : `${this.label} request cancelled`,
+        );
+    };
     const aborted = new Promise<never>((_, reject) => {
       abortListener = () => {
         reject(
@@ -89,11 +119,13 @@ export class NativeHttpClient {
         signal: controller.signal,
       });
       const pending = this.send(request).then((response) => {
+        responseBody = response.body;
         // Even a non-cooperative injected transport cannot leave a late body open.
-        if (finished || controller.signal.aborted) void response.body?.cancel().catch(() => {});
+        if (finished || expired()) void response.body?.cancel().catch(() => {});
         return response;
       });
       const response = await Promise.race([pending, aborted]);
+      check();
       if (!statuses.includes(response.status)) {
         void response.body?.cancel().catch(() => {});
         throw new StorageFailure(
@@ -108,33 +140,37 @@ export class NativeHttpClient {
         void response.body?.cancel().catch(() => {});
         throw new StorageFailure(502, `Invalid ${this.label.toLowerCase()} response`);
       }
+      onResponseHeaders?.(new Headers(response.headers));
       if (!response.body) {
         if (declared !== null && Number(declared) !== 0)
           throw new StorageFailure(502, `Invalid ${this.label.toLowerCase()} response`);
         return new Uint8Array();
       }
       reader = response.body.getReader();
-      const chunks: Uint8Array[] = [];
+      let bytes = new Uint8Array(Math.min(limit, 64 * 1024));
       let length = 0;
       for (;;) {
+        // Continuously available chunks can starve timers with microtasks.
+        check();
         const { done, value } = await Promise.race([reader.read(), aborted]);
+        check();
         if (done) break;
-        length += value.byteLength;
-        if (length > limit) {
+        const nextLength = length + value.byteLength;
+        if (nextLength > limit) {
           void reader.cancel().catch(() => {});
           throw new StorageFailure(502, `${this.label} response exceeds its size limit`);
         }
-        chunks.push(value);
+        if (nextLength > bytes.byteLength) {
+          const grown = new Uint8Array(Math.min(limit, Math.max(nextLength, bytes.byteLength * 2)));
+          grown.set(bytes.subarray(0, length));
+          bytes = grown;
+        }
+        bytes.set(value, length);
+        length = nextLength;
       }
       if (declared !== null && Number(declared) !== length)
         throw new StorageFailure(502, `Invalid ${this.label.toLowerCase()} response`);
-      const bytes = new Uint8Array(length);
-      let offset = 0;
-      for (const chunk of chunks) {
-        bytes.set(chunk, offset);
-        offset += chunk.byteLength;
-      }
-      return bytes;
+      return bytes.byteLength === length ? bytes : bytes.slice(0, length);
     } catch (error) {
       if (error instanceof StorageFailure) throw error;
       if (controller.signal.aborted)
@@ -149,6 +185,9 @@ export class NativeHttpClient {
       clearTimeout(timer);
       parent?.removeEventListener('abort', cancel);
       controller.signal.removeEventListener('abort', abortListener);
+      // Cancellation can win after headers arrive but before a reader attaches.
+      // Also close a partially read stream on any validation/read failure.
+      void (reader ? reader.cancel() : responseBody?.cancel())?.catch(() => {});
       reader?.releaseLock();
     }
   }

@@ -5,6 +5,9 @@ inside `@instruktlabs/kiln` and introduces no cloud dependency into the engine.
 It is not deployed or ready for public traffic. Native provider qualification,
 native dispatch, deployed storage, operational quotas and launch checks remain open.
 
+The [deployment guide](DEPLOYMENT.md) prepares the six-service configuration,
+immutable bundles and migrations locally without creating resources or public routes.
+
 ## Local checks
 
 Use the repository's Node 22.23.3 and npm 12.2.0 maintainer toolchain:
@@ -56,10 +59,209 @@ validation, authorization-code exchange and refresh checks the current primary
 account state and authorization epoch. Missing/disabled/deleting accounts and old
 epochs fail closed; database outages return unavailable rather than permitting
 cached access. Account lifecycle mutations must increment the epoch atomically.
-Explicit identity linking, browser sessions, connection controls and completed
-asset deletion remain required before launch.
+Browser sessions, direct sign-in and explicit identity linking now have local
+qualification. Deployed account/connection controls and completed asset deletion
+remain required before launch.
 Only verified server-side provider adapters may call this contract. The JSON
 interface under `test/` exists solely for local tests and is not a public API.
+
+### Browser account access
+
+`/account` renders sign-in or the current account's linked provider names. Direct
+sign-in and MCP authorization share the verified Google/GitHub adapters and exact
+provider callbacks. Direct sign-in does not register a synthetic MCP client or
+issue MCP tokens. Its `kb1_` state selects a separate D1 transaction namespace;
+the state and an independent browser cookie must both match before a provider
+exchange. D1 atomically consumes the transaction, including cancellation. Stored
+state and cookie bindings are hashed with the service origin and their purpose.
+PKCE verifiers and nonces remain server-side for at most ten minutes. The table
+admits at most 4,096 pending transactions and opportunistically removes expired
+rows. This storage bound does not replace the required public rate/admission limits.
+
+Successful verified callbacks issue a new `__Host-kiln-session` cookie with Secure,
+HttpOnly, SameSite=Lax and Path=/, never Domain. D1 stores only its SHA-256 verifier,
+with a separate CSRF value, account ID and authorization epoch. Sessions expire
+after 30 minutes idle or 24 hours absolute, whichever comes first. Each successful
+read atomically renews only the idle deadline and checks the current primary account
+state/epoch. Fresh sign-in revokes that browser's previous session; at most eight
+sessions remain per account. Rotation at the cap preserves the other seven devices.
+
+Logout requires a same-origin POST, a bounded form and that session's CSRF value.
+It revokes only the browser session; it deliberately leaves MCP connections and
+other devices intact. Browser cookies cannot authorize `/mcp`, and MCP bearer
+tokens cannot authorize account pages. No account selection comes from a form or
+URL. Session issuance accepts only verified server-side identities. A recent
+callback is not proof of a fresh password/MFA challenge. The explicit linking and
+deletion flows below confirm provider control with separate purpose-bound state.
+
+Migrations `0003_browser_sessions.sql` and `0004_browser_logins.sql` add these
+tables. Workerd tests cover expiry, rotation, concurrent callbacks, cross-provider
+and cross-browser rejection, SQL rollback, storage bounds and logout/connection
+separation. The account page uses a nonce-restricted style block and a Google-
+provided button image embedded locally; see [asset provenance](assets/README.md).
+Local desktop/375px layout checks establish presentation only, not live provider
+authentication or final launch acceptance. Privacy pages, full account controls
+and the branded MCP consent experience remain open.
+
+### Connected-app controls
+
+Migrations `0005_connections.sql` and `0006_account_actions.sql` add independently
+revocable MCP connections and purpose-bound confirmation transactions. A connection
+becomes active through one atomic primary-D1 claim during authorization-code
+exchange. Every resource request and refresh checks its current account, epoch,
+client and connection state after the OAuth library's token validation. Stale KV
+records cannot replay an exchanged code or re-enable a revoked connection.
+Connections expire after 30 days; at most 32 pending/active connections are admitted
+per account. Expired pending connections are retired after ten minutes.
+
+`/account` lists connections and accepts a same-origin, CSRF-protected disconnect
+form. Confirmation requires the current browser session, an independent action
+cookie, one-use state, PKCE and a freshly verified identity already linked to that
+account. Google also verifies the OIDC nonce. The primary SQL revocation commits
+before optional OAuth KV cleanup; other connections remain usable. The browser
+session rotates after confirmation. This blocks subsequent requests; it does not
+cancel already admitted computation. Public rate/admission controls remain required.
+
+Both providers' `prompt=select_account` asks the user to choose an account; it
+does not prove a new password or MFA challenge. Sources:
+[GitHub OAuth](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps),
+[Google OIDC](https://developers.google.com/identity/openid-connect/openid-connect).
+Identity linking uses its separate purpose-bound flow below. This disconnect flow
+must not be repurposed to merge or delete accounts.
+
+Local workerd checks cover concurrent callbacks, cancellation, expiry, copied
+state, wrong identities, revoked sessions, forged forms, hostile client names,
+oversized requests and retained access by another connection. Layout checks use
+synthetic identities only. Live provider confirmation, cross-region denial and
+production migration/rollback remain unqualified.
+
+### Explicit sign-in method changes
+
+Migration `0008_identity_actions.sql` adds separate linking transactions, a unique
+provider-per-account constraint and bounded account security activity. Apply it
+before the new gateway. It leaves existing accounts and identity keys intact;
+preflight the uniqueness constraint against any existing database before migration.
+The earlier gateway can run with these additive tables, but rollback must preserve
+committed identity changes and authorization epochs, not restore an old database.
+
+`/account/identity` accepts only a bounded, same-origin, CSRF-protected form from a
+current browser session. Adding a method confirms an existing provider first,
+then authenticates the new provider using a new state, cookie, PKCE verifier and
+nonce. Each phase expires after five minutes and is atomically consumed before
+provider I/O. Both callbacks are tied to the original session and current account
+epoch. Account, session and confirmed-identity checks run again inside the final
+database transaction. An identity owned by another account is refused; email is
+never compared, and existing libraries cannot be merged.
+
+Removing a method confirms control of the other method that will remain. The last
+method cannot be removed, including concurrent requests from different browsers.
+Each successful change updates the identity, appends a security event, increments
+the account epoch and revokes all browser sessions atomically. Existing MCP access
+and refresh credentials fail their primary state checks even if provider KV still
+contains the old grants; those records expire under their existing TTL. Users sign
+in again and reconnect their apps. Already admitted jobs are not cancelled by this
+change. The permanent account ID and asset/usage namespace stay unchanged.
+
+The UI explains these effects before confirmation and shows the latest 20 security
+events. Events record provider, action and time, without tokens, email or IP address.
+Pending intents are capped at four per account and 4,096 globally. These limits do
+not replace public rate limits. Session deletion cascades to pending confirmations.
+The success page and activity list are **in-app notices only**, as selected by the
+owner for v1. Out-of-band security email and verified contact collection are deferred,
+not implemented or qualified. Provider confirmation can reuse an existing provider
+session; it is not evidence of a fresh password or MFA challenge. No assurance-level
+certification is claimed.
+
+Workerd fixtures exercise real gateway, provider validators and D1 transactions
+with mocked upstream providers: both link directions, stable account ownership,
+foreign-identity refusal, cancellation, expiry, replay, concurrent callbacks,
+concurrent unlink, database rollback, revocation during provider I/O, old access
+and refresh denial, CSRF/origin/bounds and hashed transaction storage. Live OAuth,
+provider UI and external notification delivery remain launch work. Sources checked
+6 October 2026:
+[OWASP federated linking](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html#secure-federated-account-linking),
+[NIST federation account management](https://pages.nist.gov/800-63-4/sp800-63c.html),
+[D1 transactions](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch).
+
+### Account deletion
+
+The account page requires explicit acknowledgement and confirmation through a
+linked Google/GitHub identity. The bounded same-origin POST starts a five-minute,
+one-use flow bound to the current browser session, account epoch and provider.
+Cancellation leaves the account unchanged; an unrelated identity cannot confirm
+deletion. The callback rechecks account/session ownership after provider I/O.
+It then atomically creates a durable D1 deletion job, sets the account to
+`deleting`, increments its epoch, revokes connections and removes browser sessions.
+No external cleanup begins before that transaction commits. Old access and refresh
+tokens are denied by primary account state, including during retries.
+
+The cleanup order is verified compute retirement, storage retirement, OAuth grant
+cleanup, then identity/account removal. `KilnCompute.retireTenant`
+durably denies new work and waits for cancellation of the selected account's
+coordinator and children. Unknown cleanup keeps its admission slot and recovery
+alarm. Other accounts continue; global usage counters retain already-admitted
+costs. An opaque account-derived deny record survives eviction and pause/resume.
+
+The tenant's private `/internal/account-deletion` accepts only an empty POST from
+the owning service binding. The native coordinator's storage allowlist rejects
+that administrative path. Retirement removes download tickets and saved revision
+metadata, denies all normal tenant operations and purges the exact R2 prefix in
+bounded batches. Durable markers retain unresolved uploads: an HTTP timeout or an
+empty bucket listing does not establish that a write cannot arrive later. A
+settled put or matching committed immutable R2 bytes permits cleanup. A crash
+with neither kind of evidence remains pending with daily recovery; it must be
+reported as incomplete and escalated, never silently declared erased. Earlier
+ordinary maintenance cannot discard those markers or recreate state after purge.
+
+`purged` requires zero unresolved writes, zero artifact rows and a final empty R2
+listing. It removes the storage alarm but preserves the small permanent deny
+record. Already-delivered files cannot be recalled. These checks concern active
+application storage; provider backups/retention need their separate launch policy.
+Use the deletion controller only after every compute/storage instance runs this
+contract and older uploads have drained. Rolling back to code that ignores these
+records after accepting a deletion would be unsafe; pause service instead.
+
+`D1AccountDeletions` leases each phase for 60 seconds. Recovery admits at most
+four phases within a 25-second work budget; external steps have a maximum
+20-second deadline. Incomplete cleanup retries after a minute; errors back off
+to at most an hour. Expired leases can be recovered; replaced leases cannot
+advance another worker's job. Grant cleanup uses the pinned OAuth library's
+public helpers, up to four grants per step, and clears known D1 grant IDs only
+after revocation acknowledges them. Identity/account removal and completion are
+one guarded transaction. Errors never record provider responses or exception text.
+
+The private status page requires a random HttpOnly receipt cookie; D1 stores only
+its purpose-bound hash. A support reference cannot read the receipt. Completed
+receipts lose their account mapping and expire after seven days; the browser
+cookie has a 30-day upper bound to cover pending cleanup. A returning user gets
+a new empty account, never the retired tenant. Completion means removal from the
+active service. Already-downloaded copies cannot be recalled. Eventually
+consistent OAuth KV records or concurrent, already-authorized token writes may
+outlive inventory cleanup but cannot restore access. Access-token records expire
+after 15 minutes and refresh-token records after 30 days. Provider backups need
+separate retention disclosure and a restore procedure that preserves revocation.
+
+Apply additive migration `0009_account_deletion.sql` after the earlier account
+migrations and deploy retirement-aware compute/storage before the gateway.
+The gateway provides a scheduled recovery handler and a bounded immediate attempt
+after confirmation. Production must configure and verify a recurring Cron Trigger
+(initially every minute), monitor old pending jobs and escalate unresolved writes.
+No trigger or public deployment has been created by these source changes.
+
+Local workerd tests exercise real gateway/D1/OAuth-helper/tenant/R2 cleanup with
+mocked upstream identity exchange and a no-VM compute fixture, including old-token
+denial, another account's continued access and fresh sign-in after deletion.
+Fault tests cover rollback, stale proofs, callbacks, lease takeover, actual
+deadline/late completion, late writes, unknown acknowledgements, failed R2
+deletion, eviction/retry, overlapping maintenance, prefix isolation and bounded
+orphan batches. Live provider deletion, scheduled recovery, operations escalation
+and public retention disclosures remain launch gates. References:
+[D1 transactions](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch),
+[Scheduled handlers](https://developers.cloudflare.com/workers/runtime-apis/handlers/scheduled/),
+[KV consistency](https://developers.cloudflare.com/kv/concepts/how-kv-works/),
+[R2 consistency](https://developers.cloudflare.com/r2/reference/consistency/),
+[R2 durability](https://developers.cloudflare.com/r2/reference/durability/),
+[Durable Object alarms](https://developers.cloudflare.com/durable-objects/api/alarms/).
 
 ## Native HTTP adapter
 
@@ -115,12 +317,13 @@ responses are bounded and redirects/foreign endpoint origins are refused. Upstre
 access/ID tokens are discarded at the adapter boundary; only verified issuer/subject
 pairs enter the account directory. Login names and email never select a tenant.
 
-The gateway needs `ACCOUNTS` bound to D1 with both migrations applied, plus
+The gateway needs `ACCOUNTS` bound to D1 with all numbered migrations applied, plus
 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID` and
 `GITHUB_CLIENT_SECRET`. Register exact `/oauth/google/callback` and
 `/oauth/github/callback` URLs under the configured `PUBLIC_ORIGIN`, using separate
-test and production provider apps. No live database, provider app or secret has
-been provisioned by this implementation. Existing prototype provider-derived grants
+test and production provider apps. Google OAuth branding now exists in testing
+mode; no live database or provider client secret has been provisioned by this
+implementation. Existing prototype provider-derived grants
 are deliberately invalid; no deployed user migration is being claimed. See the
 [authentication architecture review](../docs/plans/2026-10-05-v1-publication-plan.md#authentication-architecture-review-6-october)
 for the selected provider-independent boundary, library comparison, KV consistency
@@ -299,7 +502,269 @@ isolation. `/mcp` remains unavailable until that host is configured and qualifie
 The client uses standard Fetch types in a separate TypeScript check; Worker code
 continues to use the Cloudflare runtime types.
 
+## Private evaluator client
+
+`createNativeEvaluatorPort` speaks the published SDK's versioned evaluator
+protocol over `http://kiln-evaluator.internal/evaluate`. It accepts no URL, tenant
+selector or credentials. The SDK owns request construction, response identity,
+GLB and QA validation. This client applies the private host's ceilings: 60 seconds,
+4 MiB request/GLB and 8 MiB response. Invalid controls fail before dispatch;
+larger valid caller allowances are clamped to these limits.
+
+Storage, evaluation and rendering share bounded stream/cancellation handling, but have
+separate fixed origins, paths and allowed headers. Network diagnostics, abort
+reasons and upstream bodies do not become public errors. A failure never selects
+an in-process fallback. Tests exercise the real MCP render/save/reconnect flow
+through this protocol using a fixed trusted evaluator fixture; that fixture is
+not cloud isolation evidence.
+
+The provider controller binds this intercepted hostname to a fresh job and retains
+global admission until verified VM destruction. The complete deployed flow still
+needs qualification. A returned HTTP timeout does not prove cleanup. The
+existing default native loader still fails closed on missing nested isolation;
+no production configuration or public endpoint is enabled by this client.
+
+`evaluation-worker` supplies a private `KilnEvaluationJob` Durable Object and
+returns 404 from its default HTTP handler. Its private request handler admits
+only the fixed evaluation route, bounded JSON and numeric execution limits;
+request reading consumes the same deadline. It delegates execution and its alarm
+to `ContainerEvaluationJob`, awaiting its verified cleanup before returning output.
+No source, identity, executable or image selector is accepted through headers.
+The native client and this handler are exercised together with the actual SDK
+codec. The externally tenant-bound dispatcher and global admission controller are
+implemented below; end-to-end provider qualification and deployment remain open.
+
+The private evaluation DO also exposes `cancel()` to its parent dispatcher. One
+controller lives for the DO instance, so cancellation reaches an evaluation still
+waiting to claim its durable record. A cancelled child that has not arrived gets
+a permanent terminal record; later delivery cannot start it after object eviction.
+For active work, the cancellation flag and immediate recovery alarm are persisted,
+then the caller waits for confirmed whole-VM cleanup. Failed cleanup keeps the
+record unfinished and schedules recovery. Repeated cancellation and its alarm
+share the pending cleanup. The parent must retain admission whenever cancellation
+fails or its acknowledgement is lost. These cases have local adversarial tests;
+the new parent-cancellation RPC still needs provider qualification.
+
+## Private software rendering
+
+`createNativeRenderPort` sends only a self-contained GLB and validated view options
+to `http://kiln-renderer.internal/render`. It accepts no URL, source program,
+tenant, image or credential selector. The versioned response must match the exact
+request ID, GLB digest, view count, camera values, dimensions and presentation rig.
+Only the fixed software Vulkan backend is admitted. Engine `captureViewsViaPort`
+continues to own PNG validation, its deadline and truthful CPU degradation; this
+transport never implements a second fallback policy.
+
+The private limits are 4 MiB GLB, 6 MiB request, 20 MiB wire response, 12 MiB PNG
+bytes, 1,024 pixels per dimension and 3,145,728 pixels across requested images.
+The MCP host admits 8,388,608 pixels including grid composition and a 12 MiB
+capture output. The render deadline is 30 seconds, bounded further by the parent
+deadline. This is a qualification candidate, not a measured production latency
+promise; the earlier six-view provider fixture took 13,286 ms including cleanup.
+
+`render-worker` exposes only the private `KilnRenderJob` DO. It shares evaluation's
+HTTP limits, one-use durable lifecycle, cancellation fence, alarm recovery and
+whole-VM destruction through fixed host profiles. `RENDERS` must bind this class;
+its immutable named image is `renderer`. `EVALUATIONS` remains a separate binding
+with image `kiln`. No request can select the profile or executable. The renderer
+runs `/opt/kiln/render.mjs` as `1000:1000` with networking disabled and no secrets.
+Its input and self-contained GLB are checked before graphics initialization. The
+entry explicitly selects the pinned Mesa ICD because native exec does not inherit
+the image's environment.
+
+Local Docker qualification exercises that actual entry and installed port, producing
+eight independently decoded PNGs across three backdrops, a beauty image and an
+exact camera. Real workerd loopback/RPC tests verify host-owned routing and reject
+forged identity fields. These do not qualify the integrated Cloudflare path. See
+[the image procedure](container/README.md#one-shot-software-render-entry).
+
+## Private request dispatcher
+
+`request-worker` adds one `KilnNativeRequest` Durable Object per admitted MCP
+request. Its private `run` RPC accepts the verified tenant hash and an absolute
+deadline of at most 120 seconds. The tenant and child-job inventory remain in
+Durable Object storage, outside the coordinator VM. That VM starts offline from
+the pinned `coordinator` image with only the public origin in its environment.
+Readiness and image readback precede sending the bounded MCP request.
+
+Three fixed HTTP interceptors use host-configured loopback binding props to select
+the request object. Storage RPCs select the tenant from its durable record; URLs,
+headers and body fields cannot choose it. The storage route allowlist excludes
+administrative operations. This uses the documented Container interception API
+and Worker loopback props. Local workerd checks exercise the actual RPCs, tenant
+storage and object eviction, including cross-account source denial. Deliberate
+HTTP errors are converted to responses before RPC serialization, which does not
+preserve their custom JavaScript prototype.
+
+Each request admits at most one active child evaluation or render and eight
+children in total. Every child ID and kind is persisted before dispatch and receives at most the
+remaining parent deadline. A child's cancellation acknowledgement is required
+before another child can start. Completion or cancellation first closes the
+durable request to new work, then confirms destruction of the coordinator and
+all registered children, routing cancellation by their persisted kind. Unknown cleanup retains the record and a recovery alarm;
+late delivery is refused through the child's durable cancellation fence. Parent
+responses are bounded to 32 MiB and withheld until cleanup completes.
+
+The default Worker route remains 404. The gateway uses the private admission
+binding described below and returns 503 for native calls when it is absent. No production
+configuration, public route or new Cloudflare job is enabled by these modules.
+Provider qualification must test the coordinator/interceptor/child flow together;
+local state-machine and workerd tests do not establish that live boundary.
+
+Sources: [Container API](https://developers.cloudflare.com/containers/api/durable-object-container/),
+[loopback binding props](https://developers.cloudflare.com/workers/runtime-apis/context/#specifying-ctxprops-when-using-ctxexports),
+[RPC Request and Response transport](https://developers.cloudflare.com/workers/runtime-apis/rpc/#readablestream-writablestream-request-and-response).
+
+## Shared compute admission
+
+`admission-worker` owns one global `KilnAdmission` SQLite Durable Object. The
+gateway receives only a named `KilnCompute` service binding as `NATIVE_COMPUTE`;
+that entrypoint always selects `global-v1`. It cannot accept a caller-selected
+admission object or expose operator controls. Artifact downloads continue through
+tenant storage without starting compute. The authenticated edge path below serves
+metadata and helper discovery without a coordinator or compute reservation.
+
+An admitted request reserves one coordinator and at most one active child VM.
+One request per account and the configured global concurrency limit are enforced
+atomically with per-account minute/day and global day/month attempt counters.
+Counters use UTC calendar windows. Failed admitted work consumes its attempt;
+rejected work does not. There is no queue of unbounded pending requests.
+429 responses include `Retry-After`. Required settings have no implicit defaults:
+
+| Setting | Meaning |
+| --- | --- |
+| `COMPUTE_MAX_CONCURRENT` | Concurrent request trees; implementation ceiling 16 |
+| `COMPUTE_TENANT_PER_MINUTE` | Admitted requests per account per UTC minute |
+| `COMPUTE_TENANT_PER_DAY` | Admitted requests per account per UTC day |
+| `COMPUTE_GLOBAL_PER_DAY` | All admitted requests per UTC day |
+| `COMPUTE_GLOBAL_PER_MONTH` | All admitted requests per UTC month |
+| `COMPUTE_DEADLINE_MS` | Absolute request lifetime, at most 120,000 ms |
+
+These are configuration controls, not adopted launch quotas or an invoice cap.
+Provider measurements must include both VM types, cold starts, retries, and
+non-compute services. The global ceiling is a validation bound, not demonstrated
+capacity. Launch values and total capacity still require measurement.
+
+The reservation and recovery alarm commit together before the parent RPC. A
+deadline or disconnect triggers out-of-band parent cancellation. Admission is
+released only after the parent confirms whole-tree cleanup, including children
+and its durable fence against late requests. Unknown cleanup suppresses output,
+retains capacity, and schedules another recovery attempt. Eviction and elapsed
+time never free a slot by themselves. Expired usage counters are cleaned in
+bounded batches. No OAuth credentials or source content enter admission storage.
+
+The separate private `KilnComputeControl` binding exposes pause/resume and
+aggregate status. Bind it only to an authenticated operator service. Pause is
+durable, rejects new compute and attempts cancellation of every active request;
+unconfirmed cleanup remains visible in `pendingCleanup` and retains its slot.
+Resuming does not bypass those reservations or reset usage counters.
+
+Local workerd tests cover the actual SQLite/RPC boundary, concurrent admission,
+quota rollover, operator separation, eviction/recovery, stalled calls and a
+response/cancellation race. The race test reproduced a discarded response body
+left open and now verifies its closure. No new cloud qualification is implied.
+Implementation follows the current [SQLite transaction contract](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/#transaction)
+and [alarm contract](https://developers.cloudflare.com/durable-objects/api/alarms/).
+Production configuration and the final deployment remain open. A bounded private
+integration at `c755434` passed the render/save/reopen/export lifecycle, tenant
+denial and quota rejection; see the
+[qualification receipt](../docs/reviews/2026-10-06-hosted-integration-receipt.json).
+That evidence does not qualify later changes or a public service.
+
+For a reviewed private integrated probe, `scripts/build-integrated-probe.mjs`
+emits both Cloudflare Build Output and `wrangler.json`, pointing to the same
+compiled module. Use the generated Wrangler configuration with `--no-bundle`;
+a `--dry-run` validates locally before any approved deployment. The tested
+Wrangler version is `4.147.0`. `cf 1.0.0-beta.12` converts same-Worker Durable
+Object bindings into external `script_name` references and rejects the Container
+bindings. The Wrangler output uses local bindings while preserving exports,
+images, quotas and disabled public routing. The script only builds local files;
+it does not provision or deploy anything, and rebuilding creates a new candidate
+that must be qualified separately.
+
+## Authenticated edge discovery
+
+After the same OAuth scope, account and connection checks used by native calls,
+the gateway serves initialization, protocol discovery, tool/resource lists and
+static `kiln_discover` queries directly in the Worker. Ping, notifications, malformed
+JSON and unknown tool names also stay on that path. No storage or native service is
+available to its handler. Source operations, resource reads and live capabilities
+still go through shared admission. Routing inspects the bounded JSON body; a
+forged `mcp-method` header cannot turn metadata into native execution. Both paths
+use the maintained MCP handler, with stateless legacy compatibility. HTTP responses
+remain `no-store`; protocol cache hints apply only to fixed public definitions.
+
+`node hosting/scripts/edge-manifest.mjs --write` captures metadata from the actual
+engine server with the hosted storage surface. Its sentinels throw if any host
+service is invoked. The build checks the committed snapshot; it never silently
+updates it. The actual native HTTP fixture independently checks every tool schema,
+resource, template and initialization field against that snapshot. Helper results
+and validation diagnostics are compared with the engine host. The Worker imports
+only the pure discovery algorithm/schema and a generated catalog, not the Node
+engine, renderer or evaluator. The `workerd` build condition selects the MCP SDK's
+Worker-compatible schema validator without runtime code generation.
+
+The independent installed-image workflow uses `npm run build -- --native-only`.
+That path builds only the private Node adapters, without loading checkout engine
+bundles or generated edge metadata. An isolated-checkout test verifies it with no
+`dist/` or `lib/`; the normal build still requires metadata parity. This preserves
+the image workflow's qualification against the published npm archive.
+
+Real workerd tests cover modern discovery, legacy initialization, malformed
+messages, forged routing headers, missing native bindings and primary-database
+revocation despite retained OAuth KV records. No authentication or compute quota
+is bypassed for operations that require native execution. Provider startup/cost
+measurements and final hosted-specific instructions remain launch checks; the
+current instructions deliberately match the published engine verbatim.
+
+Sources: [MCP discovery](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/discover.mdx),
+[Cloudflare stateless MCP guidance](https://developers.cloudflare.com/agents/model-context-protocol/guides/remote-mcp-server/).
+
+## Private Node host
+
+`native-host` adapts the MCP Fetch handler through the maintained
+`@modelcontextprotocol/node` adapter. It listens only inside the coordinator VM
+on port 3000, requires the fixed `kiln-native.internal` Host and exposes a minimal
+`/_ready` route. Header/body bounds, an upload deadline and client-disconnect
+propagation precede the MCP handler's own execution and response limits. A chunked
+body flood may close the socket before the adapter can deliver its 413 response;
+either outcome must occur before MCP dispatch.
+
+`container/serve.mjs` requires an exact HTTPS public origin and selects the explicit
+remote evaluator profile. Missing private storage or evaluation services fail
+closed; they never enable in-process source evaluation. The default local loader
+still retains its separate isolation requirements. Neither profile is an automatic
+fallback for the other.
+
+Build and qualify the minimal image through
+[the container instructions](container/README.md#private-mcp-coordinator-image).
+Local Docker evidence establishes installed MCP startup, protocol compatibility
+and request rejection. It does not establish Cloudflare routing or tenant
+isolation. The outside dispatcher must bind the storage/evaluation interceptors,
+retain admission through all child-job cleanup and destroy the coordinator VM.
+
 ## Native saved assets
+
+New saves through the Container profile record
+`build.engine: cloudflare-container:sha256:<image digest>`. The outside controller
+inspects the running evaluator image and only releases its digest with the exact
+output after whole-VM cleanup succeeds. The coordinator requires this private
+response header and the SDK's validated evaluator response. A request-local,
+bounded proof map binds the digest to exact source and GLB hashes; saving different
+bytes or missing proof fails before uploading assets. The evaluator's stdout,
+authored source and caller request headers cannot select this identity.
+
+The digest identifies the immutable evaluator image, including its installed
+engine, dependencies and Node runtime. It is descriptive build provenance, not a
+portable signature or a guarantee that imported metadata is trustworthy. Imports
+preserve their original provenance without attaching a fresh-host claim. Existing
+historical `source-development:unverified` records are not rewritten.
+
+Deploy the updated private evaluation controller before a coordinator that
+requires the identity header. Older coordinators ignore the additional response
+header; a new coordinator fails closed against an older controller. Qualify both
+exact artifacts together before production or rollback. Local tests cover this
+contract; the previous `c755434` provider trial predates it.
 
 `NativeAssetLibrary` implements the engine's existing collection, save, read, list,
 import and export contract. Its `project` collection is workspace storage, not
@@ -333,18 +798,132 @@ files. The Worker checks saved pins atomically, so a lost commit acknowledgement
 cannot cause cleanup to delete the committed revision. An unacknowledged upload,
 a process crash or failed cleanup can leave unsaved bytes charged until the normal
 seven-day expiry/recovery path removes them. `deleteRevision` is a host UI/account
-operation; it preserves copies in other collections. Browser/account deletion UI
-and its deployed lifecycle remain open.
+operation; it preserves copies in other collections. Whole-account deletion is
+implemented above; its deployed lifecycle remains unqualified.
 
 Embedded material records are retained and verified using the SDK's canonical
-dependency semantics. An injected MaterialLibrary receives the closure on import;
-the separate durable hosted MaterialLibrary is still unimplemented. A textured
-fixture rebuilds the exported/imported GLB byte-for-byte without its original
-library. This does not qualify software rendering or native isolation on Cloudflare.
+dependency semantics. An injected MaterialLibrary receives the closure on import.
+A textured fixture rebuilds the exported/imported GLB byte-for-byte without its
+original library. This does not qualify software rendering or native isolation on
+Cloudflare.
 
 Source restoration, MCP source reads, reviewed saves and CLI rebuild observations
 preserve a leading UTF-8 BOM. Otherwise restoring an asset could change the exact
 source bytes and its program reference; focused engine tests cover those paths.
+
+## Durable material adapter
+
+`NativeMaterialLibrary` implements the published SDK's immutable material import,
+list and read contract over private tenant storage. The Worker owns the fixed
+`materials/<materialId>/<revisionHash>` index and pins the exact manifest and PNG
+inventory under the existing artifact quotas. The native SDK verifies identity,
+PNG bytes, dimensions and procedural recipe/output hashes. Provenance URLs remain
+metadata and are never fetched.
+
+Imports validate and snapshot the complete batch before any write. The host limits
+each batch to 100 distinct revisions, 64 MiB including manifests and 16 million
+decoded pixels (16 * 1024 * 1024); the SDK's per-record limits also apply. Commits
+are atomic per revision. A later failure can leave earlier revisions saved; retry
+with the same identities. Concurrent identical imports are idempotent and discard
+losing staging files. A lost commit acknowledgement cannot delete pinned bytes.
+Unacknowledged uploads or failed cleanup remain quota-counted until normal expiry.
+
+Lists page 32 records at a time and verify manifest identities without decoding
+all PNGs. Exact reads verify the complete material record. Saved records survive
+the seven-day unsaved expiry. Local tests cover fresh hosts and Durable Object
+eviction, account separation, concurrent imports, corruption, quota exhaustion,
+multi-page listing, caller mutation and partial failures.
+
+The native MCP host injects this library into the engine and asset imports. Its
+fifteen tools include the registry-owned `kiln_material`; edge metadata is generated
+from that same configured registry. A standalone workspace binding resolves each
+call's explicit `materialDependencies` before evaluation. Nested operations inherit
+pins unless `projectId: null` resets the binding; overlapping operations use separate
+async contexts. Revisions and hashes must agree, and the host does not infer a
+project from the `project` collection. Hosted project/review stores are not supplied
+or advertised; explicit project selection reports that limitation.
+
+Each invocation resolves at most sixteen pinned materials within the SDK's payload
+byte/pixel budgets. The existing private evaluator transport additionally limits
+the serialized evaluation request, including source and embedded material bytes,
+to 4 MiB. Large dependency closures can therefore exceed the hosted transport limit
+even when individual saved materials are valid. They fail closed; no dependencies
+are silently dropped or replaced. Private request dispatch permits only the exact
+material index routes and continues to bind the tenant outside the coordinator VM.
+
+The MCP fixture creates, lists and reads a material, renders with explicit pins,
+saves and exports an asset across fresh hosts, and rejects another account before
+evaluation. After deletion of the live material entry, copying the saved asset to
+another collection reinstalls its embedded material closure, preserves GLB bytes
+and supports a fresh render. Installed-image checks also verify the material tool,
+binding schema and preset discovery against the exact public package. These are
+local qualification; deployed Cloudflare material workflows remain unverified.
+
+## Private browser downloads
+
+The native host supplies the published engine's `assetDownloadUrls` hook. Saved
+revision summaries return `/downloads/<ticket>/<filename>` links for their exact
+GLB, source, manifest, preview and material closure when present. `kiln_assets`
+with `action: 'get'` can issue fresh links. No public tool schema is changed.
+
+Links require a current browser session for the owning Kiln account. The gateway
+derives the same private tenant as MCP from the primary-backed account identity;
+the URL never selects a tenant or R2 object. An anonymous visitor sees the branded
+Google/GitHub sign-in form. Migration `0007_browser_login_return.sql` stores a
+strictly validated relative download path in the one-use browser transaction.
+Callbacks use that stored destination, never a callback query parameter. Apply
+all numbered migrations before deploying the gateway. Rollback to the preceding
+gateway can leave the additive column in place.
+
+Each random ticket lasts ten minutes, is stored only as a hash, and permits at
+most 32 transfer attempts across its files, including HEAD and failed reads.
+There are at most 128 unexpired tickets per tenant; issuance and redemption are
+atomic. This fixed metadata ceiling is separate from the artifact-byte quota.
+Expired rows are reclaimed on issuance, maintenance and tenant alarms. Links do
+not extend artifact retention, and deleting the selected revision invalidates
+its links even if another revision pins the same bytes. Ticket limits return 429;
+they do not delete saved work. Browser requests do not start a compute VM.
+
+The gateway rechecks the browser session after storage awaits, and storage
+rechecks ticket expiry and the saved revision before returning bytes. Responses
+use attachment disposition, no-store, no-referrer and nosniff. Foreign Origins
+and cross-origin embedding are denied while ordinary top-level link navigation
+is allowed. Browser credentials never enter the tenant Worker or native host.
+
+Local tests exercise the actual MCP save/reopen output, browser gateway, D1
+sessions, SQLite tenant index and R2 downloads for two accounts. Separate mocked
+provider exchanges verify both sign-in continuations, replay denial and hostile
+redirect rejection. This proves local integration, not live provider sign-in or
+Cloudflare delivery. The coordinator image must be rebuilt for this host change;
+the separately prepared `c755434` trial retains its original bundle and images.
+
+The redirect and request-context boundaries follow the checked
+[OAuth security BCP](https://www.rfc-editor.org/rfc/rfc9700.html#section-4.11)
+and [Fetch Metadata guidance](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Fetch_metadata).
+
+## Operational monitoring
+
+Operational monitoring is described in [OPERATIONS.md](OPERATIONS.md). The gateway
+emits explicit response counters/timing and scheduled deletion/compute health;
+raw request data and user identities are excluded. Preparation includes alert
+candidates, but no deployed ingestion or notification delivery is qualified yet.
+
+## Request abuse protection
+
+Both edge and account rate-limit bindings are required on the gateway. Before
+OAuth, D1 or body processing, requests share bounded route-class counters. After
+authentication, MCP calls and browser downloads share a hash of the permanent
+Kiln account and origin, independent of client, token and network address. Counter
+keys never contain bearer tokens, cookies, IP addresses, source or download URLs.
+Exhaustion returns a private 429 response with `Retry-After: 60`. A missing,
+malformed, failing or stalled binding fails closed with 503.
+
+These bindings provide approximate, per-Cloudflare-location abuse protection.
+They do not replace durable compute admission or storage quotas, and cannot cap
+the hosting bill. Coarse route limits also affect legitimate users sharing a
+location when exhausted. The deployment manifest makes both namespaces and
+thresholds explicit; qualification and public thresholds remain to be reviewed
+and tested on the provider. No rate-limit configuration has been deployed.
 
 Before launch, complete native isolation on the actual Cloudflare provider,
 tenant engine/storage integration, two-user asset/download denial tests, retention,
@@ -355,3 +934,27 @@ Sources checked 6 October 2026:
 [Cloudflare OAuth library](https://github.com/cloudflare/workers-oauth-provider),
 [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization),
 [GitHub OAuth flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps).
+
+## Public plugin preparation
+
+`plugin/` contains the source for the hosted OpenAI submission candidate. It is
+separate from `plugins/kiln-engine`, the published local setup plugin. From the
+repository root, using the pinned maintainer Node, package a fresh output directory:
+
+```sh
+node hosting/scripts/package-public-plugin.mjs .cache/public-plugin-draft
+```
+
+The output contains a complete `plugin/` folder, `kiln-engine-draft.zip` and a
+receipt with source/file/archive hashes. Shared authoring references and the
+existing icon are copied during packaging, so do not upload the source folder
+directly. The packager refuses an existing output directory and includes only its
+explicit file list. It never contacts a provider or publishes anything.
+
+The draft has one remote MCP connection, a hosted workflow skill, listing metadata
+and five positive/three negative review cases. Its receipt always says
+`submissionReady: false`: offline packaging cannot establish live OAuth, endpoint
+availability, review-account access, demo evidence or portal acceptance. Keep
+reviewer credentials outside the repository and ZIP. See the
+[directory preflight](../docs/reviews/2026-10-07-directory-preflight.md) for the
+remaining qualification and submission steps.

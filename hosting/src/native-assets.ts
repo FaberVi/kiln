@@ -16,6 +16,7 @@ import { createMaterialLibraryPayload } from '@instruktlabs/kiln/material-librar
 import type { MaterialLibrary, MaterialRecordV1 } from '../../src/material-library';
 import { programReference } from '../../src/program-store';
 import { NativeHttpClient, StorageFailure, type NativeStorageOptions } from './native-http';
+import { DOWNLOAD_FILES, DOWNLOAD_TOKEN } from './download-path';
 
 type Group = {
   id: string;
@@ -64,7 +65,11 @@ async function hash(bytes: Uint8Array): Promise<string> {
 export class NativeAssetLibrary implements AssetLibrary {
   private readonly http: NativeHttpClient;
   constructor(
-    private readonly options: NativeStorageOptions & { materials?: MaterialLibrary } = {},
+    private readonly options: NativeStorageOptions & {
+      materials?: MaterialLibrary;
+      /** Host-only proof for newly evaluated saves; imports retain original provenance. */
+      executionIdentity?: (draft: Pick<AssetDraft, 'code' | 'glb'>) => string;
+    } = {},
   ) {
     this.http = new NativeHttpClient(
       { ...options, timeoutMs: options.timeoutMs ?? 60_000 },
@@ -360,11 +365,26 @@ export class NativeAssetLibrary implements AssetLibrary {
   }
   async save(target: string, draft: AssetDraft): Promise<AssetManifest> {
     collection(target);
+    const code = draft.code,
+      glb = Uint8Array.from(draft.glb);
+    const build = draft.build
+      ? { ...draft.build, rebuild: draft.build.rebuild ?? ('engine-required' as const) }
+      : undefined;
+    if (this.options.executionIdentity) {
+      if (!build) throw new Error('Saved asset has no matching verified evaluation');
+      const engine = this.options.executionIdentity({ code, glb });
+      if (
+        typeof engine !== 'string' ||
+        !/^cloudflare-container:sha256:[a-f0-9]{64}(?![\s\S])/.test(engine)
+      )
+        throw new Error('Saved asset has no matching verified evaluation');
+      build.engine = engine;
+    }
     const assetId = identity(draft.assetId ?? `a_${crypto.randomUUID().replaceAll('-', '')}`);
     if (draft.parentRevision) await this.read(target, assetId, draft.parentRevision);
-    if (draft.code !== undefined) await programReference(draft.code);
-    const files: Record<string, Uint8Array> = { 'asset.glb': Uint8Array.from(draft.glb) };
-    if (draft.code !== undefined) files['source.kiln.js'] = new TextEncoder().encode(draft.code);
+    if (code !== undefined) await programReference(code);
+    const files: Record<string, Uint8Array> = { 'asset.glb': glb };
+    if (code !== undefined) files['source.kiln.js'] = new TextEncoder().encode(code);
     if (draft.preview) files['preview.png'] = Uint8Array.from(draft.preview);
     const inventory: AssetManifest['files'] = {};
     for (const [name, bytes] of Object.entries(files))
@@ -380,11 +400,9 @@ export class NativeAssetLibrary implements AssetLibrary {
       description: draft.description,
       brief: draft.brief,
       attribution: draft.attribution,
-      editable: draft.code !== undefined,
+      editable: code !== undefined,
       files: inventory,
-      build: draft.build
-        ? { ...draft.build, rebuild: draft.build.rebuild ?? 'engine-required' }
-        : undefined,
+      build,
       preview: draft.previewInfo,
     });
     const [record] = await this.prepare([{ manifest, files }]);
@@ -393,6 +411,39 @@ export class NativeAssetLibrary implements AssetLibrary {
   }
   async exportBundle(input: AssetRecord[]): Promise<Uint8Array> {
     return encodeAssetBundle(await this.prepare(input));
+  }
+  /** Browser delivery uses the current Kiln account; links never embed a tenant or bearer credential. */
+  async downloadUrls(
+    publicOrigin: string,
+    target: string,
+    assetId: string,
+    revisionId: string,
+  ): Promise<Record<string, string>> {
+    const origin = new URL(publicOrigin);
+    if (origin.protocol !== 'https:' || origin.origin !== publicOrigin)
+      throw new Error('Invalid public origin');
+    const raw = await this.json('/internal/downloads', {
+      collection: collection(target),
+      assetId: identity(assetId),
+      revisionId: identity(revisionId),
+    });
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw failure();
+    const value = raw as { ticket: string; expiresAt: number; files: string[] };
+    if (
+      typeof value.ticket !== 'string' ||
+      !DOWNLOAD_TOKEN.test(value.ticket) ||
+      !Number.isSafeInteger(value.expiresAt) ||
+      value.expiresAt <= Date.now() ||
+      !Array.isArray(value.files) ||
+      !value.files.length ||
+      value.files.length > DOWNLOAD_FILES.size ||
+      new Set(value.files).size !== value.files.length ||
+      value.files.some((name) => typeof name !== 'string' || !DOWNLOAD_FILES.has(name))
+    )
+      throw failure();
+    return Object.fromEntries(
+      value.files.map((name) => [name, `${publicOrigin}/downloads/${value.ticket}/${name}`]),
+    );
   }
   /** Host UI/account operation; the engine's MCP registry defines no extra delete tool. */
   async deleteRevision(target: string, assetId: string, revisionId: string): Promise<void> {

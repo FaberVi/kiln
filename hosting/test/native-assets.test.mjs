@@ -96,6 +96,96 @@ const usage = async (owner) =>
     await namespace.get(namespace.idFromName(owner)).fetch('https://tenant.internal/internal/usage')
   ).json();
 
+test('new saves require matching host proof when configured, while imports preserve original provenance', async () => {
+  let proofs = 0;
+  const assets = new NativeAssetLibrary({
+    fetch: fetchFor('build-proof'),
+    executionIdentity: (draft) => {
+      proofs++;
+      assert.equal(draft.code, source);
+      assert.deepEqual(draft.glb, Uint8Array.from(glb));
+      return `cloudflare-container:sha256:${'a'.repeat(64)}`;
+    },
+  });
+  const saved = await assets.save('project', {
+    name: 'Verified box',
+    code: source,
+    glb,
+    build: { engine: 'source-claimed-forgery', options: {}, warnings: [] },
+  });
+  assert.equal(proofs, 1);
+  assert.equal(saved.build.engine, `cloudflare-container:sha256:${'a'.repeat(64)}`);
+  const record = await assets.read('project', saved.assetId, saved.revisionId);
+  record.manifest.build.engine = 'imported:unknown-original-host';
+  const imported = await assets.import('library', [record]);
+  assert.equal(proofs, 1);
+  assert.equal(imported[0].build.engine, 'imported:unknown-original-host');
+  const before = await usage('build-proof');
+  await assert.rejects(assets.save('project', { name: 'Missing build', code: source, glb }));
+  const unavailable = new NativeAssetLibrary({
+    fetch: fetchFor('build-proof'),
+    executionIdentity: () => {
+      throw new Error('No verified evaluation');
+    },
+  });
+  await assert.rejects(
+    unavailable.save('project', {
+      name: 'Missing proof',
+      code: source,
+      glb,
+      build: { engine: 'forged', options: {}, warnings: [] },
+    }),
+    /verified evaluation/,
+  );
+  assert.deepEqual(await usage('build-proof'), before);
+});
+
+test('native links use server-issued tickets for exact saved revisions and never accept backend URLs', async () => {
+  const assets = library('download-links');
+  const saved = await assets.save('project', { name: 'Box', code: source, glb });
+  const urls = await assets.downloadUrls(
+    'https://kiln.example.com',
+    'project',
+    saved.assetId,
+    saved.revisionId,
+  );
+  assert.deepEqual(Object.keys(urls).sort(), ['asset.glb', 'manifest.json', 'source.kiln.js']);
+  const uri = new URL(urls['source.kiln.js']);
+  assert.equal(uri.origin, 'https://kiln.example.com');
+  assert.match(uri.pathname, /^\/downloads\/[a-f0-9]{64}\/source\.kiln\.js$/);
+  const read = await namespace
+    .getByName('download-links')
+    .fetch(`https://tenant.internal/internal${uri.pathname}`);
+  assert.equal(read.status, 200);
+  assert.equal(await read.text(), source);
+  assert.equal(
+    (
+      await namespace
+        .getByName('other-downloads')
+        .fetch(`https://tenant.internal/internal${uri.pathname}`)
+    ).status,
+    404,
+  );
+  await assert.rejects(
+    assets.downloadUrls('https://evil.example/path', 'project', saved.assetId, saved.revisionId),
+  );
+  await assert.rejects(
+    assets.downloadUrls('https://kiln.example.com', 'foreign', saved.assetId, saved.revisionId),
+  );
+  for (const invalid of [
+    { ticket: 'a'.repeat(64), expiresAt: Date.now() + 600000, files: ['../../secret'] },
+    { ticket: `${'a'.repeat(64)}\n`, expiresAt: Date.now() + 600000, files: ['asset.glb'] },
+    { ticket: 'a'.repeat(64), expiresAt: 0, files: ['asset.glb'] },
+    { ticket: 'a'.repeat(64), expiresAt: Date.now() + 600000, files: ['https://evil.example'] },
+    { ticket: 'a'.repeat(64), expiresAt: Date.now() + 600000, files: ['asset.glb', 'asset.glb'] },
+  ]) {
+    const forged = new NativeAssetLibrary({ fetch: async () => Response.json(invalid) });
+    await assert.rejects(
+      forged.downloadUrls('https://kiln.example.com', 'project', saved.assetId, saved.revisionId),
+    );
+  }
+});
+
 test('save, revise, reconnect and export preserve exact records and source lineage', async () => {
   const assets = library('saved');
   assert.deepEqual(

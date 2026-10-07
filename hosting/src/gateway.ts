@@ -1,19 +1,26 @@
 import { insufficientScope, type OAuthResourceContext } from '@cloudflare/workers-oauth-provider';
-import { boundedRequest, HttpFailure, sha256 } from './http';
+import { boundedRequest, HttpFailure } from './http';
+import { tenantForAccount } from './tenant-identity';
+import type { KilnCompute } from './admission-worker';
+import { routeEdgeMcp } from './edge-mcp';
+import { limitAccount, type RequestLimitEnv } from './request-limits';
 
 export interface TenantEnv {
   TENANTS: DurableObjectNamespace;
+  NATIVE_COMPUTE?: Service<KilnCompute>;
 }
 
 export async function forwardTenant(
   request: Request,
-  env: TenantEnv,
+  env: TenantEnv & Pick<RequestLimitEnv, 'ACCOUNT_REQUEST_LIMIT'>,
   ctx: OAuthResourceContext<unknown>,
   origin: string,
 ): Promise<Response> {
   if (!ctx.auth.scope.includes('kiln:use')) return insufficientScope(ctx.auth, ['kiln:use']);
   const userId = ctx.auth.userId;
   if (!userId || !/^ka_[a-f0-9]{32}$/.test(userId)) throw new HttpFailure(401, 'Invalid identity');
+  const limited = await limitAccount(request, env, origin, userId);
+  if (limited) return limited;
   const url = new URL(request.url);
   const isMcp = url.pathname === '/mcp';
   const isArtifact = /^\/mcp\/artifacts\/[A-Za-z0-9_-]{16,128}$/.test(url.pathname);
@@ -33,7 +40,7 @@ export async function forwardTenant(
   const bounded = await boundedRequest(request, 1024 * 1024);
   // Only verified authorization identity selects the object. Token, client id,
   // session id, source refs, cookies and caller tenant headers cannot select it.
-  const tenant = await sha256(JSON.stringify(['kiln-tenant-v1', origin, userId]));
+  const tenant = await tenantForAccount(origin, userId);
   const headers = new Headers();
   for (const name of [
     'accept',
@@ -55,5 +62,11 @@ export async function forwardTenant(
     signal: bounded.signal,
     redirect: 'manual',
   });
+  if (isMcp) {
+    const edge = await routeEdgeMcp(internal);
+    if (edge instanceof Response) return edge;
+    if (!env.NATIVE_COMPUTE) throw new HttpFailure(503, 'Native compute is not configured');
+    return env.NATIVE_COMPUTE.dispatch(tenant, edge);
+  }
   return env.TENANTS.getByName(tenant).fetch(internal);
 }

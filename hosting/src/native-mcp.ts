@@ -1,35 +1,51 @@
 import { createMcpHandler, type Server } from '@modelcontextprotocol/server';
 import type { KilnToolContext } from '@instruktlabs/kiln/tools';
 import type { EvaluatorPortV2, IsolatedEvaluatorHost } from '@instruktlabs/kiln/evaluator';
+import type { PbrRenderPort } from '@instruktlabs/kiln/composer';
 import { NativeProgramStore } from './native-programs';
 import { NativeAssetLibrary } from './native-assets';
+import { NativeMaterialLibrary } from './native-materials';
+import { NativeMaterialWorkspace } from './native-workspace';
 import type { NativeStorageOptions } from './native-http';
+import {
+  createNativeEvaluatorPort,
+  type NativeEvaluatorOptions,
+  type NativeEvaluatorPort,
+} from './native-evaluator';
+import { NativeBuildIdentities } from './native-build-identity';
 import { HttpFailure, privateResponse, readBounded, serviceFailure } from './http';
+import { createNativeRenderPort } from './native-render';
+import { RENDER_LIMITS } from './render-limits';
 
 export interface NativeMcpRuntime {
   createServer: (context: KilnToolContext) => Server;
-  evaluatorPort: EvaluatorPortV2;
+  evaluatorPort: EvaluatorPortV2 & Partial<Pick<NativeEvaluatorPort, 'executionImage'>>;
+  viewRenderPort?: PbrRenderPort;
 }
 
-/** Installed-package production route. A failed isolation probe has no fallback. */
-export async function loadNativeMcpRuntime(
-  host: IsolatedEvaluatorHost = { bwrapPath: '/usr/bin/bwrap' },
-): Promise<NativeMcpRuntime> {
-  let engine: { createKilnMcpServer: NativeMcpRuntime['createServer'] };
-  let evaluator: typeof import('@instruktlabs/kiln/evaluator');
+async function loadInstalledEngine(): Promise<NativeMcpRuntime['createServer']> {
   try {
     const entry = new URL(import.meta.resolve('@instruktlabs/kiln'));
     // This private host pins the engine's shipped bundle alongside its SDK.
     // Do not resolve a checkout source file or a caller-supplied module URL.
-    engine = await import(new URL('../dist/mcp-engine.mjs', entry).href);
-    evaluator = await import('@instruktlabs/kiln/evaluator');
+    const engine = await import(new URL('../dist/mcp-engine.mjs', entry).href);
+    if (typeof engine.createKilnMcpServer !== 'function') throw new Error('Invalid engine');
+    return engine.createKilnMcpServer;
   } catch {
     throw new Error('Native engine installation is unavailable');
   }
+}
+
+/** Installed-package nested-isolation route. A failed probe has no fallback. */
+export async function loadNativeMcpRuntime(
+  host: IsolatedEvaluatorHost = { bwrapPath: '/usr/bin/bwrap' },
+): Promise<NativeMcpRuntime> {
+  const createServer = await loadInstalledEngine();
   try {
+    const evaluator = await import('@instruktlabs/kiln/evaluator');
     await evaluator.assertIsolatedEvaluatorReady(host);
     return {
-      createServer: engine.createKilnMcpServer,
+      createServer,
       evaluatorPort: {
         render: (code, options, controls) =>
           evaluator.renderGLBViaIsolatedEvaluator(code, options, { ...controls, host }),
@@ -38,6 +54,22 @@ export async function loadNativeMcpRuntime(
   } catch {
     throw new Error('Native isolation readiness failed; no evaluator is available');
   }
+}
+
+/**
+ * Explicit externally isolated profile. The controller supplies the private
+ * evaluator route; unavailable transport fails closed on calls. Never selected
+ * automatically after a failed nested-isolation readiness check.
+ */
+export async function loadContainerMcpRuntime(
+  options: NativeEvaluatorOptions = {},
+  rendering: { fetch?: (request: Request) => Promise<Response> } = {},
+): Promise<NativeMcpRuntime> {
+  return {
+    createServer: await loadInstalledEngine(),
+    evaluatorPort: createNativeEvaluatorPort(options),
+    viewRenderPort: createNativeRenderPort(rendering),
+  };
 }
 
 export interface NativeMcpOptions {
@@ -163,21 +195,68 @@ export function createNativeMcpHandler(runtime: NativeMcpRuntime, options: Nativ
         transport = createMcpHandler(
           () => {
             const storage = { ...options.storage, signal: () => controller.signal };
+            const materials = new NativeMaterialLibrary(storage);
+            const builds = runtime.evaluatorPort.executionImage
+              ? new NativeBuildIdentities()
+              : undefined;
+            const assets = new NativeAssetLibrary({
+              ...storage,
+              materials,
+              executionIdentity: builds ? (draft) => builds.forDraft(draft) : undefined,
+            });
             return runtime.createServer({
               programStore: new NativeProgramStore(storage),
-              assetLibrary: new NativeAssetLibrary(storage),
+              assetLibrary: assets,
+              materialLibrary: materials,
+              workspace: new NativeMaterialWorkspace(materials),
+              assetDownloadUrls: (collection, assetId, revisionId) =>
+                assets.downloadUrls(options.publicOrigin, collection, assetId, revisionId),
               evaluatorProfile: 'evaluator-required',
               evaluatorPort: {
                 render: async (code, renderOptions, controls) => {
                   if (controller.signal.aborted) throw abortError();
                   evaluations++;
                   try {
-                    return await runtime.evaluatorPort.render(code, renderOptions, controls);
+                    const result = await runtime.evaluatorPort.render(
+                      code,
+                      renderOptions,
+                      controls,
+                    );
+                    if (controller.signal.aborted) throw abortError();
+                    builds?.record(
+                      code,
+                      result.glb,
+                      runtime.evaluatorPort.executionImage?.(result),
+                    );
+                    return result;
                   } finally {
                     evaluations--;
                     release();
                   }
                 },
+              },
+              ...(runtime.viewRenderPort
+                ? {
+                    viewRenderPort: async (input, execution) => {
+                      if (controller.signal.aborted) throw abortError();
+                      evaluations++;
+                      try {
+                        return await runtime.viewRenderPort!(input, {
+                          signal: execution?.signal
+                            ? AbortSignal.any([execution.signal, controller.signal])
+                            : controller.signal,
+                        });
+                      } finally {
+                        evaluations--;
+                        release();
+                      }
+                    },
+                    viewRenderTimeoutMs: RENDER_LIMITS.deadlineMs,
+                  }
+                : {}),
+              captureLimits: {
+                maxTotalPixels: 8 * 1024 * 1024,
+                maxOutputBytes: RENDER_LIMITS.pngBytes,
               },
               evaluationControls: () => ({
                 signal: controller.signal,
