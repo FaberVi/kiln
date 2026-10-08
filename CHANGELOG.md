@@ -5,6 +5,11 @@ Source releases and installable package publication are separate milestones.
 Published versions and tags are recorded by the npm registry; changing this file
 does not publish a package.
 
+## Unreleased
+
+- Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
+- `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
+
 ## 1.1.0
 
 Existing-project setup, public host interfaces and simpler onboarding. Hosted
@@ -90,9 +95,6 @@ Hosted deployment and vendor directory acceptance remain separate milestones.
   sloping panel fit, retaining repeated parts during edits and saving child revisions
   before exporting. The eight-asset campaign records its incomplete handoffs and
   visual defects separately from valid exports.
-
-- Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
-- `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
 
 - **Breaking (v1 candidate):** `optimize: 'full'` replaces flatten/join with rigid-group
   merging. Its rigid-merge pass preserves node names, hierarchy and transforms, including animated targets,
