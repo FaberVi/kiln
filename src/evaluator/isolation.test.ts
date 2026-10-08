@@ -17,6 +17,7 @@ const PATHS = new Set([
   '/usr/local/bin/bwrap',
   '/usr/bin/setpriv',
   '/usr/bin/prlimit',
+  '/usr/bin/env',
   '/usr/local/bin/node',
   '/app/node_modules/@instruktlabs/kiln/src/evaluator/worker.ts',
 ]);
@@ -138,13 +139,29 @@ describe('isolated evaluator process contract', () => {
     expect(spec.args).toContain('--clearenv');
     expect(spec.args).toContain('--tmpfs');
     expect(spec.args).toContain('--ro-bind');
-    expect(spec.args).toContain('--preserve-fds');
+    // Bubblewrap inherits the explicit fd3 pipe; --preserve-fds is an OCI-runtime
+    // option, and --sync-fd would consume the descriptor for its own monitor.
+    expect(spec.args).not.toContain('--preserve-fds');
+    expect(spec.args).not.toContain('--sync-fd');
     expect(spec.args).toContain('--cpu=65:65');
     expect(spec.args).toContain('--as=6442450944:6442450944');
     expect(spec.args).toContain('--nproc=64:64');
     expect(spec.args).toContain('--max-old-space-size=512');
     expect(spec.args).not.toContain('/app/agent-runtime');
     expect(spec.args).not.toContain('/etc');
+  });
+
+  test('clears wrapper-generated environment before starting the isolated worker', () => {
+    const spec = launch();
+    const envIndex = spec.args.indexOf('/usr/bin/env');
+    expect(envIndex).toBeGreaterThan(spec.args.indexOf('/usr/bin/prlimit'));
+    expect(spec.args.slice(envIndex, envIndex + 5)).toEqual([
+      '/usr/bin/env',
+      '-i',
+      'NODE_ENV=production',
+      'NO_COLOR=1',
+      '/usr/local/bin/node',
+    ]);
   });
 
   test('compiled workers retain isolation controls without requiring a TypeScript loader', () => {

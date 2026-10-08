@@ -1,6 +1,6 @@
 # Install Kiln for your coding agent
 
-This guide covers **Kiln 1.0** under the package name `@instruktlabs/kiln`.
+This guide describes **Kiln 1.1** under the package name `@instruktlabs/kiln`.
 Use a version available in the [npm registry](https://www.npmjs.com/package/@instruktlabs/kiln),
 or build a [local package](#install-a-local-package) to test an unpublished checkout.
 [CHANGELOG.md](../CHANGELOG.md) lists changes; read the
@@ -12,45 +12,104 @@ same engine and saved-source contracts.
 
 ## Install the package
 
-Once stable 1.0 is published, install it with Node.js and npm:
+Install the current stable package with Node.js and npm:
 
 ```sh
 mkdir kiln-install
 cd kiln-install
 npm init -y
-npm install @instruktlabs/kiln@1.0.0 --omit=dev --include=optional
-npm exec --offline -- kiln-init ../my-assets --harness codex  # or claude, opencode, hermes, agy, copilot, cursor-agent
+npm install @instruktlabs/kiln
+npx --offline --no -- kiln-init ../my-assets --harness codex  # or claude, opencode, hermes, agy, copilot, cursor-agent
 cd ../my-assets
 # Follow START.md for your harness
 ```
 
-Until that exact version is available, use `@instruktlabs/kiln@next` or the public
-`@instruktlabs/kiln@1.0.0-rc.1` instead. The unqualified package name selects
-`latest`, which must no longer be the temporary `0.0.0-stage` holding version
-before using it. After stable publication, `npm install @instruktlabs/kiln` is the
-normal command; the explicit version above keeps this guide reproducible.
+This selects npm's stable `latest` tag. Existing-project adoption and the new SDK
+host interfaces require 1.1 or later. Check the installed version with
+`npm ls @instruktlabs/kiln`. When qualifying an unpublished candidate, use a
+[local package](#install-a-local-package). The `next` tag is only for prereleases.
+
+The package includes the built CLI/MCP runtimes, renderer code, plugins and skills.
+You do not need Bun, a source checkout, a build step or a separate model API key
+to use its tools. Choose the appropriate harness and follow `START.md` in the
+generated workspace.
+
+## Run the CLI
+
+The executable is named **`kiln`**, even though its npm package is `@instruktlabs/kiln`.
+For a terminal-wide command:
+
+```sh
+npm install -g @instruktlabs/kiln
+kiln discover --capabilities --json
+kiln render my-asset.kiln.js --out my-asset.glb --views sheet.png
+```
+
+npm puts global commands directly in its prefix on Windows and in `PREFIX/bin` on
+macOS/Linux. If the shell cannot find `kiln`, run `npm prefix -g`, ensure that
+executable directory is on PATH, and open a new terminal. See
+[npm's executable locations](https://docs.npmjs.com/cli/v12/configuring-npm/folders/#executables).
+`kiln-init` and `kiln-mcp` are available the same way.
+
+For a project-local installation, run from the project that contains the dependency:
+
+```sh
+npm install @instruktlabs/kiln
+npx --no -- kiln discover --capabilities --json
+# Equivalent:
+npm exec --offline -- kiln discover --capabilities --json
+```
+
+`npx --no --` refuses an automatic package download when the command is missing.
+Install the scoped package first; the unscoped package name `kiln` is a different
+package. npm scripts can call `kiln` directly because npm adds local executables to
+their PATH. See [npm exec](https://docs.npmjs.com/cli/v12/commands/npm-exec/).
+In PowerShell, use `npm.cmd exec --offline -- kiln …` for the equivalent command:
+PowerShell's npm script wrapper can consume the separator before forwarding flags.
+
+Generated asset workspaces also contain **`kiln.mjs`**. Run `node kiln.mjs …` there
+to use the exact installation, Node interpreter and source store selected for that
+workspace's MCP server. It also checks whether the managed setup needs an upgrade
+or repair. This is useful when multiple Kiln versions are installed: a global
+`kiln` command uses whichever installation your PATH selects. Without an explicit
+`KILN_WORKSPACE` or `KILN_PROGRAM_STORE`, the direct CLI stores work beneath the
+current directory's `.kiln/`; run it from the intended workspace root.
+
+## Add Kiln to an existing project
+
+With Kiln 1.1+, run these commands from the installation directory:
+
+```sh
+npx --offline --no -- kiln-init /absolute/path/to/my-project --adopt --harness codex --check
+npx --offline --no -- kiln-init /absolute/path/to/my-project --adopt --harness codex
+```
+
+The first command previews changes without writing and exits 1 when setup is
+needed. The second adds Kiln while preserving existing instructions, unrelated
+MCP settings and user files. Conflicting owned paths stop setup before it replaces
+them. Read `.kiln/START.md` and `.kiln/AGENTS.md` alongside your project's existing
+instructions. Repeat with another supported `--harness` to add its connection
+around the same source store and assets.
+
+Adoption also works for a new directory. To update an already managed workspace,
+use [check and upgrade](#move-or-repair-an-installation). Do not copy a new set of
+skills over local customizations by hand.
+
+## Install a release archive
 
 Archives are also supported. The package packs as `instruktlabs-kiln-VERSION.tgz`; earlier releases
 used `kiln-engine-VERSION.tgz`. Install the actual tarball with Node.js and
-npm. Use the tarball and checksum actually attached to the current
-[release](https://github.com/instruktlabs/kiln/releases) (for 0.10.0, the
-[v0.10.0 release](https://github.com/instruktlabs/kiln/releases/tag/v0.10.0)): download
-the tarball and `SHA256SUMS.txt`, check the tarball against the checksum file before
-installing (`sha256sum -c SHA256SUMS.txt` beside it, or `Get-FileHash` on Windows), and read
-that release's documentation; the release also attaches the installed-package receipts that
-name the tarball. A source-only release does not imply that a built tarball is available;
-a source-only release, like a checkout ahead of the release, builds its own package under
-[Install a local package](#install-a-local-package).
-The package includes the built CLI/MCP runtimes, renderer code, plugins and skills.
-You do not need Bun, a source checkout, a build step or a separate model API key to
-use the CLI/MCP tools. Use the real tarball path and filename:
+npm. Download the archive and `SHA256SUMS.txt` from the selected
+[release](https://github.com/instruktlabs/kiln/releases), then verify its checksum
+with `sha256sum -c SHA256SUMS.txt` or Windows `Get-FileHash`. Use that release's
+documentation and the actual downloaded filename:
 
 ```sh
 mkdir kiln-install
 cd kiln-install
 npm init -y
 npm install /absolute/path/to/PACKAGE.tgz --omit=dev --include=optional
-npm exec --offline -- kiln-init ../my-assets --harness opencode  # or claude, codex, hermes, agy, copilot, cursor-agent
+npx --offline --no -- kiln-init ../my-assets --harness opencode  # or claude, codex, hermes, agy, copilot, cursor-agent
 cd ../my-assets
 # Follow START.md for your harness
 ```
@@ -247,7 +306,7 @@ npm exec --offline -- kiln-init ../my-assets --harness opencode  # or claude, co
 
 `kiln` renders programs and imports/exports source revisions. `kiln-init` creates a
 workspace, and `kiln-mcp` starts the stdio server. These are installed commands from
-the still-unpublished `@instruktlabs/kiln` package. Library consumers use its compiled
+that exact build of `@instruktlabs/kiln`. Library consumers use its compiled
 ESM and TypeScript declarations through the [SDK entrypoints](sdk.md), without a
 source loader. The optional
 `kiln generate` adapter is separate and needs its agent/provider dependencies;
@@ -281,11 +340,13 @@ other CLI/MCP workflows do not need any of these peers.
 | Codex | `.codex/config.toml`, read once `$CODEX_HOME/config.toml` marks the project trusted | `node codex.mjs` (applies the same values per run) |
 | OpenCode | `opencode.json` | `opencode` |
 | Antigravity | `.agents/mcp_config.json` | `node agy.mjs` |
-| Hermes | Separate `.hermes/config.yaml` profile | `node hermes.mjs --ignore-rules` |
+| Hermes | One user-level MCP registration; workspace launcher supplies paths | `node hermes.mjs` |
 
-Sign in to your harness and accept its normal project/MCP trust prompts. Hermes's
-separate profile needs its own authentication or provider credentials supplied
-through the environment; setup does not copy credentials. The Antigravity launcher
+Sign in to your harness and accept its normal project/MCP trust prompts. Hermes
+has no project-local MCP registration; follow its generated `START.md` for the
+one user-level registration. Its launcher preserves your existing provider and
+authentication and supplies this workspace's paths per run. Do not add
+`--ignore-rules` unless you intend to suppress project instructions. The Antigravity launcher
 sets the absolute project directory and disables automatic skill expansion in print
 mode. Name `kiln_workspace` in the brief, use the project skill copies, and pass
 absolute task-file paths. See [clean-room setup](https://github.com/instruktlabs/kiln/blob/main/docs/clean-room.md) for evaluation controls and limitations.
@@ -422,11 +483,14 @@ The v1 local plugin below uses a smaller bundle and creates an explicit workspac
 
 ## Local Claude Code and Codex plugins
 
-**The current branch is a development candidate.** The `v1.0.0` tag and npm release
-must exist before using these release commands. Maintainers qualify development
-bundles with the reviewed local engine archive instead.
+The commands below select the 1.1.0 plugin, which supports new workspaces and
+existing-project adoption. Use them once the matching GitHub tag and npm version
+are available. To qualify an unpublished candidate, select its exact source ref
+and supply the matching local engine archive as described in its bundled setup
+reference. Normal use should select a published release tag.
 
-The plugin is `kiln-engine` in the Instrukt Labs marketplace `instruktlabs`. Its
+The product is Kiln; its local plugin installation ID is `kiln-engine` in the
+Instrukt Labs marketplace `instruktlabs`. Its
 cache contains setup guidance and an installer, while the pinned engine and asset
 workspaces stay in persistent directories outside that cache. Installing the plugin
 does not start a second global Kiln MCP server.
@@ -434,14 +498,14 @@ does not start a second global Kiln MCP server.
 For Claude Code:
 
 ```sh
-claude plugin marketplace add instruktlabs/kiln#v1.0.0 --sparse .claude-plugin plugins/kiln-engine
+claude plugin marketplace add instruktlabs/kiln#v1.1.0 --sparse .claude-plugin plugins/kiln-engine
 claude plugin install kiln-engine@instruktlabs
 ```
 
 For Codex:
 
 ```sh
-codex plugin marketplace add instruktlabs/kiln --ref v1.0.0 --sparse .agents/plugins --sparse plugins/kiln-engine
+codex plugin marketplace add instruktlabs/kiln --ref v1.1.0 --sparse .agents/plugins --sparse plugins/kiln-engine
 codex plugin add kiln-engine@instruktlabs
 ```
 
@@ -449,8 +513,9 @@ Ask your agent to set up a Kiln asset workspace. The setup skill installs the ex
 package version in `runtime.json` through npm, with optional dependencies included
 and lifecycle scripts disabled. Node.js and npm are required; an engine checkout,
 Bun and a separate model API key are not. An existing working workspace can be used
-as-is. Otherwise choose an empty directory and follow its generated `START.md` to
-open a new authoring session. Accept the host's project/MCP trust prompts, then
+as-is. Otherwise choose a new workspace or preview adoption of an existing project,
+then follow the generated startup instructions to open an authoring session.
+Accept the host's project/MCP trust prompts, then
 verify `kiln_discover({capabilities:true})` on `kiln_workspace` and an actual render.
 
 The workspace owns its author/refine/QA skills and MCP configuration. The plugin

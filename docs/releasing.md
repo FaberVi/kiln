@@ -1,16 +1,27 @@
-# Publishing Kiln 1.0
+# Publishing Kiln
 
 This is the maintainer runbook for `@instruktlabs/kiln`. npm publishing access is
-configured and `1.0.0-rc.1` is public under `next`; stable `1.0.0` has not been
-published. Development, registry publication,
+configured and stable `1.1.0` is published under `latest`. Follow-up changes need
+a new version and the qualification process below. Development, registry publication,
 hosted deployment and directory acceptance have separate evidence requirements.
-See the [v1 execution record](reviews/2026-10-06-v1-execution.md) for current status.
+See the [release status](reviews/2026-10-07-release-status.md) for current status.
+
+The official hosted application has its own private `instruktlabs/kiln-hosted`
+repository, dependency lockfile, CI and deployment runbooks. Its source and
+credentials do not belong in public package archives or artifacts. This public
+repository retains the npm release workflow, local integrations, public hosted
+plugin metadata and generic engine qualification. A private application merge
+does not authorize a package release or public service deployment.
 
 ## Qualify the candidate
 
 1. Complete the release contract, consumer documentation, notices and changelog.
-   Align `package.json`, engine metadata and plugin manifests to `1.0.0-rc.N` or
-   `1.0.0`, then rebuild the runtime. A version change creates a new candidate.
+   Align `package.json`, engine metadata and the `engineVersion` pin in
+   `plugins/kiln-engine.release.json`, then rebuild the runtime. The local plugin's
+   own `version` changes when its manifest, executable or guidance changes; it can
+   advance independently while retaining the same published engine. Generate and
+   review the local bundle with `scripts/package-local-plugin.mjs`. A version
+   change creates a new candidate, not permission to republish an existing version.
 2. Review the changes and obtain authorization to merge. After merging, wait for
    **every** job in `.github/workflows/ci.yml` to pass on that exact main commit.
    PR receipts are useful during development but cannot authorize a release.
@@ -91,7 +102,7 @@ Dispatch the same reviewed candidate with mode **stage**. Review the verificatio
 artifact, then approve the GitHub environment. The second job downloads and checks
 the original CI artifacts again before staging the exact tarball. It does not
 install package dependencies, rebuild the package, or execute its lifecycle scripts.
-RC versions use `next`; `1.0.0` uses `latest`. The job retains `npm-stage.json` and the
+RC versions use `next`; stable 1.x versions use `latest`. The job retains `npm-stage.json` and the
 full candidate evidence in `npm-staged-candidate`.
 
 On a logged-in maintainer machine, use the returned **stage ID**:

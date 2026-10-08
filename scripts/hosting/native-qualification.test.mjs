@@ -1,5 +1,10 @@
 import { expect, test } from 'bun:test';
-import { captureCgroupSnapshot, qualifyNativeRuntime } from './native-qualification.mjs';
+import {
+  captureCgroupSnapshot,
+  qualifyNativeRuntime,
+  qualifyNestedEvaluator,
+  qualifyUnsupportedEvaluator,
+} from './native-qualification.mjs';
 
 test('cgroup evidence retains dotted kernel counters from the Linux preflight', async () => {
   const cpu =
@@ -134,6 +139,44 @@ test('successful qualification retains bounded artifacts and separate safety che
   );
 });
 
+test('VM evaluator qualification preserves every isolation and execution check without a renderer claim', async () => {
+  const { ports } = fixture();
+  ports.software = async () => {
+    throw new Error('Software rendering belongs to its own image test');
+  };
+  const result = await qualifyNestedEvaluator(ports);
+  expect(result.version).toBe('kiln.nested-evaluator-qualification.v1');
+  expect(result.status).toBe('passed');
+  expect(result.checks.map((item) => item.name)).toEqual([
+    'host',
+    'isolation',
+    'first-evaluation',
+    'repeat-evaluation',
+    'cpu-preview',
+    'deadline',
+    'cancellation',
+    'output-limit',
+    'post-limit-recovery',
+  ]);
+  expect(result.isolation.checks).toEqual(checks);
+  expect(result.artifacts.map((item) => item.name)).toEqual(['fixture.glb', 'cpu-preview.png']);
+  expect(result).not.toHaveProperty('software');
+});
+
+test('VM evaluator qualification cannot relabel unavailable isolation as success', async () => {
+  const { ports, calls } = fixture();
+  ports.ready = async () => {
+    throw { readinessCode: 'wrapper-launch' };
+  };
+  expect(await qualifyNestedEvaluator(ports)).toMatchObject({
+    version: 'kiln.nested-evaluator-qualification.v1',
+    status: 'failed',
+    failure: { phase: 'isolation', code: 'wrapper-launch' },
+    artifacts: [],
+  });
+  expect(calls).toHaveLength(0);
+});
+
 test('a deadline check that resolves instead of rejecting is a failure', async () => {
   const { ports } = fixture();
   ports.render = async () => ({ glb });
@@ -141,6 +184,87 @@ test('a deadline check that resolves instead of rejecting is a failure', async (
     status: 'failed',
     failure: { phase: 'deadline', code: 'CHECK_FAILED' },
   });
+});
+
+function unsupportedFixture() {
+  const { ports } = fixture();
+  ports.namespaceDenied = async () => true;
+  ports.ready = async () => {
+    throw { readinessCode: 'wrapper-launch' };
+  };
+  ports.render = async () => {
+    throw { code: 'WORKER_FAILED', message: 'private diagnostic must not escape' };
+  };
+  ports.cpu =
+    ports.software =
+    ports.artifact =
+      async () => {
+        throw new Error('A refused source request cannot produce an artifact');
+      };
+  return ports;
+}
+
+test('an unsupported host qualifies refusal only, with kernel denial and both API rejections', async () => {
+  const receipt = await qualifyUnsupportedEvaluator(unsupportedFixture());
+  expect(receipt).toMatchObject({
+    version: 'kiln.unsupported-evaluator-rejection.v1',
+    status: 'passed',
+    isolatedExecutionAvailable: false,
+    readinessFailure: 'wrapper-launch',
+    evaluationFailure: 'WORKER_FAILED',
+    artifacts: [],
+  });
+  expect(receipt.checks.map((check) => check.name)).toEqual([
+    'host',
+    'kernel-namespace-denied',
+    'readiness-refused',
+    'source-request-refused',
+  ]);
+  expect(JSON.stringify(receipt)).not.toContain('private diagnostic');
+  expect(receipt).not.toHaveProperty('isolation');
+  expect(receipt).not.toHaveProperty('software');
+});
+
+test('readiness success, unproven kernel denial and source execution cannot pass a refusal check', async () => {
+  for (const overrides of [
+    { namespaceDenied: async () => false },
+    { ready: fixture().ports.ready },
+    { render: fixture().ports.render },
+    {
+      ready: async () => {
+        throw { readinessCode: 'deadline' };
+      },
+    },
+    {
+      render: async () => {
+        throw { code: 'EXECUTION_REJECTED' };
+      },
+    },
+    {
+      render: async () => {
+        throw { code: 'DEADLINE_EXCEEDED' };
+      },
+    },
+  ]) {
+    const receipt = await qualifyUnsupportedEvaluator({ ...unsupportedFixture(), ...overrides });
+    expect(receipt.status).toBe('failed');
+    expect(receipt.artifacts).toEqual([]);
+  }
+});
+
+test('unsupported-host qualification rejects root before either readiness or evaluation', async () => {
+  let invoked = false;
+  const ports = unsupportedFixture();
+  ports.uid = 0;
+  ports.namespaceDenied = async () => {
+    invoked = true;
+    return true;
+  };
+  expect(await qualifyUnsupportedEvaluator(ports)).toMatchObject({
+    status: 'failed',
+    failure: { phase: 'host', code: 'CHECK_FAILED' },
+  });
+  expect(invoked).toBe(false);
 });
 
 test('wrong negative outcome is not accepted as a successful limit', async () => {
