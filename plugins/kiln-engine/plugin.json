@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kiln-engine",
-  "version": "1.1.0-dev.1",
+  "version": "1.1.0",
   "description": "Set up a local Kiln workspace to create, inspect and revise editable 3D assets with Claude Code or Codex.",
   "author": {
     "name": "Instrukt Labs",
@@ -20,7 +20,7 @@
   "extensions": {
     "com.openai": {
       "interface": {
-        "displayName": "Kiln Engine",
+        "displayName": "Kiln",
         "shortDescription": "Create editable 3D assets in a local workspace",
         "longDescription": "Install the pinned Kiln engine and set up a workspace with local MCP tools and maintained authoring skills. Your coding agent supplies the model.",
         "developerName": "Instrukt Labs",

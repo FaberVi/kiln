@@ -5,11 +5,10 @@ Source releases and installable package publication are separate milestones.
 Published versions and tags are recorded by the npm registry; changing this file
 does not publish a package.
 
-## 1.1.0-dev.1 (unreleased)
+## 1.1.0
 
-Development candidate for shared project setup. Published npm 1.0.0 remains
-unchanged. This candidate requires a reviewed local archive; it is not a registry
-release or an accepted plugin listing.
+Existing-project setup, public host interfaces and simpler onboarding. Hosted
+deployment and directory submissions remain deferred.
 
 - `kiln-init --adopt` configures an existing project or a new workspace through
   the same initializer. Preview with `--adopt --check`; existing instructions,
@@ -22,6 +21,22 @@ release or an accepted plugin listing.
 - The local plugin's setup helper uses the pinned engine's adapter list. Plugin
   installation remains specific to Claude Code and Codex; those clients can also
   configure another supported workspace adapter through the shared helper.
+- Public `mcp`, `discovery/portable`, `tools/input` and `views/port` SDK entries
+  expose existing host contracts without requiring imports of internal package
+  files. Portable Discovery accepts an engine-generated catalog without loading
+  Node's catalog builder. The local stdio entry keeps lazy engine loading.
+- The release verifier accepts versioned 1.x follow-ups and release candidates,
+  retaining exact-archive evidence and owner promotion approval. Development
+  builds and unsupported prerelease tags remain ineligible for staging.
+- Concurrent captures rejoin a replacement local renderer when a delayed failure
+  arrives from the old connection. Startup failures preserve their bounded child
+  error output instead of reporting only the stack footer.
+- The README and maintained guides lead with npm installation and distinguish
+  released local functionality from deferred hosting. Real Troy captures join the
+  existing scene and vehicle previews. Global and project-local CLI instructions
+  explain the workspace launcher and avoid PowerShell argument forwarding errors.
+  Historical examples move out of the active source tree;
+  pinned Git-history restoration preserves the website archive and regression corpus.
 - The optional Linux isolated evaluator no longer passes an unsupported
   `--preserve-fds` option to Bubblewrap. Its explicit fd3 protocol pipe uses
   inherited descriptors; namespace, capability, filesystem and resource limits
@@ -37,9 +52,9 @@ release or an accepted plugin listing.
 
 ## 1.0.0
 
-Changes since the 0.10.0 tagged package release, qualified first through the public
-`1.0.0-rc.1` prerelease. Promotion of the stable archive to npm `latest` requires
-the separate release gates in [the runbook](docs/releasing.md).
+Published on npm as `@instruktlabs/kiln@1.0.0` under `latest`, following the public
+`1.0.0-rc.1` prerelease. These are the changes since the 0.10.0 tagged package.
+Future publication follows the separate release gates in [the runbook](docs/releasing.md).
 Hosted deployment and vendor directory acceptance remain separate milestones.
 
 - **Breaking:** the npm identity is now `@instruktlabs/kiln`, with compiled ESM and

@@ -33769,8 +33769,7 @@ async function startLocalRenderService(dir = renderServiceDir(), environment = p
       if (exited)
         exitedAt ??= Date.now();
       if (spawnError || exitedAt !== undefined && Date.now() - exitedAt >= 1500)
-        throw new Error(`render service exited during startup${spawnError ? `: ${spawnError.message}` : ""}${stderr.trim() ? `: ${stderr.trim().split(`
-`).slice(-3).join(" ")}` : windowsLaunch ? "; launch the renderer manually to inspect native-driver errors" : ""}`);
+        throw new Error(`render service exited during startup${spawnError ? `: ${spawnError.message}` : ""}${stderr.trim() ? `: ${stderr.trim()}` : windowsLaunch ? "; launch the renderer manually to inspect native-driver errors" : ""}`);
       await new Promise((done) => setTimeout(done, 250));
     }
     throw new Error(`render service health is unknown after ${budget}ms; inspect with \`kiln service reprobe\``);
@@ -33889,12 +33888,17 @@ function makeLazyRenderPort(start, token, sourceFingerprint, initialUrl) {
     } catch (error) {
       if (execution?.signal?.aborted || error.name === "TimeoutError")
         throw error;
-      if ((await readRenderServiceHealth(url, {
+      if (resolving !== pending)
+        return (await resolve()).port(req, execution);
+      const health = await readRenderServiceHealth(url, {
         token,
         signal: execution?.signal
-      })).kind !== "absent")
-        throw error;
+      });
       execution?.signal?.throwIfAborted();
+      if (resolving !== pending)
+        return (await resolve()).port(req, execution);
+      if (health.kind !== "absent")
+        throw error;
       if (resolving === pending)
         resolving = undefined;
       return (await resolve()).port(req, execution);
@@ -36102,7 +36106,7 @@ import { readFile as readFile8 } from "node:fs/promises";
 var KILN_ASSET_WIDGET_URI = "ui://kiln/asset-v5.html";
 
 // src/engine-identity.ts
-var ENGINE_VERSION = "1.1.0-dev.1";
+var ENGINE_VERSION = "1.1.0";
 var ENGINE_INSTALL_URL = new URL("../", import.meta.url).href;
 function engineIdentity() {
   return { version: ENGINE_VERSION, installUrl: ENGINE_INSTALL_URL };

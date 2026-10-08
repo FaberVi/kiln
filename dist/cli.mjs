@@ -36171,7 +36171,7 @@ var init_program_artifacts = __esm(() => {
 function engineIdentity() {
   return { version: ENGINE_VERSION, installUrl: ENGINE_INSTALL_URL };
 }
-var ENGINE_VERSION = "1.1.0-dev.1", ENGINE_INSTALL_URL;
+var ENGINE_VERSION = "1.1.0", ENGINE_INSTALL_URL;
 var init_engine_identity = __esm(() => {
   ENGINE_INSTALL_URL = new URL("../", import.meta.url).href;
 });
@@ -44428,8 +44428,7 @@ async function startLocalRenderService(dir = renderServiceDir(), environment = p
       if (exited)
         exitedAt ??= Date.now();
       if (spawnError || exitedAt !== undefined && Date.now() - exitedAt >= 1500)
-        throw new Error(`render service exited during startup${spawnError ? `: ${spawnError.message}` : ""}${stderr.trim() ? `: ${stderr.trim().split(`
-`).slice(-3).join(" ")}` : windowsLaunch ? "; launch the renderer manually to inspect native-driver errors" : ""}`);
+        throw new Error(`render service exited during startup${spawnError ? `: ${spawnError.message}` : ""}${stderr.trim() ? `: ${stderr.trim()}` : windowsLaunch ? "; launch the renderer manually to inspect native-driver errors" : ""}`);
       await new Promise((done) => setTimeout(done, 250));
     }
     throw new Error(`render service health is unknown after ${budget}ms; inspect with \`kiln service reprobe\``);
@@ -44558,12 +44557,17 @@ function makeLazyRenderPort(start, token, sourceFingerprint, initialUrl) {
     } catch (error) {
       if (execution?.signal?.aborted || error.name === "TimeoutError")
         throw error;
-      if ((await readRenderServiceHealth(url, {
+      if (resolving !== pending)
+        return (await resolve()).port(req, execution);
+      const health = await readRenderServiceHealth(url, {
         token,
         signal: execution?.signal
-      })).kind !== "absent")
-        throw error;
+      });
       execution?.signal?.throwIfAborted();
+      if (resolving !== pending)
+        return (await resolve()).port(req, execution);
+      if (health.kind !== "absent")
+        throw error;
       if (resolving === pending)
         resolving = undefined;
       return (await resolve()).port(req, execution);
@@ -47448,11 +47452,11 @@ EXPORT ENVIRONMENT
   KILN_INDEX_POLICY      indexed (default) | asBuilt (requires optimization off)
 
 EXAMPLES
-  kiln render examples/crate.kiln.js --out crate.glb --views sheet.png
+  kiln render my-asset.kiln.js --out asset.glb --views sheet.png
   kiln generate "a weathered wooden crate" --out crate.glb --views sheet.png
-  kiln render examples/crate.kiln.js --render cpu --views sheet.png
+  kiln render my-asset.kiln.js --render cpu --views sheet.png
   kiln render p_RETURNED_HANDLE --capture cameras.json --views chosen.png
-  kiln render examples/crate.kiln.js --views sheet.png --backdrop light
+  kiln render my-asset.kiln.js --views sheet.png --backdrop light
 `;
 function parseArgs(argv) {
   let renderOption;

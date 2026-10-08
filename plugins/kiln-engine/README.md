@@ -1,9 +1,10 @@
-# Kiln Engine local plugin
+# Kiln local plugin
 
-**Development candidate.** This version is not published to npm. Qualification requires the reviewed local engine archive via `--archive`.
-
-Plugin version 1.1.0-dev.1, maintained by Instrukt Labs under the MIT license.
-This plugin installs engine 1.1.0-dev.1.
+Plugin version 1.1.0, maintained by Instrukt Labs under the MIT license.
+This plugin pins engine 1.1.0. Registry setup requires that exact version
+to be published. Use a published release tag for normal installation or a reviewed
+local archive for development qualification. The installation ID remains
+`kiln-engine@instruktlabs`.
 
 Set up Kiln in an existing project or a new asset workspace, then create and revise
 editable 3D assets with your coding agent. Use a supported Node.js installation
@@ -30,7 +31,7 @@ codex plugin add kiln-engine@instruktlabs
 Restart or reload your coding agent's plugins as its installation message directs.
 Then ask it to set up a Kiln workspace. The maintained setup skill runs this
 plugin's `bin/kiln-setup-workspace.mjs` with Node, installs
-`@instruktlabs/kiln@1.1.0-dev.1` outside the project and configures your chosen
+`@instruktlabs/kiln@1.1.0` outside the project and configures your chosen
 workspace. The same initializer supports existing projects and new workspaces.
 
 The plugin registers setup only. The workspace supplies authoring skills and one

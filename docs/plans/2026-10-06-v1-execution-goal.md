@@ -1,5 +1,12 @@
 # Kiln release-cycle execution goal
 
+**Superseded scope, 7 October 2026:** the owner now prioritizes the public package,
+README/site refresh, Troy imagery and blind clone/npm dogfooding. Hosted deployment
+and directory submission are deferred to another agent after a tested private-main
+handoff. Use the [current public release goal](2026-10-07-public-release-goal.md).
+The earlier goal below is retained as historical decision context, not a requirement
+to finish hosting before public work.
+
 Updated 7 October 2026 for the owner's public-engine/private-hosting decision.
 The existing goal remains active with the accepted public/private split. This text
 records that goal and its current completion boundaries; it does not create a
@@ -12,10 +19,14 @@ Stable `@instruktlabs/kiln@1.0.0` and the GitHub release are already published.
 Reuse the completed GitHub transfer, npm security/trusted-publishing setup,
 Cloudflare subscriptions, the completed GitHub Team upgrade and existing OAuth
 applications. Do not repeat that work.
+The private import (private PR #1) and normal public cleanup (public PR #157)
+are now merged with owner approval. Their approved trees are preserved exactly,
+and superseded release PRs #154/#155/#156 are closed. The remaining engine API,
+onboarding and hosted launch work continue under this same goal.
 Current evidence and unfinished tasks are in the
 [release status](../reviews/2026-10-07-release-status.md).
 
-## Copyable goal statement
+## Earlier goal statement (superseded by the public release goal)
 
 Complete this Kiln release cycle with a public, community-maintained engine and
 integrations, an independently buildable private hosted application under Instrukt
@@ -63,8 +74,9 @@ on Cloudflare. Prove real Google and GitHub sign-in, account controls, tenant
 isolation, native evaluation, CPU/software rendering, saved assets, downloads,
 retention/deletion, quotas, practical load/cost limits and rollback. Keep saved
 assets until deleted within quotas; expire unsaved work after seven days. Use
-in-app security notices. Resolve the existing backup-scope decision before adding
-a backup system. Complete an adversarial review of the actual release and deployed
+in-app security notices. Use provider database recovery and tested code rollback;
+disclose that deleted source/GLB files cannot be recovered. Automatic asset backups
+are outside v1, as the owner selected on 7 October. Complete an adversarial review of the actual release and deployed
 configuration; secrets and user data stay outside source repositories.
 
 Keep hosted use free within quotas, with optional sponsorship and no user billing.
@@ -127,7 +139,9 @@ independent builds do not by themselves complete the long-term API boundary.
 | 5. Complete hosted qualification and launch | Real provider/account/storage/render/retention/rollback flows and scoped security/cost evidence; approved public deployment and actual MCP client verification |
 | 6. Finish public docs and directory submissions | README/site show actual install and hosted behavior; owner-aligned submission receipts; vendor review tracked separately |
 
-Current unanswered paid-trial/onboarding and backup decisions remain unanswered.
+Current unanswered paid-trial/onboarding decisions remain unanswered. Recovery
+scope is settled: provider database recovery and code rollback with disclosed
+asset recovery limits; no automatic asset-backup system in this cycle.
 Reconcile the frozen trial inputs with the repository move; do not silently swap
 an approved artifact for a different candidate. The one-day target is an execution
 priority, not a promise about owner availability or vendor turnaround.
