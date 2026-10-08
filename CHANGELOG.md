@@ -9,6 +9,7 @@ does not publish a package.
 
 - Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
 - `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
+- Organic authoring helpers: `metaballSurface`, `taperedTube` (incl. `sectionScale`), `catmullRomPath`, `spiralPath`, `smoothOrganic`, `rockDisplace`, `rockBoulder`, and SDF utilities `smoothUnion` / `sphereInside`. Discovery catalog and geometry-recipes skill updates.
 
 ## 1.1.0
 
@@ -96,13 +97,6 @@ Hosted deployment and vendor directory acceptance remain separate milestones.
   before exporting. The eight-asset campaign records its incomplete handoffs and
   visual defects separately from valid exports.
 
-<<<<<<< HEAD
-- Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
-- `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
-- Organic authoring helpers: `metaballSurface`, `taperedTube` (incl. `sectionScale`), `catmullRomPath`, `spiralPath`, `smoothOrganic`, `rockDisplace`, `rockBoulder`, and SDF utilities `smoothUnion` / `sphereInside`. Discovery catalog and geometry-recipes skill updates.
-
-=======
->>>>>>> upstream/organic-1-qa-guard
 - **Breaking (v1 candidate):** `optimize: 'full'` replaces flatten/join with rigid-group
   merging. Its rigid-merge pass preserves node names, hierarchy and transforms, including animated targets,
   named joint pivots, semantic nodes, composition placements and LOD levels. Ordinary
