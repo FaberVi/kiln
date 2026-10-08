@@ -7,31 +7,405 @@ Started 6 October 2026 by the owner's active goal. Working checkout:
 The [publication plan](../plans/2026-10-05-v1-publication-plan.md) defines scope;
 [hosting economics](../plans/2026-10-06-hosting-economics.md) records assumptions.
 This record tracks evidence, not release acceptance by implication. Community
-contributions remain outside this cycle. No package or production service is
-published yet.
+contributions remain outside this cycle. Stable `@instruktlabs/kiln@1.0.0` is now
+public on npm under `latest`; the release candidate remains under `next`. The
+production hosted service remains unpublished. The table below is current; the dated execution notes retain earlier
+states and the evidence that superseded them.
 
 ## Deliverables and evidence
 
 | ID | Requirement | State and required proof |
 | --- | --- | --- |
 | P0 | Preserve publisher/repository setup | Complete in [publisher setup receipt](2026-10-06-publisher-setup.md); current checkout remote verified `instruktlabs/kiln` |
-| P1 | Public API, stability and migrations | In progress: all 55 public entrypoints classified in the SDK guide, experimental/re-export and deprecated-alias boundaries explicit, Discovery labels visible; final release freeze and target-version upgrade proof remain open |
-| P2 | Compiled ESM SDK and declarations | In progress: corrected 53-entry core qualification includes dependency-free arena; all 55 imports/declarations pass in fresh optional-peer installations at current and declared-minimum versions; final-version and platform evidence remain open |
-| P3 | Package identity, contents, executables and notices | In progress: unpublished `@instruktlabs/kiln@1.0.0-rc.1`, aligned engine/plugin identities, MCP launcher, consumer doc allowlist and dependency notices; fresh RC archive checks pass locally, final release audit remains open |
-| P4 | Clean installs and workspace upgrades | In progress: RC package passed all platform CI jobs; official 0.10.0-to-RC upgrades pass for Claude/Codex workspaces with conflict refusal, reapplied customizations and byte-exact old assets; final-version harness checks remain open |
-| P5 | Release automation and npm publication | In progress: manual exact-archive workflow and owner runbook; GitHub npm-release environment created with sole owner review, no admin bypass and protected branches; live npm trust, staging approval, registry provenance and fresh registry install remain open |
-| H1 | Native Cloudflare qualification | In progress: Linux image built, Trixie software renderer passes six textured views; Docker namespace probe fails closed, Bubblewrap launch-argument defect corrected; real Cloudflare isolation/execution, RSS, startup and measured cost remain pending |
-| H2 | Authenticated MCP and tenant boundary | In progress: Google/GitHub adapters, permanent D1 account IDs, atomic upstream login guards and current account/epoch checks pass 90 local hosted tests; linking, individual connection revocation, branded real sign-in, container dispatch and evaluator isolation remain open |
-| H3 | Artifact lifecycle | In progress: tenant SQLite/R2 bytes, ProgramStore and native AssetLibrary, atomic quotas/revision pins, material closures, authenticated downloads, deletion and seven-day unsaved retention pass local workerd and actual-engine checks; standalone MaterialLibrary, native dispatch, browser tickets, account deletion and deployed lifecycle proof remain open |
-| H4 | Capacity and operations | In progress: local native request admission, body/response/deadline bounds and cancellation pass; global operational quotas, process cleanup, load/cost measurements, alerts, deployed health/build identity and rollback remain open |
+| P1 | Public API, stability and migrations | Stable contract published: 55 public entrypoints classified, experimental/re-export and deprecated-alias boundaries documented, and explicit 0.10.0/RC-to-stable managed workspace upgrades qualified |
+| P2 | Compiled ESM SDK and declarations | Stable SDK published and qualified: compiled ESM/declarations, dependency-free core and optional-peer boundaries; public-registry installs pass across the supported Linux/Windows/macOS matrix |
+| P3 | Package identity, contents, executables and notices | Stable published: PR #151 merged as main `fda71ac`; all 12 exact-main CI jobs and release verification passed. Owner-approved staging/promotion completed, and the public archive SHA-256 `6ed3d6b9...1508` and signed provenance independently verified |
+| P4 | Clean installs and workspace upgrades | Stable qualified: all seven public-registry jobs pass; fresh Windows archive passes 25 consumer checks; Claude/Codex cached installers render/save/reopen/export; 0.10.0 and RC-to-stable upgrades preserve assets/customizations and refuse conflicts |
+| P5 | Release automation and npm publication | Stable published and verified: approved stage promoted after npm security-key authentication, latest=1.0.0, public archive/provenance verified. PR #152 merged as 77dfbc3 after all twelve CI and seven registry jobs passed. GitHub v1.0.0 release/tag and downloaded archive verified |
+| H1 | Native Cloudflare qualification | Fixed native qualification and private integrated candidate `c755434` passed. The latter passed ten lifecycle/isolation/quota checks using thirteen of seventeen allowed VM starts; all resources were removed and absence verified. Thirty-five actual VM starts across approved trials are recorded. Latest combined source/image qualification, representative load and settled billing remain open |
+| H2 | Authenticated MCP and tenant boundary | In progress in draft PR #153: primary-D1 access/revocation, browser confirmation, Google/GitHub linking/unlinking and durable full-account deletion are implemented and locally tested. A thirteen-check preflight now exercises gateway/token/storage/revocation paths across the prepared six-Worker topology with synthetic accounts and paused native admission. Owner selected in-app security notices only for v1. Live sign-in and final combined-service qualification remain open |
+| H3 | Artifact lifecycle | In progress in draft PR #153: native dispatch, private saved assets/material closures, verified evaluator identity, browser download tickets, quotas/retention and account retirement are locally tested. The earlier frozen private trial proves render/save/reopen/export/isolation for its recorded scope; newer material/download/deletion work still needs deployed qualification |
+| H4 | Capacity and operations | In progress: shared SQLite admission, global/per-account quotas, operator pause, native cleanup and durable account-deletion recovery are implemented. Launch quota values, representative load/costs, deployed Cron recovery, retention/alerts/escalation, deployed identity and rollback verification remain open |
 | H5 | Production deployment | Pending: approved deployment at `kiln.instruktlabs.com`; live authenticated create/edit/render/save/download/reconnect flow |
-| L1 | Local Claude Code and Codex plugins | In progress: both remote Git catalogs and real versioned caches qualified; actual development-to-RC plugin updates preserve pinned workspaces until explicit runtime upgrade, saved assets remain byte-exact and native clients discover one server; final registry/tag distribution and final-version upgrade remain open |
-| L2 | Public OpenAI plugin | Pending: compliant ZIP, verified publisher/domain, working MCP, privacy/support pages, review cases/video/account, submission receipt |
-| L3 | Anthropic directory | Pending: owned marketplace publication, final source path, account eligibility, reviewer materials and submission receipt |
-| V1 | Exact candidate verification | In progress: development builds have pinned local and CI evidence; final RC/version archive and target-host flows remain open |
+| L1 | Local Claude Code and Codex plugins | Stable distribution qualified: both actual client catalogs install kiln-engine 1.0.0 and download the exact public npm runtime; real MCP/CLI flows and Codex skill/tool discovery pass. RC and 0.10 workspace upgrades preserve stores. Same-profile RC-to-stable cache updates also pass, retaining the pinned workspace runtime and original saved assets |
+| L2 | Public OpenAI plugin | In progress: portable ZIP, hosted skill, listing metadata, review cases and public policy pages are prepared. Existing Instrukt Labs organization is verified in OpenAI's portal. Live MCP, selected publisher/domain proof, owner-reviewed terms, executed cases/demo/review account and submission remain open |
+| L3 | Anthropic directory | In progress: portal revalidated 2339681 with the icon warning resolved and two credential policy holds. The listing exposed unsupported chat/Cowork classification; plugin 1.0.1 moves the actual installer to documented bin/ and retains engine 1.0.0. Isolated client installs and workspace flows pass locally. Exact-source platform readback, privacy/data declarations, submitting identity, executable attestation, GitHub push access and submission remain open |
+| V1 | Exact candidate verification | Package qualified: exact main fda71ac archive, twelve main CI jobs, release verification, public registry/provenance, seven-platform registry installs, fresh local consumer checks and stable plugin/workspace flows pass. Hosted end-to-end verification remains open |
 | V2 | Release documentation and receipts | Pending: changelog/migrations/install/support/security/privacy/runbook; exact commits, hashes, versions, URLs and separate vendor-review state |
 
 ## Execution notes
+
+### Authenticated metadata and helper discovery at the edge
+
+The gateway now answers protocol metadata and static helper discovery without
+starting a coordinator VM or reserving compute. The OAuth scope, current account
+and primary-database connection checks still run first. Source/private-resource
+operations and live capabilities retain the admitted native route. Tool and resource
+definitions are captured from the actual engine protocol, checked during builds
+and compared independently with the real native HTTP host. The Worker bundles only
+the pure discovery service and generated catalog, with no native evaluator.
+
+Focused tests first demonstrated missing gateway routing and invalid Discovery
+arguments becoming transport errors. Those now pass, including engine-compatible
+error guidance and path redaction. An older assertion expected modern server identity
+at the top level; it was corrected against the current MCP discovery specification,
+which places it in result metadata. Authentication checks also prove that revoked
+credentials cannot obtain edge metadata through stale OAuth KV records.
+
+All 245 hosted tests, three hosted typechecks, ten production bundles and root
+typecheck/lint pass. The actual gateway bundle is 2,401,079 unminified bytes;
+startup CPU and deployed cost remain unmeasured. Source and production-bundle
+secret scans are clear. Receipts: `.cache/edge-hosted-tests.log`,
+`.cache/edge-source-scan.json` and `.cache/edge-bundle-scan.json`.
+The preceding admission commit `892ebd8` passed all eighteen CI checks, including
+[engine/package CI](https://github.com/instruktlabs/kiln/actions/runs/37542572710).
+Both hosted platforms passed the edge commit `82dd546` in
+[run 37544102514](https://github.com/instruktlabs/kiln/actions/runs/37544102514).
+Its independent native-image job exposed an unconditional checkout SDK import
+in the combined build script. The native-only build now skips that edge dependency;
+an isolated-checkout regression first reproduced the failure without `dist/` or
+`lib/`, then passed. The image workflow uses that path, while the ordinary Worker
+build retains its required metadata check. The build correction needs fresh CI.
+Hosted-specific instructions, integrated
+rendering, account lifecycle and live qualification remain open.
+
+No cloud upload, compute job, main merge, npm change or deployment occurred. The
+approved cloud allowance is still exhausted and the public service is unpublished.
+
+### Shared admission and gateway connection
+
+The gateway now routes MCP through a private service binding that selects one
+fixed global SQLite admission object. Artifact downloads stay on the storage
+path. Required configuration controls per-account minute/day usage, global
+day/month usage, concurrent requests and deadlines. A request reserves capacity
+before dispatch and keeps it until its coordinator and children confirm cleanup.
+Unknown cleanup stays reserved across eviction and alarm recovery. A separate
+operator binding supports durable pause without exposing that control to the
+gateway. Launch values have not been adopted from the test fixtures.
+
+Focused tests first failed for the missing controller/entrypoint and the old
+gateway routing. An adversarial same-turn cancellation case then reproduced an
+unclosed discarded response body; the fix retains and cancels that response even
+when the cancellation wins the promise race. Real local workerd tests also cover
+concurrent requests, denied-attempt accounting, UTC quota rollover, missing
+configuration, operator separation and recovery after eviction. Provider
+qualification and an inexpensive edge path for MCP discovery remain pending.
+
+All 237 hosted tests, three hosted typechecks, ten production bundles and root
+typecheck/lint pass. The full offline engine suite passes 3,290 tests with two
+platform-specific skips and zero failures. Production source and bundle scans
+report no secrets. Logs are retained in `.cache/admission-hosted-tests.log` and
+`.cache/admission-root-tests.log`; source and bundle scan
+receipts use `.cache/admission-{source,bundle}-scan.json`.
+
+The previous commit `83a8272` is now green across all eighteen CI checks. Its
+Windows hosted job initially failed one of 221 tests with Miniflare `fetch failed`.
+The focused test and all 221 tests passed locally; a single rerun of the failed
+Windows job in [run 37540274823](https://github.com/instruktlabs/kiln/actions/runs/37540274823)
+passed unchanged. The first transport failure remains unexplained; no test was
+weakened or removed. The new changes require their own cross-platform CI.
+
+No cloud upload, compute job, public route, main merge or deployment occurred.
+The approved cloud allowance remains exhausted. The stable public package is unchanged.
+
+### Request dispatcher and private tenant bindings
+
+The private request controller now starts a pinned offline coordinator, waits for
+readiness and image confirmation, and binds fixed storage/evaluation interceptors
+using host-owned loopback props. Tenant selection comes from the request's durable
+record. A request allows one active child and at most eight children total, records
+each child before dispatch, and withholds its bounded response until the entire VM
+tree is confirmed stopped. Failed cleanup remains unfinished for alarm recovery.
+
+The first tests failed for the missing implementation. Follow-up cases reproduced
+startup after an expired durable claim and a Node stream-forwarding incompatibility;
+both are fixed. The real workerd fixture also demonstrated loss of the custom HTTP
+error prototype across RPC. Errors are now converted before crossing that boundary,
+preserving intended statuses while redacting unexpected diagnostics. Local workerd
+checks use the actual private entrypoints, loopback props, tenant/R2 storage and
+eviction: Alice's source remains unavailable through Bob's request object.
+
+All 221 hosted tests, three hosted typechecks, nine production bundles and root
+typecheck/lint pass locally. The earlier cancellation commit `432cb2c` passed all
+eighteen CI checks, including [engine/package CI](https://github.com/instruktlabs/kiln/actions/runs/37538519458),
+[both hosted platforms](https://github.com/instruktlabs/kiln/actions/runs/37538519509)
+and [all three installed images](https://github.com/instruktlabs/kiln/actions/runs/37538519558).
+
+The shared admission service, its quotas and the gateway connection are still
+pending. The new controller has local orchestration evidence only; it has not run
+on Cloudflare and does not enable public MCP. The total approved cloud-job allowance
+remains exhausted, with no new upload, compute job or production deployment.
+
+### Durable child cancellation
+
+The private evaluation DO now keeps a single controller and exposes a parent-only
+cancellation RPC. Before any child request arrives, cancellation writes a permanent
+terminal record that survives reconstruction. During a pending durable claim it
+also aborts the live controller, preventing late startup. Active cancellation
+persists a recovery flag and alarm and waits for verified whole-instance cleanup;
+failed cleanup retains the unfinished job for recovery, even before the original
+execution deadline. A completed job remains unchanged by repeated cancellation.
+
+Five focused cases failed before implementation and now pass. An additional
+overlap assertion reproduced duplicate destruction from cancellation plus an
+alarm; the alarm now joins the same pending cancellation. Local checks pass all
+204 hosted tests, three hosted typechecks, eight bundles and root types/lint.
+The Node-host commit `f6a7d39` independently passed Linux/Windows hosted checks
+and all three image jobs in [run 37537769251](https://github.com/instruktlabs/kiln/actions/runs/37537769251).
+
+The implementation follows the current [Container API](https://developers.cloudflare.com/containers/api/durable-object-container/)
+and [alarm contract](https://developers.cloudflare.com/durable-objects/api/alarms/),
+including repeated alarm delivery and explicit recovery scheduling. This new RPC
+is locally qualified only; the earlier fixed cloud receipts do not establish its
+provider behavior. No live job or deployment occurred, and the parent/global
+admission implementation remains open.
+
+### Private Node host and installed coordinator image
+
+The native coordinator now has an actual HTTP entry using the maintained MCP Node
+adapter, separate from the untrusted evaluator image. The entry selects the remote
+evaluator explicitly and requires an exact public HTTPS origin. Socket-level tests
+cover the fixed internal Host/path, request limits, stalled uploads and propagation
+of disconnects. Invalid startup settings and missing private services fail closed;
+there is no fallback to in-process source evaluation.
+
+The focused tests were observed failing before implementation. All 199 hosted
+tests, three hosted typechecks and eight production bundles now pass locally.
+The prior integration commit `4e7a304` also passed all engine/package checks in
+[run 37535301751](https://github.com/instruktlabs/kiln/actions/runs/37535301751),
+Linux/Windows hosted checks, both evaluator images and the website build.
+
+The new coordinator image was built with a minimal eight-file context and the
+exact published stable archive. Image
+`sha256:5402d67069e8b5c9d355e4f49b9ae92d353171b381d27496f85f5794adf95d75`
+passes readiness, modern MCP discovery, legacy initialization, foreign-host and
+credential rejection, and failure without private services. It advertises the
+fourteen actual registry tools. The Docker fixture used no host port, disabled
+networking and a non-root, read-only, resource-bounded container; that container
+was removed. The image/lock/bundle identities and inventories are retained at
+`.cache/native-host-image/qualification/receipt.json`. Both hosting and generated
+image locks reported zero known npm audit findings. CI now builds and exercises
+this image in a separate job without cloud access or image publication.
+
+These are local coordinator checks, not an extension of the Cloudflare isolation
+receipt. No new cloud job, deployment or registry write occurred. The dispatcher
+still needs tenant-bound interceptors, whole-job-tree recovery/global admission,
+software rendering and complete hosted lifecycle qualification.
+
+### Stable plugin cache updates
+
+Both isolated qualification profiles now have `kiln-engine@instruktlabs` version
+1.0.0, upgraded from their existing 1.0.0-rc.1 caches through the actual Claude
+and Codex CLIs. Cached provenance inventories verify byte-for-byte. Their managed
+workspaces remain pinned to the RC until an explicit workspace upgrade; the
+original saved asset hashes and owner notes remain intact. The separate previously
+qualified RC-to-stable workspace upgrade is still the intentional next step.
+Receipt: `.cache/v1-stable-cache-upgrade.json`.
+
+These test profiles had explicitly selected the development catalog branch,
+`codex/v1-publication`. Both CLIs correctly refused replacing a declared catalog
+with a different source through `marketplace add`. Only the isolated profiles'
+declared ref was changed to `main`, followed by normal marketplace/plugin updates.
+The refusals and continuation are retained in the receipts; no normal user profile
+was changed. Full before/after workspace snapshots bracket the Codex update and
+the repeated Claude refresh. Claude's first update is supported by the CLI's
+RC-to-stable result and verification of the original saved file hashes afterward.
+Do not recommend deleting a marketplace as the normal upgrade route: Claude's
+current CLI documentation states that this also uninstalls its plugins and may
+delete plugin-managed data. [Claude plugin commands](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-remove).
+
+### Native dispatch integration branch
+
+`codex/v1-native-dispatch` combines the published stable source and release record
+with the account-controls and provider-qualified controller branches. This is
+integration work, not a main merge or deployment. The full README/site refresh
+remains a final release task as the owner requested.
+
+The new private evaluator client uses the published SDK's v2 protocol and validates
+response identity, GLB and QA through that SDK. Its separate fixed hostname carries
+no account selector or credentials and clamps hosted work to 60 seconds, 4 MiB
+input/GLB and 8 MiB output. A private evaluation Worker exposes the existing
+single-use controller through a bounded HTTP handler, with request reading charged
+against the execution deadline and no early return that bypasses job cleanup.
+The default Worker route is 404; production bindings are not configured.
+
+Focused tests first failed for the missing client/handler, then exposed a real
+cancellation race between receiving headers and attaching a body reader. The
+shared native transport now closes that stream on cancellation and other failures.
+Adversarial tests cover hostile identity headers, route confusion, mismatched
+response IDs, invalid UTF-8, declared/streamed size limits, delayed bodies,
+cancellation, redacted errors and no in-process fallback. The real MCP fixture
+renders, saves and reconnects using the new protocol transport; a separate fixture
+connects the actual native client, private HTTP handler and SDK evaluator together.
+These fixtures use fixed trusted source locally and do not extend the Cloudflare
+isolation receipt. No new cloud jobs or paid operations were started.
+
+Local qualification on Node 22.23.3/npm 12.2.0/Bun 1.4.2 passes all three hosted
+typechecks, all 193 hosted tests and seven production bundles. Root toolchain,
+typecheck and lint pass; the full offline engine suite reports 3,290 passed,
+two platform-specific skips and zero failures. Logs are retained at
+`.cache/native-dispatch-hosted-tests.log` and
+`.cache/native-dispatch-root-tests.log`. Cross-platform CI remains the next gate.
+
+The outer tenant-bound dispatcher, global admission, production renderer,
+account lifecycle and live-provider verification remain open. HTTP cancellation
+alone must never release a global slot while VM destruction is unconfirmed.
+
+### GitHub stable release and final documentation scope
+
+The owner approved the prepared GitHub release. [Kiln 1.0.0](https://github.com/instruktlabs/kiln/releases/tag/v1.0.0)
+was published at 21:19:19 UTC on 6 October 2026. Tag `v1.0.0` resolves to
+`fda71ac775750f25390b6ee30082ebc56463edc6`, matching the public npm provenance.
+The release attaches the 9,155,191-byte published archive and `SHA256SUMS.txt`.
+A fresh GitHub download hashes to
+`6ed3d6b9964429f14c3c6a0a6a13d56be509dd0f40b07061a37d491f901c1508`;
+the checksum file and remote asset digest agree. The public notes explicitly keep
+hosted access and vendor submissions pending. Receipt in the stable worktree:
+`.cache/stable-main-qualification/github-release-receipt.json`.
+
+The owner reaffirmed the final documentation pass after the remaining work.
+Audit the root README, maintained repo guides and generated/site content for old
+package identities, prerelease/default-tag claims, install commands, supported
+runtime versions, plugin setup, authentication/hosting availability and deprecated
+architecture advice. Reconcile every public promise against the shipped or live
+surface. Include the deferred Troy scene images and new user/agent onboarding.
+Keep historical review records dated; they are not current installation guides.
+Validate the final website build and real navigation/install paths before its
+separate approved publication. No broad README or site rollout happened here.
+
+### Stable installed clients, upgrades and native resilience
+
+All twelve engine/package CI jobs in [run 37528755662](https://github.com/instruktlabs/kiln/actions/runs/37528755662)
+and seven public-registry installation jobs in [run 37528755713](https://github.com/instruktlabs/kiln/actions/runs/37528755713)
+passed. The registry matrix covers Linux Node 20.15/22.2/22.23.3/24.20, Windows
+22.23.3 and macOS Intel/Apple Silicon. After explicit approval, PR #152 merged as
+`77dfbc35197e372e1039995c2160830ddda8a197`, updating the immutable public
+release record. A duplicate manual registry run was cancelled after the automatic
+PR run appeared; it is not the qualification receipt.
+
+Fresh isolated Claude Code 2.1.287 and Codex CLI 0.160.1 profiles installed the
+stable plugin from the public Instrukt Labs catalog at source `fda71ac`. Their
+cached setup helpers downloaded npm 1.0.0, verified its archive integrity and
+created managed workspaces. Each workspace completed Discovery, CPU render,
+save, process restart, exact retained source and CLI export. Codex's native
+app server discovered the cached setup skill, three workspace skills and seventeen
+MCP tools at version 1.0.0 without model calls or normal-profile changes.
+Receipts: `.cache/v1-stable-remote-plugin-install.json`,
+`.cache/v1-stable-plugin-workflow.json` and
+`.cache/v1-stable-codex-appserver.json`. An initial redundant app-server refresh
+raced its startup refresh on Windows; the failed receipt remains separate. The
+successful check uses the catalog already installed by the CLI.
+
+Explicit upgrades from the public RC runtime and the verified official 0.10.0
+archive passed for both harnesses. Check-only and conflicting launcher updates
+changed no files; resolved upgrades preserved saved source/GLB/preview bytes,
+revision parents and owner files. Compatible edits to unchanged guides survived.
+The upgraded MCP rendered retained source, saved child revisions and exported the
+exact edited source through the CLI. Receipts:
+`.cache/v1-stable-rc1-upgrade.json` and `.cache/v1-stable-v010-upgrade.json`.
+The first RC test incorrectly expected an unchanged customized guide to conflict;
+it actually upgraded successfully. Its failed assertion is retained in
+`.cache/v1-stable-workspace-upgrade.json`. The corrected probe tests a changed
+launcher conflict and preservation of an unchanged customized guide. No engine
+change or weaker upgrade rule was needed.
+
+After the owner's twelve-job/$1 approval, native source `d068a7c` passed all
+fixed Cloudflare cases: CPU preview, six software material views, native network
+denial, marker/child destruction and fresh-VM absence, native deadline,
+cancellation, stdout/stderr floods, actual memory exhaustion, actual durable alarm
+recovery and engine execution afterward. Downloaded Worker and image identities
+matched the approved candidate. Every VM was confirmed stopped by the controller
+and independently by the provider API. Replaying the RPC started no new jobs.
+All seven returned PNGs decoded independently and matched local references byte
+for byte; visual inspection confirmed the fixed geometry/material/backdrop views.
+
+The operator, application, Worker, both namespaces and registry tag were removed,
+with absence verified. All 22 jobs across the four approved scopes are consumed.
+The 101,532 ms total reported job time is not billed CPU, a load benchmark or a
+settled invoice. The diagnostic branch's `hosting/probe/RESILIENCE.md` and
+`.cache/resilience-trial/` retain the exact twelve-case and cleanup receipts.
+Authenticated native dispatch, production render integration, account lifecycle,
+private artifacts, global admission, live providers, production deployment and
+vendor submissions still remain. Broad README/Troy/site work stays deferred.
+
+### Stable publicly published
+
+The owner approved the protected environment and
+[staging run 37525019084](https://github.com/instruktlabs/kiln/actions/runs/37525019084)
+completed successfully. npm reports stage
+`6b1a5f9f-36f7-465d-ba81-9c47e5d83e66` as `staged`, version `1.0.0`, intended
+tag `latest`, published by trusted automation. Downloading that exact stage
+reproduced SHA-256
+`6ed3d6b9964429f14c3c6a0a6a13d56be509dd0f40b07061a37d491f901c1508`.
+Sigstore verification passed for the main-branch release workflow identity,
+GitHub Actions issuer, exact commit `fda71ac775750f25390b6ee30082ebc56463edc6`,
+staging run and archive digest against
+[Rekor entry 3116120928](https://search.sigstore.dev/?logIndex=3116120928).
+The local receipt is retained in the stable worktree at
+`.cache/stable-main-qualification/provenance-receipt.json`.
+
+The owner's environment approval authorized private staging only. The owner then
+separately approved public promotion of this exact stable candidate and completed
+npm security-key authentication. The CLI confirmed successful publication.
+Public registry metadata now reads `latest = 1.0.0`, with `next = 1.0.0-rc.1`.
+The independently downloaded public archive matches the digest above, and its
+public Sigstore provenance verifies against the same workflow, commit, run and
+archive. The npm website also displays `1.0.0`, Public. No production hosted
+deployment has occurred.
+
+[PR #152](https://github.com/instruktlabs/kiln/pull/152) updates the public candidate
+record to stable so the seven-job registry installation matrix can qualify the
+published version. [Run 37528755713](https://github.com/instruktlabs/kiln/actions/runs/37528755713)
+was dispatched at `6248b4c`. The fresh local Windows installation passed all 25
+checks, including SDK declarations, CLI, MCP and packaged plugin checks; its
+receipt validator accepted the exact public archive on Node 22.23.3/npm 12.2.0.
+Receipts and the npm screenshot are retained under the stable worktree's
+`.cache/stable-main-qualification/public-registry/`.
+
+Independent hosted resilience work continues: native cancellation,
+deadline/output/memory bounds, actual durable-alarm recovery and stable-image
+rendering are being prepared for local verification and a separately approved
+Cloudflare trial. No new cloud trial allowance has been requested or consumed.
+
+### Stable exact-main qualification
+
+Main `fda71ac775750f25390b6ee30082ebc56463edc6` passed every job in
+[CI run 37523234644](https://github.com/instruktlabs/kiln/actions/runs/37523234644),
+including both engine platforms, the installed package matrix and six software
+Vulkan images. The downloaded archive SHA-256 is
+`6ed3d6b9964429f14c3c6a0a6a13d56be509dd0f40b07061a37d491f901c1508`.
+[Release verification 37524905058](https://github.com/instruktlabs/kiln/actions/runs/37524905058)
+validated repository/commit identity, all CI jobs, the archive and all eight
+qualification artifacts. Its downloaded archive independently matches that digest.
+
+The protected `npm-release` environment still requires the owner as sole reviewer,
+forbids administrator bypass and allows only protected branches. The same main
+commit and digest were dispatched for staging in
+[run 37525019084](https://github.com/instruktlabs/kiln/actions/runs/37525019084).
+Its verification passed and the staging job is waiting for the owner's browser
+review. No new package version has been uploaded or promoted at this point.
+Public metadata still reads `next = 1.0.0-rc.1` and `latest = 0.0.0-stage`.
+The concrete handoff was opened in Chrome with `npm-release` selected. Final
+promotion remains a separate owner decision and npm security-key step.
+
+The native startup branch separately adds stopped-state confirmation to the
+production controller at `d3e6ac7`. It withholds output and retains durable
+recovery when destruction cannot be confirmed. Focused regression tests first
+failed, then all 136 hosted tests, hosted/root types, lint and production bundle
+checks passed. Exact-source CI and further live failure-path qualification remain
+pending at that point; the completed four-job allowance does not authorize another cloud run.
+
+Subsequently, `d3e6ac7` passed both Linux and Windows hosted checks in
+[run 37525915541](https://github.com/instruktlabs/kiln/actions/runs/37525915541).
+The separate software-image candidate at `b34d56f` passed both CPU and software
+image CI jobs in [run 37526078285](https://github.com/instruktlabs/kiln/actions/runs/37526078285).
+Those image CI jobs use the public RC. Independently, the exact stable archive
+was installed in local image
+`sha256:84a0fa62bcffa010b9ac1c5f2f0e2cf9045a9cdb6407f621e8049e6a37f9de99`:
+the real entry produced the expected GLB twice, the CPU preview passed, and the
+packaged software Vulkan renderer produced all six textured views. Its retained
+npm lock has zero known audit findings. The local containers were removed.
+These results do not qualify that new image on Cloudflare or authorize its upload.
 
 - Created `codex/v1-publication` from the current main checkout without altering
   the four existing untracked planning/setup documents.
@@ -1248,8 +1622,9 @@ Verification passed. Downloaded `npm-release-review`, inspected `review.json` an
 independently matched its archive digest. The stage job was skipped as intended.
 All 15 checks on hosted identity PR #146 at `255df6a` also passed; that PR remains
 unmerged and does not change this npm candidate. The owner staging/access-setup
-question is now pending because first-time npm staging creates a public placeholder.
-No npm package has been staged or published, and no hosted service has been deployed.
+question was pending at this checkpoint because first-time npm staging creates a
+public placeholder. The subsequent authorized setup is recorded below. No hosted
+service has been deployed.
 
 ## Owner handoffs
 
@@ -1273,4 +1648,1662 @@ those results. No identity app or secret has been provisioned yet.
 The initial npm browser login did not complete and its terminal-password fallback
 was cancelled. The fresh owner-attended attempt succeeded, as recorded above.
 Trusted publishing configuration, exact-archive staging and owner promotion remain
-separate steps. No package has been staged or published yet.
+separate steps, with subsequent progress recorded below.
+
+## npm bootstrap and package protections
+
+The owner explicitly approved staging the verified RC and configuring stage-only
+GitHub publishing access. The exact archive above was uploaded using npm 12.2.0
+with lifecycle scripts disabled and local provenance disabled only for bootstrap.
+npm created stage `36c3dbd9-5908-4e0c-b394-b08e12379e31` and the public
+`0.0.0-stage` holding version. The RC itself was not promoted. The package website
+confirmed the placeholder even while public registry metadata was still returning
+404; these are different observations, not evidence that no public write occurred.
+
+Owner security-key authentication completed the trusted publisher configuration:
+repository `instruktlabs/kiln`, workflow `release.yml`, environment `npm-release`,
+permission **npm stage publish only**. npm's Settings UI independently showed
+those values. A second owner security-key step saved **Require two-factor
+authentication and disallow bypass 2fa tokens**; the success notification and
+selected setting were verified. No bypass token or `NPM_TOKEN` was created.
+
+As prescribed by the runbook, the bootstrap was rejected with owner 2FA after
+trust was saved. The CLI confirmed rejection and `npm stage list` returned an
+empty list. This removed only the temporary unpromoted stage, not the package or
+its settings. The exact archive remains retained in the CI artifacts and locally.
+
+Rechecked main, successful source CI, archive digest and the GitHub environment:
+sole owner reviewer, protected branches only, no administrator bypass. Dispatched
+[staging run 37477014656](https://github.com/instruktlabs/kiln/actions/runs/37477014656)
+from unchanged main with the same CI run and digest. Its verification job passed;
+the owner approved the GitHub environment review, and the stage job succeeded.
+npm stage `6f426dc2-d6b6-41a8-9ccf-874342bd7089` is `1.0.0-rc.1`, tag `next`,
+actor `GitHub Actions` / `trusted automation`. Its registry validation completed
+with status `staged`. No RC promotion or stable 1.0 publication has occurred.
+
+Downloaded that stage from npm and independently matched its 9,154,941 bytes and
+SHA-256 to the approved archive. npm recorded signed provenance in
+[Sigstore log entry 3110722988](https://search.sigstore.dev/?logIndex=3110722988).
+The Rekor entry stores the signed payload hash rather than the statement itself.
+Reconstructed the expected statement using npm 12.2.0's deterministic schema and
+the verified archive SHA-512, then required its exact SHA-256 to match Rekor's
+`79449664bc6e679b694bcae73b78d26023b3df2f97eca215672c50fc8686c3a3`.
+Reassembled the verification bundle from that statement and the public certificate,
+signature, inclusion proof and signed timestamp. npm's installed Sigstore verifier
+successfully checked the bundle against its TUF trust root and the required
+GitHub Actions issuer and workflow identity. The verified statement binds the
+package/version/archive to repository `instruktlabs/kiln`, `release.yml`, main
+commit `ce640ccae0c621177aad176a03b5a214ae57d266` and run `37477014656` attempt 1.
+This was verification only; no new signature or provenance was generated locally.
+Retained `.cache/npm-stage-provenance-receipt.json` and
+`.cache/npm-stage-verified-provenance.json`. Public promotion is now awaiting
+the separate owner approval required by the runbook at this checkpoint; its
+subsequent promotion and public-registry verification are recorded below.
+
+## Cloudflare evaluation controller implementation
+
+The private host now has a one-job container controller with a durable claim and
+deadline alarm recorded before compute starts. It requires a pinned image digest,
+disables internet, sends no storage or identity credentials, bounds request/stdout/
+stderr bytes, and destroys the whole VM before returning output. Cancellation,
+startup failures, output flooding and deadlines converge on that cleanup. Failed
+cleanup suppresses success and leaves a durable alarm to retry. Completed job IDs
+remain unavailable for reuse. Returned bytes still require the engine's strict
+versioned result validation outside the VM.
+
+The companion one-shot entry imports the compiled engine package, accepts one
+bounded UTF-8 request and emits one canonical evaluator response. It is designed
+only for an externally isolated VM; its in-process handler and JavaScript timeout
+do not provide a security boundary. Fixed trusted fixtures passed deterministic
+GLB, malformed-envelope, invalid-UTF-8 and oversized-input checks on the development
+host. Nine controller tests passed for orchestration and cleanup. These checks do
+not establish Cloudflare isolation, image deployment, hostile-source containment
+or production routing. Those gates remain open.
+
+With these additions, the local hosted suite passed **103/103** tests. Both hosted
+TypeScript configurations, all five existing production bundle builds, repository
+lint and whitespace checks passed. The new controller and entry are not yet wired
+into a deployed Worker. Receipts: `.cache/v1-container-entry-before.log`,
+`.cache/v1-container-entry-after.log`, `.cache/v1-container-hosting-full.log`.
+The work is in draft [PR #147](https://github.com/instruktlabs/kiln/pull/147),
+stacked on #146. Both Linux and Windows checks passed in
+[hosted CI 37477551252](https://github.com/instruktlabs/kiln/actions/runs/37477551252)
+at `7ac3b23`.
+
+An independent storage regression found during the full hosted suite was fixed in
+`76ef646`: creation and seven-day expiry now derive from one clock read. A focused
+advancing-clock test failed before the change and passed afterward. The fix is on
+hosted identity PR #146; both hosted CI platforms passed. It does not change the
+frozen main-branch npm archive.
+
+## Public release candidate promotion
+
+The owner explicitly approved public promotion of the verified RC under `next`
+and completed npm's security-key authentication. `npm stage approve` succeeded
+for stage `6f426dc2-d6b6-41a8-9ccf-874342bd7089`. The public registry independently
+confirmed `@instruktlabs/kiln@1.0.0-rc.1` and `next=1.0.0-rc.1`. `latest` remains
+`0.0.0-stage`; users must select `@next` or the exact RC version until stable
+1.0 is published. This is a published prerelease, not completion of the v1 goal.
+
+Fetched the tarball from its public npm URL without authentication. Its bytes,
+SHA-256 and SHA-512 integrity match the approved candidate. Downloaded the public
+registry provenance bundle and verified it with Sigstore against the GitHub Actions
+issuer and exact workflow identity. Its statement exactly matches the independently
+verified staging statement, including package digest, source commit and workflow
+invocation. Public receipts are retained in `.cache/npm-public-rc1/`.
+
+Installed that public-registry archive into a fresh Windows x64 consumer directory
+using Node 22.23.3 and npm 12.2.0. All 25 package checks passed, including SDK imports
+and consumer types, CLI, CSG/UV WASM, CPU PNGs, the compiled evaluator, MCP discovery,
+source editing/export, restart persistence, and the local plugin bundle. The receipt
+validator accepted its exact runtime, package version, digest and required checks.
+This verifies Windows consumption of the public archive; the remaining public-
+registry platform matrix and actual plugin harness installation remain open. The
+prepublication exact-archive platform matrix is separately complete.
+
+The package remains `@instruktlabs/kiln`; `next` is a distribution tag, not part of
+its name. Stable `1.0.0` will be assigned `latest`, allowing the plain install
+command. Source checkout documentation now states the RC publication status.
+Stable publication, hosted deployment and directory submissions remain incomplete.
+
+## Installed container image and public-registry matrix
+
+The private CPU image built successfully on Linux amd64 in
+[run 37479877969](https://github.com/instruktlabs/kiln/actions/runs/37479877969)
+at `4267b2053236a012c590a23b62f82d5760b38bd7`. Its four-file build context contained
+only the Dockerfile, one-shot entry, approved public archive and archive checksum.
+The fixed trusted fixture ran in two fresh containers with networking disabled,
+one CPU, 6 GiB memory, 128 processes, dropped capabilities and no new privileges.
+Canonical response decoding passed; both returned the same 1,912-byte GLB with
+SHA-256 `f94d231ed3eb4843a03704872adc3f20b00c2ea24567cb5916407b40a2cf1d40`.
+The receipt explicitly leaves Cloudflare and hostile-source qualification false.
+Image metadata, installed dependency lock, OS inventory and runtime version are
+retained in the run's `private-evaluation-image-evidence` artifact and locally
+under `.cache/image-ci-37479877969/`. No image was published or deployed.
+
+Public-registry [run 37479877736](https://github.com/instruktlabs/kiln/actions/runs/37479877736)
+passed all four Linux Node versions and both macOS architectures. Windows completed
+all 24 functional checks but correctly failed receipt validation: the child helper
+selected bundled npm 10.9.9 instead of the globally upgraded 12.2.0. The workflow
+now passes the selected global npm CLI explicitly and checks its version before
+running the package fixture. The required npm version was not relaxed. This
+workflow correction still requires a successful Windows CI receipt.
+
+Docker Desktop was installed locally but its Linux engine was stopped when first
+queried. After the owner started it, `docker info` successfully reported server
+29.5.3, Linux, x86_64. No reinstall, privilege change, seccomp relaxation or Windows
+service reconfiguration was needed. This resolves local image-build availability;
+it does not resolve the separate historical Bubblewrap namespace probe or qualify
+Cloudflare isolation.
+
+The corrected public-registry [run 37480967896](https://github.com/instruktlabs/kiln/actions/runs/37480967896)
+passed all seven jobs at `3a5d00a8a35f9434d42aae4d39ef5824916d9539`. Downloaded
+every receipt and verified `status=passed`, all 24 required checks, package name,
+RC version and the approved archive SHA-256. Linux covered Node 20.15.0, 22.2.0,
+22.23.3 and 24.20.0; Windows x64 and both macOS architectures covered Node 22.23.3.
+The Windows receipt now records npm 12.2.0. Evidence is retained under
+`.cache/registry-ci-37480967896/`. This closes the public-registry platform matrix,
+not stable publication or actual agent-harness plugin installation.
+
+The local Docker build subsequently passed its own two fresh-container fixtures.
+Its immutable image ID is
+`sha256:69aff70b4f0f80d2ff13549f4b55b1053fc1d8a6e25a00168ac4078a2ebd7b8a`;
+both GLBs match the Linux CI fixture's digest above. The local image's metadata,
+dependency lock and OS/runtime inventory are in `.cache/evaluation-image-local-evidence/`.
+Only the named test containers were removed; the qualified local image is retained.
+
+## Private Cloudflare availability candidate
+
+Prepared the bounded [probe and teardown plan](https://github.com/instruktlabs/kiln/blob/f99f1b894cf8277077c0b1377fdc8a37a0990a28/hosting/probe/README.md).
+It has no public HTTP routes or external bindings, uses five fixed sequential
+jobs, and atomically claims its run once. The first failure stops the batch;
+interrupted claims do not automatically spend again. The production image is
+unchanged; native boundary fixtures exist only in the separate probe Worker.
+Production bundle builds now reject both test and probe helpers.
+
+Three initial run-control tests failed before implementation and passed afterward.
+A fourth workerd integration check verifies loopback namespace routing, closed
+HTTP access and retained failure when no real container is bound. The full hosted
+suite passed **107/107**, all three TypeScript configurations and five production
+bundles passed, and repository lint passed. `@cloudflare/config@0.23.0` is a pinned
+private development dependency for validating the cf beta Build Output; it does
+not enter the engine package or production Worker bundle.
+
+The final probe Worker bundle is 13,190 bytes, SHA-256
+`6babbbb9073fbb4514b03675d73ee1387f30099cd6174cfca7ac8bc6515cc2e0`.
+`cf@1.0.0-beta.12 deploy --prebuilt --dry-run` succeeded for the prepared private
+Worker and `durable_object` container application. No upload, deployment, cron
+provisioning or live probe was performed. Its managed-registry image reference is
+the intended destination, not evidence that the image has been pushed. Retain the
+actual returned registry digest and deployed identities after the concrete owner
+approval. Estimated container metering is about $0.012 for the five-job worst-case
+runtime; the proposed total trial allowance is $1, not a provider-enforced cap.
+
+Availability is only the first provider gate. Native memory exhaustion, output
+floods, cancellation/deadline races, controller interruption recovery, CPU images,
+software Vulkan, measured startup/costs and authenticated storage/MCP integration
+remain separate required work before hosted launch.
+
+## Public-registry plugin qualification and documentation refresh
+
+Re-read the current [OpenAI packaging](https://developers.openai.com/plugins/build/plugins),
+[submission](https://developers.openai.com/plugins/deploy/submission),
+[Claude Code installation](https://code.claude.com/docs/en/discover-plugins),
+[publication](https://code.claude.com/docs/en/plugins/publish) and
+[Anthropic portal checks](https://claude.com/docs/plugins/pre-submission-checklist)
+on 6 October. The plan's distinction between owned marketplaces, directory
+submission and an Anthropic partner's curated-marketplace listing still applies.
+Portable OpenAI manifests and `.claude-plugin/plugin.json` remain appropriate.
+Claude Code 2.1.287 strict validation passes without warnings. Codex CLI 0.160.1
+provides the native marketplace/plugin commands used for qualification.
+
+Claude fetched `https://github.com/instruktlabs/kiln.git#main`; the downloaded
+commit was exactly `ce640ccae0c621177aad176a03b5a214ae57d266`. GitHub shorthand
+selected an unavailable SSH identity on this machine, and a full SHA in Claude's
+`#ref` position was rejected as a missing remote branch. Explicit HTTPS plus a
+branch/tag works; inspect the resolved commit rather than claiming SHA-selector
+support. Installation was scoped to a separate qualification workspace. The old
+user-scoped `kiln@kiln` 0.6.0 installation was already disabled and was not changed.
+
+Codex refreshed a Git marketplace pinned to that exact SHA with per-invocation
+configuration and materialized the RC in its normal versioned plugin cache.
+Its app server discovered the cached `kiln-engine:kiln-setup-workspace` skill,
+the workspace's three author/refine/QA skills exactly once, and `kiln_workspace`
+with all seventeen tools and server version `1.0.0-rc.1`. No model turn, profile
+relocation, permanent Codex configuration edit or authentication change was used.
+The experimental app-server interface is qualification tooling, not a product
+dependency. Both cached plugin inventories match their recorded file hashes.
+
+The cached installer downloaded the exact public RC without `--archive`. The
+installed lockfile records the approved public tarball URL and SHA-512 integrity.
+Both cached helpers then accepted their fresh managed workspace with `--check`.
+Claude's actual MCP connection check passed with a fixture-only, server-specific
+trust option. A standard MCP client exercised each generated workspace's installed
+server: capability identity, CPU images, save, process restart, exact source
+recovery and CLI GLB export all passed. Capability receipts point to the installed
+public package outside either plugin cache and report the RC engine/build identity.
+These fixed-fixture checks do not claim a model-authored asset or vendor approval.
+
+Receipts: `C:/Users/Mattm/X/kiln-dogfood/plugin-rc1-2026-10-06/codex-receipt.json`
+and `workflow-receipt.json` beside it. Probe helpers are retained under
+`.cache/registry-plugin-{codex-probe,workflow}.mjs`. Failed diagnostic assumptions
+(quoted CLI override key and JSON-only Discovery text) were corrected in the
+probe; no engine behavior or acceptance criterion was relaxed.
+
+The current repository contains 3,944 blobs totaling 92,216,785 bytes; a local
+Git ZIP of the exact main commit is 41,453,102 bytes. These are preliminary size
+checks against Anthropic's repository limits, not a substitute for the actual
+GitHub archive and portal validation of the final source. Stable-version plugin
+updates, final public distribution and both directory submissions remain open.
+
+## First private Cloudflare attempt and cleanup
+
+The owner approved the bounded five-job, $1 trial. Source `ea08a16` was uploaded
+using cf 1.0.0-beta.12. The registry returned the unchanged local image digest
+`sha256:69aff70b4f0f80d2ff13549f4b55b1053fc1d8a6e25a00168ac4078a2ebd7b8a`.
+An independent download of the deployed module matched the prepared Worker
+SHA-256 `6babbbb9073fbb4514b03675d73ee1387f30099cd6174cfca7ac8bc6515cc2e0`.
+Worker metadata verified no public routes, workers.dev or preview URLs and no
+external references. Version `d4225ffb-9951-49a6-9f8d-281542d3ab9d` belonged to
+deployment `479434b1-c5cd-4f18-b1db-88d51e9d5fce`; application/job namespace
+`e8d89496082f4e63961a8793eed7f1bf` and coordinator namespace
+`2256b6871cbc4661a2d7525a48d9fc3a` were created only for this trial.
+
+At 15:25:18 UTC on 6 October, the first `engine-a` job failed after **2,048 ms**
+with `WORKER_FAILED`; Cloudflare logged internal-error reference
+`oe4cvciv5rmllufovr4m5gcm`. The retained result has `stopped=true`, and the run
+finished after exactly one result. All four remaining fixtures were skipped.
+Provider queries showed zero active/starting instances. The operator deleted the
+exact trial application, Worker and image; follow-up reads returned no application
+or image, a Worker 404, and neither trial namespace. Other account resources were
+left in place. Receipts are retained under `.cache/provider-probe-trial-1/`.
+Actual billed usage is not yet settled; the $1 figure is the approved allowance,
+not a provider-enforced cap or a measured bill.
+
+The current [native API documentation](https://developers.cloudflare.com/containers/api/durable-object-container/)
+states that user/group names cause native `exec` errors. This image's named `node`
+identity resolves locally to `1000:1000`. A focused test rejected the old omitted
+identity; explicitly passing numeric `1000:1000` now passes. This changes file
+ownership selection, not the VM isolation boundary. The provider failure is only
+plausibly explained until the corrected code runs successfully. The operator
+probe additionally records the first failed native API method without exposing
+raw errors or output. Both observation tests failed before implementation.
+
+The continuation uses the same immutable image and at most **four remaining
+jobs**, preserving the aggregate five-job/$1 authorization. It removes the
+redundant second provider box fixture rather than increasing that scope. Any
+successful provider GLB will be compared with the independently qualified
+local/CI digest; two-run provider determinism is not claimed. Updated local gates:
+**110/110 hosted tests**, all three TypeScript configurations and all five
+production bundles pass. Production bundles exclude the operator-only observer.
+Repository lint and the corrected private deployment dry run also pass. The
+continuation Worker is 14,130 bytes with SHA-256
+`8ed395851f30e935d874f79af62f6a33db2098de6fc24745d54af0f3741941ac`;
+its preparation receipt is `.cache/provider-probe-numeric-user-candidate/build-receipt.json`.
+
+## Main merge, identity setup and security review
+
+The owner approved PR #146 at `76ef64648c3ce91d65140a43b806dcfcf3fb3af0`.
+GitHub rejected a merge commit under repository policy; the same approved change
+was squash-merged without bypassing protection. Main is
+`8d14d0e0ca89fe3ef860ff6d3568e5647a382c53`. CI run `37491254733`, hosted checks
+`37491254766` and website build `37491254759` all passed on that exact commit.
+No package publication or service deployment resulted from the merge. PR #147
+now targets main, and its branch incorporates that main revision.
+
+The owner selected the existing signed-in Google account for a dedicated Kiln
+identity project. `instruktlabs-kiln-auth` was created with display name Kiln.
+The Google Auth Platform is not configured yet: no OAuth client or client secret
+has been created, and no compute, billing or Google Cloud Run service was added.
+Hosting remains on Cloudflare.
+
+The actual GitHub ZIP of `ce640ccae0c621177aad176a03b5a214ae57d266` is
+41,888,908 bytes, contains 4,736 entries and expands to 92,216,785 bytes. SHA-256:
+`00e910c53cf75740fb2d6693853e01ef7d9d45277c64f14325adddea2b5a61ed`.
+The plugin contains nine files, the largest 15,026 bytes. This passes the checked
+Anthropic archive limits; portal validation and submission have not occurred.
+The final stable archive must be measured again. The receipt is
+`.cache/anthropic-github-main-archive-receipt.json`.
+
+The owner requested adversarial security review, now tracked in
+[the security record](2026-10-06-v1-security-review.md). Repository secret scanning
+and push protection were enabled; no open secret alerts were returned. An actual
+stream-deadline defect was reproduced and fixed with failing-then-passing tests.
+All 112 hosted tests, typechecks, production bundle builds and root lint pass.
+
+The owner explicitly deferred the broad public README/site documentation refresh
+until stable 1.0 and the public hosted service are verified. The queued refresh
+includes Troy scene pictures, npm installation, local agent/plugin onboarding,
+hosted setup and matching website/agent-readable content. Internal execution and
+security records continue now; accurate privacy, support and sign-in pages remain
+part of the hosted candidate. No public README/site refresh or Troy picture
+publication was performed during this checkpoint.
+
+## Corrected private trial: scheduling limitation and cleanup
+
+The corrected source `aabc798437184ae4ef5a5b40a5b4de00beca5624` was deployed at
+15:42:31 UTC on 6 October. Its downloaded Worker matched the prepared SHA-256
+`8ed395851f30e935d874f79af62f6a33db2098de6fc24745d54af0f3741941ac` and retained
+the original immutable image. Version `d8199c93-e870-40a6-9338-9c8c27bd141e`
+belonged to deployment `517e21c9-d3dc-4082-904d-149a7f9cd593`. The Worker had no
+public HTTP route, workers.dev or preview URL, credentials or user assets.
+
+The configured five-minute cron produced no observed invocation, log event,
+coordinator object or container instance. Reapplying its exact trigger at
+16:12:47 did not resolve this. At 16:22:10, a separate private 278-byte scheduler
+(`kiln-private-probe-trigger-20261006`) was deployed with only a binding to the
+existing coordinator. It called the same `availability-rc1` durable claim, adding
+no job, run state, image or allowance. Its downloaded module matched SHA-256
+`27233d5b3ce584d6c7ad1de140ebf92f244277419adc6c226d6fa561cf38b40d`; private URL
+settings and the exact binding were independently verified. This also produced
+no observed event. The cause is unconfirmed; the result does not demonstrate that
+the corrected evaluator failed or that Cloudflare cannot run it.
+
+At 16:54:51, both telemetry queries remained empty; the coordinator-object and
+container-instance lists were also empty. This exceeded the documented 15-minute
+cron propagation window and 30-minute new-worker event-history window for the
+helper. Cleanup removed the helper first, followed by the trial application,
+original Worker and registry image. Follow-up reads returned 404 for both Workers
+and the application, no matching image and neither trial namespace. Other account
+resources were preserved. Receipts: `.cache/provider-probe-trial-2/`.
+No successful provider evaluation/isolation result or settled billing total is
+claimed. The aggregate five-job/$1 authorization was not reset or expanded.
+
+## Security fixes and business support identity
+
+Commit `abe5a44538251ebc5d7b5051a25eec1d74200233` adds tested request cancellation,
+elapsed-time and bounded-buffer handling, plus targeted transitive dependency
+patches. All 3,290 local engine tests, the coverage ratchet, 116 hosted tests,
+typechecks, lint and the full local website build pass. Linux/Windows hosted CI,
+the private image, public-registry checks and the Linux website workflow pass on
+that commit. All twelve engine/package jobs in run `37498513040` also pass,
+including the installed Linux software-Vulkan renderer. The Linux website job
+qualifies the two symlink assertions that Windows could not execute locally.
+The separate native preflight remains unsuccessful. See the security record for
+audit scope, the remaining build-only advisory and release limitations.
+
+The owner selected `support@instruktlabs.com` for the public support identity.
+Cloudflare routing was configured and verified active, forwarding that address
+to the existing verified inbox without changing other aliases. The owner then
+created and secured a free Google Account using that address. After explicit
+approval, the account received only `roles/oauthconfig.editor` on
+`instruktlabs-kiln-auth`; the existing personal account remains project owner.
+The owner accepted the first-use Cloud Console terms and Google's API User Data
+Policy. Kiln's OAuth application is now created in external testing mode, with
+the business support address and `matt@instruktlabs.com` as developer contact.
+The narrowly scoped account can manage branding, although the overview metrics
+page separately asks for `serviceusage.quotas.get`; no extra role was granted.
+No OAuth client or client secret has been created, and outgoing support replies
+still need configuration and testing. No paid Google Workspace subscription,
+Google compute service or billing account was added.
+
+## Private invocation continuation
+
+Cloudflare documents remote development service bindings as a route to deployed
+Workers and their Durable Objects. The operator probe now exposes only a named
+`KilnProbeControl.runFixed()` RPC, accepting no source, commands, fixture selection
+or run ID. Both HTTP handlers still return 404. Its prepared deployment removes
+the cron and retains the four remaining fixed jobs, atomic run claim and original
+immutable image. This changes invocation, not the isolation or cost allowance.
+
+A workerd integration test first failed because the entrypoint did not exist,
+then passed with the implementation; it covers fixed execution, HTTP denial and
+retained results on retry. All 117 hosted tests, typechecks, five production
+bundles and root lint pass. The prepared 14,432-byte Worker has SHA-256
+`e3f30d81e40f19cb63f49d2879cb7684e9c2bad5e8f76808685d4b5233e7d3a1`;
+`cf deploy --prebuilt --dry-run` passes. This candidate has not yet run remotely.
+Receipts: `.cache/security-review-2026-10-06/probe-rpc-*.log` and
+`.cache/provider-probe-rpc-candidate/build-receipt.json`.
+
+### Direct invocation result and cleanup
+
+Source `cfbcb2a5f3116ece4fa21ce4dc6967f842290e68` was deployed at 17:11:54 UTC.
+Downloaded code matched the prepared hash. Version
+`b4755a77-5835-4de5-84ea-c548d755294c` belonged to deployment
+`18d6f30e-b729-4b32-bca8-017dd393ad9b`; the application was
+`0772425387194d20804b5222688b8f26`. Both public URL flags were false and no
+domain or scheduled trigger was deployed.
+
+On Windows, `cf dev` failed with `spawn EFTYPE` before starting its backend.
+The installed Wrangler 4.147.0 backend was launched directly with the same
+`cloudflare.config.ts` and its documented experimental configuration mode. It
+established the remote service binding; the local operator listened only on
+127.0.0.1 and rejected browser-origin requests. No source or arbitrary command
+could be submitted.
+
+The direct RPC reached the deployed coordinator. Its first `engine-a` case failed
+after 2,038 ms with `WORKER_FAILED`; the first failed native operation was
+`monitor`, and Cloudflare returned internal-error reference
+`3fp1nn0uot4akgi20vs4fdjs`. The VM was confirmed stopped and all later cases were
+skipped. Repeating the RPC returned the exact retained result without another
+job. No container instance remained. Numeric exec identity did not resolve the
+failure; successful engine execution and isolation remain unqualified.
+
+The local operator was stopped, then the exact cloud application, Worker and image
+were removed. Follow-up reads returned 404 for the Worker and application, neither
+trial namespace existed, and no matching registry image remained. CLI deletion
+initially declined noninteractive confirmation despite returning exit code zero;
+the operator detected this through readback and completed the authorized cleanup
+using `--force`. Receipts: `.cache/provider-probe-trial-3/`.
+
+Two jobs have now been attempted in total, leaving three of the original five-job
+allowance. The four-case candidate must not be redeployed to a new coordinator:
+doing so would exceed that remaining allowance. Further trials need a revised
+bounded candidate and diagnosis of the startup failure, not a new run ID or an
+automatic retry. No settled billing total or successful native hosting is claimed.
+
+With explicit owner approval, the prepared P4 diagnostic was submitted to
+Cloudflare as case `02363339`. The portal confirmed receipt. It includes the error
+reference, time and runtime configuration, with no credentials, user assets or
+attachments. No provider response has been received. The confirmation is retained
+in `.cache/provider-probe-trial-3/support-case.json` and its screenshot.
+
+## Browser account access continuation
+
+PR #147's exact head `7f4e98ebc3691bf025e7ea712d8ef549c4d6a516` now has successful
+engine/package, Linux/Windows gateway, installed image, seven-platform public
+registry and website checks. The separate restricted-Docker native preflight still
+fails. Neither this status nor the support case qualifies native hosting.
+
+The separate `codex/v1-account-controls` branch adds real D1 browser sessions,
+direct Google/GitHub account sign-in and browser logout. Callback adapters remain
+shared with MCP authorization; direct account access does not invent an MCP client
+or issue downstream tokens. Independent browser bindings, purpose/origin-separated
+state hashes and atomic D1 consumption prevent stolen or concurrent callback reuse.
+No upstream token reaches a browser cookie or asset service.
+
+Session credentials are 256-bit random host cookies with only their SHA-256
+verifiers retained. Primary-backed checks enforce account state/epoch, 30-minute
+idle and 24-hour absolute expiry. Fresh sign-in rotates the current browser's
+session; an eight-session account cap does not discard another device during a
+rotation. The focused cap test exposed that ordering defect before its fix.
+Logout requires the session's CSRF proof and exact Origin and leaves existing MCP
+connections usable. Browser cookies and MCP tokens cannot substitute for one another.
+
+The new cases were first observed failing, then fixed. The focused account and
+authentication suite passes 43 tests; the complete hosted suite passes 138 tests,
+all three hosted type configurations and five production bundles. Additional
+adversarial cases cover expired intents, rollback, provider swapping, bounded
+pending-login storage and same-browser concurrent replay. Receipts are in
+`.cache/security-review-2026-10-06/browser-*.log` and `account-*.log`.
+
+The root gate also passes 3,290 tests with two platform skips, typecheck and lint.
+Two further failing-then-passing build tests ensure extracted provider/browser
+modules cannot enter tenant or native bundles. Candidate secret scans are redacted;
+no secrets were found in the staged source patch or rebuilt hosting bundles.
+
+The account page has local desktop and 375px presentation evidence, with no
+horizontal overflow and 44px sign-in buttons. Google's current pre-approved PNG
+is embedded unmodified, avoiding external image/font/script requests; provenance
+is recorded in `hosting/assets/README.md`. The preview uses only disposable local
+fixture identities and is not evidence of live Google/GitHub authentication.
+
+Provider linking/unlinking, purpose-bound sensitive-action reauthentication,
+individual connection revocation, complete account/asset deletion, public admission
+limits, privacy pages and deployed user flows remain open. A fresh OAuth callback
+is not being presented as proof of a fresh password or MFA challenge. No production
+deployment or npm publication occurred in this continuation.
+
+## Startup research and current status refresh
+
+The owner requested further documentation/community research before treating the
+native error as a vendor blocker. The [startup review](2026-10-06-cloudflare-startup-review.md)
+records the current API/SDK comparison, related public reports, limits of the
+existing diagnostics and a smaller managed-image/custom-image sequence. No new
+cloud execution, provider change or support message occurred in this review.
+
+PR #149's exact `11a4f64` now passes both Linux and Windows hosted jobs in
+[run 37507203413](https://github.com/instruktlabs/kiln/actions/runs/37507203413).
+The working tree additionally implements primary-backed connection records,
+single-use code activation, protected-request revocation checks and browser-bound
+provider confirmation for disconnect. All 144 hosted tests and three TypeScript
+configurations pass locally. These additions remain uncommitted and need their
+remaining review/build/UI checks and CI; they are not deployed account controls.
+
+A fresh public registry read still returns `next=1.0.0-rc.1` and
+`latest=0.0.0-stage`. Stable publication and local distribution can proceed through
+their own gates while native hosting is investigated. The support case is not a
+reason to suspend independent work or to claim the rest of hosted v1 is complete.
+
+## Managed-image startup control passed
+
+The research-led minimal control now passes on Cloudflare. PR #150 source
+`c6b119b4a6358d51c27406f6fb3e74cafd289782` uses documented Wrangler configuration,
+an explicit private service binding and Cloudflare's managed Debian image. Its
+fixed Node command returned the expected version/identity; output completed after
+470 ms and awaited whole-instance cleanup after 573 ms. The provider instance API
+also reported stopped with exit code zero. A repeat RPC returned the retained
+result without starting a second job.
+
+The tested bundle was compared with uploaded bytes before invocation. Public URLs
+were disabled and no provider credentials, user assets or custom image were used.
+After retaining evidence, the local operator, Container application, Worker and
+namespace were removed; follow-up reads verified absence. Three of the five
+approved trial jobs have now been attempted, leaving two. No additional support
+message, production deployment or package publication occurred.
+
+All 126 hosted tests on this isolated branch, its hosted typechecks/builds,
+3,290 root tests (two platform skips), root typecheck/lint and redacted scans pass.
+Both hosted CI platforms pass in run `37513405377`. The account-control branch's
+separate uncommitted changes remain at 144 locally passing tests. The detailed
+[startup review](2026-10-06-cloudflare-startup-review.md) records the receipt,
+remaining custom-image/Kiln controls and unchanged hosted-launch requirements.
+
+## Minimal custom-registry control passed
+
+PR #150 source `2c605257b8990a3bb9c9f0fffb5a9abc45092bc3` passed the next private
+control at 18:59:29 UTC. The official Node 24.20.0 Debian Trixie AMD64 image was
+copied without changes to the private Cloudflare registry and selected through
+the documented named-image binding. Deployed code/image/privacy readbacks passed.
+The fixed command returned the expected version and identity, output completed
+after 7,000 ms, and whole-instance cleanup after 7,102 ms. Provider state separately
+confirmed stopped with exit code zero; replay returned the retained result.
+
+All diagnostic cloud resources, its registry image and local operator were removed
+with absence verified. Four of five approved trial jobs are now consumed; one
+remains. Local gates include 129 hosted tests, all hosted builds/typechecks,
+3,290 root tests (two platform skips), typecheck/lint and redacted scans. Both CI
+platforms passed in run `37515318317`. The unchanged Kiln image without engine
+imports is the next comparison; full hosted launch remains unqualified. The
+detailed startup review records why image preparation is not a supported cause:
+both this deployment and the earlier failed cf deployment reached image-ready.
+
+## Original image startup isolated; initial trial exhausted
+
+The final approved comparison at source `569fc5313f909c04ac960348b638e376cdb36239`
+used the unchanged Kiln image with the successful minimal controller. Its fixed
+Node command did not import Kiln. Deployed source, image and privacy checks passed,
+but at 19:08:40 UTC the monitor failed after 1,242 ms before the controller entered
+`exec`. Cleanup was confirmed after 1,243 ms, the provider instance list was empty,
+and replay returned the retained failure. The app, Worker, namespace, registry
+image and local operator were removed, with absence verified.
+
+All five original trial jobs are now attempted; no jobs remain. Further cloud
+execution requires a separately prepared bounded candidate and owner approval.
+Local image/startup analysis and independent npm/account work continue. The failure
+is now isolated from package evaluation, but its exact cause remains unproven.
+Current checks pass 131 hosted tests, hosted typechecks/builds, root typecheck/lint,
+dry run and redacted scans. Hosted CI run: `37516547552`. The full engine suite was
+already green on the preceding candidate; this change touched only the diagnostic.
+
+## Stable candidate and manifest comparison prepared
+
+The separate managed worktree `kiln-stable-release` prepares stable 1.0.0 from
+current main `8d14d0e`. PR #151 at `2cb3d864eaced99cbd56c5e7dfb8d8a92773ec31`
+contains release identities, minimal packaged installation/migration corrections,
+targeted dependency patches, secret-file ignores and the RC publication receipt.
+It excludes native execution and account-controls changes. Its detailed candidate
+record lives at `docs/reviews/2026-10-06-stable-package-candidate.md` on that branch.
+
+Local final gates pass: 3,290 engine tests with two platform skips; coverage at
+95.16% functions and 92.50% lines; root types/lint/toolchain/skills; 78 renderer
+tests; 91 hosted foundation tests/types/builds; a clean Windows Node 22.23.3/npm
+12.2.0 archive installation with SDK/CLI/MCP/local-plugin checks; and the complete
+prepared website build. The first coverage run's Windows rename EPERM is retained;
+a focused retry and the final full run pass without a source change. Root, hosted
+and installed runtime audits report no known vulnerabilities. The optional agent
+lockfile now resolves the patched MCP SDK 1.32.1. Extracted package and source
+secret scans pass. No stable version was staged or published and nothing deployed.
+
+The local archive digest is `6ed3d6b9964429f14c3c6a0a6a13d56be509dd0f40b07061a37d491f901c1508`.
+This archive is not a substitute for the exact main-CI archive in the release
+runbook. PR CI is running; owner-approved merge, main qualification, staging and
+owner promotion still follow. The broad README/Troy/site refresh remains deferred.
+
+In parallel, local inspection verified the original Container image's runtime
+manifest and unchanged layers. Cloudflare's builder omits provenance by default;
+selecting the existing platform manifest directly tests that format difference.
+PR #150 at `29fc0ac248f59aa1d8c6f6ca89160c85d266e8ca` prepares exactly one fixed
+private job. All 133 local hosted tests, types/builds, root types/lint, deployment
+dry run and source/actual-bundle scans pass. Its hosted CI run is `37520300880`.
+No new cloud execution is authorized yet. The original five-job allowance remains
+exhausted; the new candidate needs a separate owner decision, with its exact image,
+60-second deadline, cleanup, privacy settings and $1 allowance documented in
+`hosting/probe/MANIFEST_STARTUP.md`.
+
+## Private renderer and request-tree integration
+
+Stable npm 1.0.0 and the GitHub v1.0.0 release are now published; their separate
+release receipts remain authoritative for package acceptance. Draft PR #153
+continues hosted integration. Its preceding commit `6fca99d` passes all eighteen
+CI checks. The new private renderer/controller work below needs its own fresh CI
+and has not been deployed.
+
+The coordinator now injects a bounded private `PbrRenderPort`. It sends exact GLB
+bytes and view options to a fixed renderer route; the response must match the
+request ID, GLB digest, camera values, dimensions and renderer class. Published
+engine code retains PNG validation, capture deadlines and truthful CPU fallback.
+Tests demonstrate full-material views on success and geometry-only fallback when
+the port fails. No published package or public tool schema was changed.
+
+The fixed one-shot rendering entry validates requests and self-contained GLBs
+before graphics initialization and explicitly selects the software Vulkan ICD.
+Its private `KilnRenderJob` shares the evaluator's durable one-use lifecycle,
+deadline, cancellation fence, recovery and verified whole-VM destruction. The
+parent registers a third host-owned interceptor and persists each child ID and
+kind before dispatch. Renders and evaluations share one active-child allowance
+and eight total children. Recovery routes cancellation through the recorded kind;
+unknown cleanup retains the parent reservation and suppresses its response.
+
+All 261 hosted tests, three hosted typechecks, twelve production bundles and root
+typecheck/lint pass locally. New behavior was tested failing before implementation.
+Adversarial checks cover forged response identity, caller authority, request/output
+limits, failed PNGs, cancellation, late response disposal, shared child limits,
+cleanup failure and recovery. A real local workerd loopback/RPC fixture verifies
+renderer routing through host-selected request props, cancellation acknowledgement
+and denial after parent closure and eviction. These are local guarantees, not
+evidence of provider isolation or complete hosted acceptance.
+
+The exact installed renderer image
+`sha256:64022900f0c298668076db054c44e019dad6a3813751a92dec7a06ceb734fe24`
+passes its real entry/port fixture under offline local Docker with two CPUs and
+4 GiB memory. Eight decoded 128px PNGs preserve textured materials across three
+backdrops, a beauty image and an explicit camera. Malformed input is rejected
+before device startup. The rebuilt coordinator image
+`sha256:029c4fba6f0521a5a18c9dde364d07b5ffc076fe4d988358868950de40134b66`
+passes readiness, current/legacy MCP, hostile-header denial and failure without
+private services. Both install the exact published stable archive, retain their
+dependency inventories and remove their local test containers. Procedures and
+receipt paths are in [the image guide](https://github.com/instruktlabs/kiln/blob/f99f1b894cf8277077c0b1377fdc8a37a0990a28/hosting/container/README.md).
+
+The thirty-second render deadline is a candidate setting informed by the earlier
+13,286 ms fixed provider fixture, not a measured production SLO. No additional
+cloud upload, execution or public route was enabled. All 22 previously approved
+cloud jobs remain consumed. The next provider trial must qualify the integrated
+admission/coordinator/interceptor/evaluation/render/storage path with a concrete
+bounded approval. Account lifecycle, live identity-provider setup, material
+storage, browser downloads, representative load/costs, production deployment and
+directory submissions remain open. The broad README/Troy/site refresh remains
+deferred to launch closeout.
+
+## Progress checkpoint after stable publication
+
+The npm registry reports `latest: 1.0.0` and `next: 1.0.0-rc.1`; the public
+[GitHub release](https://github.com/instruktlabs/kiln/releases/tag/v1.0.0) is
+published. Stable package acceptance and installed local plugin checks are complete.
+The hosted service and vendor directory submissions are not complete.
+
+PR #153 at `382b40e` completed sixteen successful checks, including all twelve
+engine/package jobs, Linux hosting, the installed MCP and CPU images, and the
+website build. Two checks failed. The Windows admission fixture accidentally used
+its `SHORT` Durable Object namespace binding as a boolean, applying a 250 ms
+deadline to ordinary tests. A focused regression reproduced that mismatch before
+the fixture flag was separated. All twelve admission tests then passed. Production
+deadlines and admission policy are unchanged. The software image's actual rendering
+checks passed; its artifact upload failed while opening a private build-cache file.
+The evidence upload now excludes that cache and retains the receipts and images.
+These corrections require fresh CI before the candidate can be accepted.
+
+Local preparation of the integrated trial covers render, save, reopen, source,
+export, saved GLB/manifest reads, cross-account denial and quota rejection. The
+current working tree passes 268 hosted tests, all three hosted typechecks and all
+twelve production bundles. That total includes trial work not yet committed or
+provider-qualified. The local-only trial builder passes the installed Cloudflare
+output schemas; no image upload, deployment or cloud execution has occurred.
+It caps coordinator starts at nine, evaluator starts at four and renderer starts
+at four, with sequential requests, durable one-use allowance and cleanup checks.
+Its full worker integration and exact-source CI must pass before approval is sought.
+
+No owner authentication step is currently pending. The next concrete owner action
+is approval of the prepared integrated provider trial, followed later by live
+provider credential handoffs and qualified merge/deployment/submission candidates.
+All 22 previously approved trial jobs remain consumed. Routine implementation and
+local validation can continue without a new decision.
+
+Remaining launch work includes account link/unlink/delete, material storage,
+browser download tickets, live Google/GitHub sign-in, retention verification,
+representative load/cost evidence, operating alerts and rollback, production
+deployment and verification, and separate vendor submission receipts. Saved-build
+provenance also needs a host-verified evaluator identity: the current native host
+does not inject one, so the SDK can report `source-development:unverified` in a
+saved manifest. A successful round trip alone must not qualify that provenance.
+The broad README, Troy images and site-content refresh remains deferred until
+the final hosted behavior is verified, as requested.
+
+## Integrated provider candidate prepared
+
+The fixed ten-step sequence is prepared in
+[the integrated trial record](https://github.com/instruktlabs/kiln/blob/f99f1b894cf8277077c0b1377fdc8a37a0990a28/hosting/probe/INTEGRATED.md): nine admitted
+MCP requests plus quota rejection, with a durable ceiling of seventeen VM starts.
+The actual private Worker, admission service, diagnostic allowance and R2 evidence
+path now pass local workerd tests, including replay after durable-object eviction
+and a stop issued before the trial. The complete fixed lifecycle also passes the
+actual MCP adapter with a fresh host per request and real local tenant storage.
+The generated deployment is schema-validated and checked for private-only routing,
+fixed budgets, disabled Container logs/SSH and immutable image references.
+
+The eviction test found a real early-failure defect: native startup rejection
+could leave its inbound RPC request body unread, retaining the admission caller's
+execution context. Closing an unused body in the production request boundary
+fixes the demonstrated failure. The diagnostic budget boundary now does the same
+when denying work; its focused cancellation regression also failed before the fix.
+These changes do not alter the published SDK or immutable installed images.
+
+All 270 hosted tests passed before the added deployment-configuration check, which
+also passes. Hosted types/builds, lint and redacted source/bundle scans pass. The
+preceding CI corrections have passed both hosted platforms and all image jobs;
+this new candidate still requires its own exact-source CI. No cloud upload or
+deployment has occurred, and the earlier twenty-two-job allowance remains spent.
+The proposed separate trial allowance is $1; owner approval will be requested only
+after the candidate checks pass. Live OAuth, provenance, account lifecycle,
+downloads, production operations and vendor submissions remain separate open work.
+
+## Owner progress checkpoint: package published, hosted integration open
+
+Live readback confirms npm `latest` is `1.0.0` and the public GitHub `v1.0.0`
+release contains the matching archive and checksum. PR #153 at `c755434` now
+passes all eighteen CI checks, including both hosted platforms, all three
+installed images, the twelve engine/package jobs and the website build. The PR
+remains a draft; passing these checks does not qualify a public hosted launch.
+
+The separate $1 private integration trial at that exact commit is prepared and
+awaiting the owner's answer to the existing approval question. No new upload,
+provisioning or trial execution has occurred. All twenty-two earlier approved
+jobs remain consumed. No owner authentication step is currently pending.
+
+Independent download work adds a tenant-local ticket store and six adversarial
+tests. The current working tree passes all three hosted typechecks and all 277
+hosted tests. Tests cover account separation, hashed tickets, expiry during a
+read, revision deletion, concurrent transfer limits and bounded ticket issuance.
+This foundation is still uncommitted and is not yet connected to the browser
+gateway or MCP download URLs; it is not a completed download feature.
+
+The remaining milestones are the integrated provider trial; browser downloads,
+material persistence, account link/unlink/delete and verified saved-build
+identity; live Google/GitHub configuration and sign-in; retention, representative
+load/costs, alerts and rollback; an approved production deployment with real client
+verification; separate directory submissions; and the deferred README/Troy/site
+refresh. Existing provider trials establish native execution and software-render
+feasibility, not completion of this integrated service.
+
+## Private download flow integrated locally
+
+The native MCP host now supplies download URLs through the published engine's
+existing hook. Exact saved revisions receive ten-minute, hashed, tenant-local
+tickets with atomic issuance/transfer limits. Browser requests derive their tenant
+from the current primary-backed session, require the owning account, and recheck
+revocation after storage awaits. No credentials are passed to storage or native
+compute, and browser downloads start no VM. Deleted revisions and expired tickets
+cannot release bytes, including when deletion or expiry interleaves with a read.
+
+The existing branded sign-in page handles anonymous download navigation. Both
+providers resume a strictly validated server-retained relative path. The additive
+`0007_browser_login_return.sql` migration defaults existing transactions to the
+account page; callback parameters cannot retarget the redirect. The page was
+visually inspected in the local in-app browser. Its presentation-only listener
+was stopped afterward; no real provider or credentials were used for that preview.
+
+Focused tests first demonstrated missing ticket routing, missing native links,
+the dispatch allowlist denial and rejected sign-in continuation. The completed
+local gates pass all 286 hosted tests, three hosted typechecks, twelve production
+bundles, root lint, diff checks and redacted source/bundle secret scans. The actual
+MCP save/reopen output is exercised through the real browser gateway, D1 sessions,
+SQLite tenant index and R2 with two fixture accounts. GLB hashes, exact source,
+manifest identity and PNG signatures agree; hostile routes, foreign embedding,
+cross-account reads, callback replay and revoked browser sessions are denied.
+Provider exchanges remain mocked, so these checks do not claim live OAuth.
+
+The rebuilt native coordinator uses the exact public 1.0.0 archive and unchanged
+dependency lock. Image
+`sha256:2f85a87cb48e360e9de3994d898413695a87c11b3d9f39f466fbf9d88c090d34`
+passes the six offline Docker checks; its test container was removed and absence
+read back. Evidence is under `.cache/native-host-download/qualification/`.
+This image and the changed gateway/storage code require their own CI/provider
+qualification. The pending private trial remains pinned to `c755434` and its
+retained original bundle/images. No cloud resources were created or changed.
+
+Account lifecycle, material persistence, saved-build identity, live OAuth,
+representative operations/cost evidence, production deployment and vendor
+submissions remain open. The root README/Troy/site refresh remains deferred.
+
+## Durable material storage foundation and progress checkpoint
+
+Fresh registry/release readback still confirms public npm `latest: 1.0.0` and the
+non-prerelease GitHub `v1.0.0` archive/checksum. The download integration at
+`72a3b61` passes seventeen CI checks, including both hosted platforms and all
+three installed images; the Linux engine gate remains running at this checkpoint.
+No completed check has failed. PR #153 remains a draft and is not a hosted launch.
+
+The new native material adapter and tenant index pass nine focused tests and the
+complete 295-test hosted suite. All three typechecks, thirteen production bundles,
+root lint, whitespace checks and redacted source/bundle scans pass. Storage reuses
+artifact quotas and immutable pins; verification imports the published SDK's
+material contract. Tests cover persistence after host replacement and tenant
+eviction, cross-account denial, concurrent identical imports, mutation of caller
+buffers, corruption, quota exhaustion, paging and partial/lost-acknowledgement
+failures. The first corruption-batch fixture reused the same material identity,
+so duplicate validation correctly rejected it before hash validation. Giving the
+corrupt second fixture a distinct valid identity now tests the intended integrity
+boundary; duplicate rejection remains separately checked.
+
+The material adapter is not yet connected to native MCP, asset imports or workspace
+dependency binding. No material tool is advertised yet. This is local storage
+evidence, not installed-image or Cloudflare material qualification.
+
+The private integrated Cloudflare candidate still awaits the existing owner
+approval question for a separate $1 allowance. Its retained Worker hash remains
+`3ff536d4e99b8ee348d2a55e5a0de58ca04895643f53ccba4a68cf5ee570312a`;
+the later download/material changes have not replaced that candidate. No cloud
+resources were provisioned or run. All twenty-two earlier authorized jobs remain
+consumed, and no owner authentication step is currently pending.
+
+Remaining work is material integration, account link/unlink/delete, saved-build
+identity, live Google/GitHub setup and end-to-end sign-in, integrated provider
+qualification, retention/load/cost evidence, operating alerts and rollback, public
+deployment with real clients, vendor directory submissions, and the deferred
+README/Troy/site refresh. Independent implementation can continue while awaiting
+the private trial decision.
+
+## Material library connected to hosted MCP
+
+The storage-foundation commit `7a85ba2` was pushed after the preceding download
+commit `72a3b61` completed all eighteen CI checks. The native MCP host now injects
+the durable material library and a standalone async workspace binding through
+published SDK interfaces. Assets also receive the library so copying/importing a
+saved revision restores its embedded editable material closure. Edge metadata is
+regenerated from the same registry: fifteen hosted tools, including `kiln_material`,
+with the engine's existing dependency-selection schema on authoring operations.
+Hosted project/review stores remain unavailable and are not advertised.
+
+Focused failing tests first demonstrated the missing material tool, workspace
+binding and dispatch routes. The implementation now passes the complete 301-test
+hosted suite, all three typechecks, thirteen production builds, root lint and
+redacted source/bundle scans. A further extension to the passing material lifecycle
+test also passes: delete the live material entry, import a saved asset into another
+collection, confirm exact material restoration and byte-identical GLB delivery,
+then render again. Overlapping and nested bindings, explicit standalone reset,
+bad locks/paths, oversized pin sets, identity-swapped records and cross-account
+denial before evaluation are covered. No provider credentials or actual cloud
+execution were involved in these local tests.
+
+Coordinator image
+`sha256:b31f2395c43610c1cf2d2630cde3d130ce24a973a83fece6c0722d3ec3a9c599`
+uses the exact stable npm archive and unchanged dependency lock. Its eight offline
+Docker checks pass, including the registry's material-binding schema and preset
+discovery from the installed package. The named test container was removed;
+receipts are under `.cache/native-host-materials/qualification/`. The image still
+requires exact-source CI and provider qualification. The separately reviewed
+`c755434` integration trial retains its original bundle and images.
+
+The owner requested decisions through the question tool and then explicitly
+approved the frozen `c755434` private trial with the same nine-request,
+seventeen-start limits and separate $1 allowance. That approval covers the original
+candidate only, not the newer material/download changes. Account lifecycle,
+verified saved-build identity, live sign-in, operational
+qualification, public deployment, submissions and the final documentation refresh
+remain open; the overall goal remains active.
+
+## Approved integrated Cloudflare trial passed and was removed
+
+The owner's separate $1 allowance was used for the exact frozen `c755434`
+candidate. All ten checks passed: material-faithful rendering, save, restore,
+exact source retrieval, export, GLB and manifest reads, denial of another
+account's source/GLB reads, and quota rejection before another VM starts.
+Nine admitted MCP requests used thirteen fresh VMs: nine coordinators, two
+evaluators and two software renderers, within the approved seventeen-start
+ceiling. This run is complete; its unused allowance is not permission for a new
+candidate or a replay that allocates new VMs.
+
+The deployed Worker SHA-256 matched
+`3ff536d4e99b8ee348d2a55e5a0de58ca04895643f53ccba4a68cf5ee570312a`.
+Both image manifests matched the reviewed immutable digests. Worker URLs,
+preview URLs and public routes were disabled; bindings, limits, image references,
+Container SSH/logging and all seven SQLite namespaces were verified by API.
+
+The initial `cf 1.0.0-beta.12` deployment failed locally because its converter
+serialized the Worker's own Durable Object bindings as external `script_name`
+references, which Container deployment rejects. Wrangler `4.147.0` deployed the
+same prebuilt bytes after removing only those seven explicit self-references.
+The generated probe now also emits this equivalent `wrangler.json`; its regression
+test first failed on the missing output and then passed. No dependency was patched
+and no code, image, quota or routing change was made to the approved trial.
+
+The long-lived local operator RPC returned 502 after approximately 81 seconds.
+The durable run continued and finished successfully. Reading its persisted status
+recovered all results without restarting the sequence; calling the completed run
+returned the identical record and left the thirteen budget claims unchanged.
+This transport interruption remains recorded and must inform the next operator
+implementation. It is not a successful long-lived client-connection claim.
+
+Every retained response hash was verified. Saved GLB/source/preview sizes and
+hashes match the manifest. Both the in-loop image and saved six-view preview were
+visually inspected: checker texture and reflective blue sphere are present.
+The saved preview names the exact saved GLB and reports full material fidelity
+without fallback. The run measured approximately 39.9 seconds for initial render,
+35.6 seconds for save, and 3.6-4.5 seconds for subsequent admitted reads/restore/
+export. These are one small sequential fixture's end-to-end times, not a load
+benchmark or an estimate for every asset. Settled billing remains unknown.
+
+Provider readback confirmed all thirteen instances stopped. Cleanup removed the
+three Container applications, Worker, seven namespaces, fifteen objects,
+temporary bucket and both uploaded image tags; subsequent API reads verified
+their absence. The local operator was stopped and its listener disappeared.
+The checked-in [receipt](2026-10-06-hosted-integration-receipt.json) records hashes,
+timings, limits, replay behavior and cleanup. Raw responses, provider snapshots
+and image/GLB evidence remain under `.cache/integrated-trial/`.
+
+The newer download/material implementation at `8775750` separately passed all
+eighteen CI checks. It was not substituted into this cloud trial. Hosted launch
+still requires qualification of those changes, host-owned saved-build identity
+(this trial correctly retains `source-development:unverified`), account lifecycle,
+live Google/GitHub sign-in, retention/load/cost and operating checks, production
+approval and real client verification. Directory submissions and the deferred
+README/Troy/site refresh remain open. No further owner action is needed for the
+completed trial; ordinary implementation continues under the active release goal.
+
+The configuration correction passes all 301 hosted tests, three typechecks,
+thirteen production builds, root lint, redacted source/record scans and an actual
+Wrangler no-bundle dry run. It changes local preparation only and has not been
+used for another cloud deployment. The published npm package remains unchanged.
+
+## Host-owned saved-build identity implemented and tested locally
+
+New Container evaluations now acquire image identity at the outside controller.
+The controller associates only the exact output returned after image inspection,
+process completion and verified whole-VM cleanup with the selected immutable
+image. Its private HTTP response carries the digest; it never accepts an identity
+from request fields or evaluator stdout. The coordinator requires that header,
+validates the normal SDK response, and binds the digest to that exact accepted
+result. Overlapping responses have independent state.
+
+Each admitted MCP request has a bounded proof map keyed by exact source and GLB
+hashes. The new-save adapter requires a matching entry and replaces the draft's
+engine claim with `cloudflare-container:sha256:<digest>`. Missing proof, altered
+source/output, conflicting identities and excessive retained entries fail closed.
+Saved code/GLB bytes are snapshotted before storage awaits. Imports retain their
+original metadata and do not acquire a claim from this host. The digest identifies
+the complete pinned evaluator image; this does not sign arbitrary imported
+provenance or retroactively qualify historical records.
+
+Focused regressions failed before implementation at the controller, transport,
+asset-save and actual MCP boundaries. All 308 hosted tests now pass, including
+fresh storage reads after reconnect, imports with original provenance, refusal
+before storage writes and overlapping evaluation identities. All three hosted
+typechecks, thirteen production bundles and root lint pass. The public SDK and
+npm package are unchanged; these changes belong to the private hosting package.
+
+The strengthened offline image check failed against the previous material image
+because it had no identity contract. Rebuilt coordinator image
+`sha256:d78f29a8565e2df4957f60607ee25645bff81e8221bc75b56b2992d7e17d4482`
+passes all ten installed-image checks against the exact stable archive and the
+unchanged dependency lock. The native MCP bundle SHA-256 is
+`331ced56fab784f24ebaad644354f423d585a6346f22957d17dd9925c1e6d8f2`.
+Both uniquely named test containers were removed. Receipts and inventories are
+under `.cache/native-host-identity/`; this image has not been uploaded or deployed.
+
+The prior `c755434` trial remains valid for its recorded scope and still accurately
+records its unverified saved engine field. The new controller/coordinator pair,
+downloads and material changes need their own exact-source CI and provider
+qualification. Update the evaluation controller before the coordinator because
+the new coordinator deliberately rejects old responses without identity.
+Account link/unlink/delete, live OAuth, operating and load evidence, approved
+public deployment, vendor submissions and deferred public documentation remain
+open. No additional cloud spend or user authentication was used for this work.
+
+## Explicit Google/GitHub linking and unlinking locally qualified
+
+The gateway now has separate, purpose-bound identity-change flows. Linking first
+confirms an already-linked provider, then validates the new provider in a separate
+one-use, browser-bound phase. Unlinking verifies the provider that will remain.
+The unique provider constraint and atomic final mutation prevent account merges,
+last-login removal and concurrent unlink races. Account ownership and the tenant
+namespace remain unchanged. Every successful change records account activity,
+increments the authorization epoch and revokes browser sessions together. Old MCP
+access and refresh credentials are denied by the existing primary authority.
+
+Regression tests failed on the absent route before implementation. All 317 hosted
+tests pass, including both link directions, foreign-account refusal, same-session
+binding, replay/races, cancellation/expiry, rollback on event-write failure and
+state changes during the provider exchange. Three hosted typechecks, thirteen
+production builds, root lint and redacted source/bundle scans pass. A local
+presentation-only fixture was inspected at the normal browser width and a 375px
+viewport, including linked-method controls, activity and completion messaging.
+The mobile controls have separated touch targets and no horizontal overflow.
+The fixture uses synthetic identities, does no external I/O, and proves layout
+only. Screenshot: `.cache/security-review-2026-10-06/account-identity-controls-mobile.jpg`.
+
+Apply additive migration `0008_identity_actions.sql` before the gateway, after
+checking existing per-account provider uniqueness. Rollback preserves committed
+identity changes and account epochs. The private native image does not change.
+Live sign-in and real provider confirmation remain unqualified, as do full account
+deletion and production operation. This work was not deployed or merged to main.
+
+Current OWASP, NIST federation, Google/GitHub and D1 documentation were checked.
+Provider selection/confirmation can reuse an upstream session and does not prove
+a fresh password/MFA challenge. The current notices are in-app only. A sequenced
+owner question is pending about collecting a verified security contact email and
+sending out-of-band identity-change/deletion notices through Cloudflare. This is
+separate from email-based sign-in, which remains deferred; no scopes, live email
+configuration or mail delivery were changed. Cloudflare's documented Workers Paid
+allowance is 3,000 outbound messages per account/month, then $0.35 per 1,000. Actual
+sender-domain readiness and delivery still need qualification if adopted.
+
+Sources:
+[OWASP federation linking](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html#secure-federated-account-linking),
+[NIST federation](https://pages.nist.gov/800-63-4/sp800-63c.html),
+[Cloudflare Email pricing](https://developers.cloudflare.com/email-service/platform/pricing/).
+
+## Compute and storage retirement locally qualified
+
+Added private account-retirement primitives, with no public deletion form or
+gateway lifecycle route yet. Compute retirement records a permanent tenant deny,
+marks any admitted job closing and requires verified whole-request cancellation.
+Failure retains admission capacity and recovery intent. Eviction or global
+pause/resume cannot reopen the account. Only that tenant's quota history is
+removed; global counters still account for its admitted work.
+
+Storage retirement denies further operations, revokes download tickets, removes
+saved metadata and purges only that tenant's R2 prefix. Batches and retry alarms
+bound cleanup. Outstanding uploads retain durable write evidence until the put
+settles or matching committed immutable bytes establish its completion. Neither
+a timeout nor an empty listing proves that an unresolved write is cancelled.
+Unknown outcomes after a crash remain pending with a daily recovery alarm and
+require escalation if they cannot be resolved. Verified purge requires an empty
+prefix, no artifact rows and no unresolved writes, then removes its alarm while
+retaining the small denial record.
+
+Focused tests first reproduced two races: ordinary maintenance removed an
+unresolved write's metadata, and an older sweep recreated maintenance state after
+purge. Both are fixed and covered, alongside delayed writes, failed deletion,
+lost acknowledgement, eviction, account isolation, 105-object bounded cleanup,
+hostile retirement requests and refusal from the native storage interceptor.
+Further red/green cases enforce atomic download-ticket revocation and ensure a
+batch of unresolved writes cannot starve ordinary expiry of other files.
+All 331 hosted tests, three hosted typechecks, thirteen production builds and
+root lint pass locally. The npm package/native image is unchanged. No cloud
+trial, resource creation or deployment occurred for this change.
+
+The full deletion flow still needs purpose-bound owner confirmation, primary-D1
+revocation and durable retry orchestration, identity/token cleanup, truthful user
+status, and provider qualification. Deploy retirement-aware compute/storage
+before connecting that controller; rollback must not restore code that ignores
+retirement after accepting deletions. Provider backup retention and unresolved
+write escalation also remain operational launch work. The pending security-email
+decision is unchanged.
+
+Current references:
+[R2 consistency](https://developers.cloudflare.com/r2/reference/consistency/),
+[R2 durability](https://developers.cloudflare.com/r2/reference/durability/),
+[Durable Object alarms](https://developers.cloudflare.com/durable-objects/api/alarms/).
+
+## Account deletion controller and user flow locally qualified
+
+The gateway now connects explicit account-page confirmation to durable cleanup.
+A separate five-minute provider flow binds the browser, account epoch and linked
+identity. Confirmation atomically creates a primary-D1 job, revokes account
+access and removes browser sessions. Cleanup proceeds through compute retirement,
+private storage purge, OAuth-helper grant revocation and final identity/account
+erasure. Leases, deadlines and retry backoff prevent concurrent or delayed work
+from falsely advancing another claim. Failure keeps access disabled and the
+receipt pending. The completed receipt retains no account link and expires after
+seven days. The receipt secret exists only in an HttpOnly cookie; its database
+value is hashed.
+
+All 349 hosted tests pass, along with three hosted typechecks, thirteen production
+builds, root lint and redacted source/bundle secret scans. Focused regressions
+failed before implementation. The real gateway/D1/OAuth-helper/private-tenant/R2
+fixture now exercises deletion of saved work, denial of old credentials,
+preservation of another account and a new empty account on subsequent sign-in.
+Provider identity exchanges are mocked and the fixture starts no native VM.
+Additional cases cover enqueue/final-erasure rollback, wrong identities, hostile
+forms, callback replay/races, epoch/session changes during provider I/O,
+bounded intents, expired/replaced leases, cleanup failures and delayed completion.
+The deadline fixture observes the real 20-second timeout and records the later
+completion in the originating request context before checking that the job did
+not advance. This avoids mistaking workerd's cancellation of a cross-request
+promise for proof about late completion. Test-only controls are absent from all
+thirteen production bundles.
+
+Desktop and 375px browser previews show the confirmation and pending/completed
+receipt pages without horizontal overflow, using synthetic data only. Screenshots
+are under `.cache/security-review-2026-10-06/account-deletion-*.png`. The local
+preview server was stopped and its listener absence verified.
+
+Apply additive migration `0009_account_deletion.sql` before the gateway and
+retirement-aware compute/storage before accepting deletions. The scheduled
+handler is implemented but no deployed Cron Trigger has been configured. Verify
+recurring recovery, stalled-job escalation and real account deletion on the next
+approved combined-service qualification. Rollback must preserve retirement and
+primary revocation. Completion concerns active application storage, not immediate
+erasure of provider backups or eventually consistent OAuth KV records. In-flight
+authorized token writes can outlive inventory cleanup but primary account state
+denies their use; configured access/refresh expiry remains 15 minutes/30 days.
+Public retention disclosures and restore procedures remain launch gates.
+
+The preceding head `1e609b3` passed all eighteen CI checks. This change has only
+the local results above until its own exact-head CI finishes. It does not change
+the published npm archive or native image. No additional paid run, deployment,
+live credential creation or email delivery occurred. The security-email owner
+decision remains pending; the prepared Google client form is still unsubmitted.
+
+References checked:
+[D1 batch transactions](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch),
+[Worker scheduled handler](https://developers.cloudflare.com/workers/runtime-apis/handlers/scheduled/),
+[KV consistency](https://developers.cloudflare.com/kv/concepts/how-kv-works/).
+
+## Complete hosted deployment preparation
+
+Added an offline candidate builder for the actual six production Workers: gateway,
+tenant storage, admission, native request, evaluation and rendering. It builds
+each entrypoint with its production dependency boundary, checks required exports,
+copies the numbered D1 migrations and hashes every configuration, bundle and
+migration. The input accepts only non-secret resource identifiers, pinned
+account-owned image digests and bounded numeric policies. Provider credential
+values are neither accepted nor copied; only the gateway declares the four
+required secret names. Output is fresh, local and never overwrites prior evidence.
+
+The prepared gateway has no public route, workers.dev endpoint or preview URL.
+Its every-minute deletion-recovery trigger is explicit but has not been deployed.
+Only the tenant Worker owns the R2 binding; only the gateway owns account D1 and
+OAuth KV. Gateway compute access uses `KilnCompute`, never its operator export.
+Cross-service DO bindings retain their target script, while self bindings use the
+local form required by the previously observed cf beta conversion issue.
+Invocation logs, persistent traces, Container logs and SSH are disabled; sanitized
+operational monitoring and ingress-abuse controls remain required before launch.
+
+Five new configuration/preparation tests failed before implementation and now
+pass. All 354 hosted tests, three hosted typechecks, thirteen production builds,
+root lint and redacted preparation-source/generated-output scans pass locally.
+Wrangler 4.147.0 successfully dry-ran all six generated no-bundle configurations.
+Those dry runs used synthetic account/resource IDs and image digests; they establish
+local configuration validity, not remote resource existence or execution.
+Evidence is under `.cache/hosted-deployment-dryrun-v1/`, the final hashed receipt
+under `.cache/hosted-deployment-dryrun-v2/`, and six adjacent dry-run logs. No cloud
+resource, secret, trigger, route or image was created by this work.
+
+CI on preceding deletion head `5d91f2f` initially failed the existing Windows
+resilience-probe HTTP-denial request with `TypeError: fetch failed`. The focused
+test passed locally, and the unchanged failed-job rerun passed on Windows. The
+cause is not established; no test was weakened or automatically retried in code.
+Seventeen of eighteen checks have passed; the root Linux community-exporter step
+is still running at this checkpoint. New preparation changes require their own CI.
+
+The [deployment guide](https://github.com/instruktlabs/kiln/blob/f99f1b894cf8277077c0b1377fdc8a37a0990a28/hosting/DEPLOYMENT.md) records the dependency order,
+secret/migration requirements, recovery verification and remaining launch gates.
+The example manifest deliberately contains invalid identifiers and qualification
+policy examples, not public quota decisions. Actual resource ownership, image
+identity, live OAuth, combined provider qualification, monitoring/load/costs,
+retention/rollback and an approved public route remain unfinished. The unanswered
+security-email question and unsubmitted Google client form are unchanged.
+
+## Request abuse limits locally qualified
+
+The gateway now requires separate edge and authenticated-account rate-limit
+bindings. Fixed route classes bound anonymous work before OAuth, D1 or body
+processing. Verified permanent account IDs select hashed counters shared across
+MCP clients, bearer tokens and browser downloads before storage or compute. No
+IP, credential, source or arbitrary URL enters those keys. Exhaustion returns
+429 with a 60-second retry suggestion; missing, failing, malformed or stalled
+bindings fail closed with 503. An unread rejected body is cancelled.
+
+The offline deployment manifest now requires distinct positive integer namespace
+IDs and per-minute thresholds, emitted only on the gateway. Verify account-wide
+namespace uniqueness before deployment. Example thresholds are 600 requests per
+route class and 120 per account, for qualification planning only. Cloudflare
+documents these counters as approximate and local to each location; durable
+global/tenant compute quotas remain unchanged. Coarse ingress exhaustion can
+temporarily affect all users of a route class in that location. Provider/load
+qualification must assess that tradeoff; no exact request or billing cap is
+claimed, and rejected requests still invoke the Worker.
+
+Focused limiter and deployment regressions failed before implementation. All
+363 hosted tests, three typechecks, thirteen production builds and root lint
+pass locally. Integration tests use real local rate-limit bindings to exhaust
+ingress and share an account budget across MCP and browser downloads while
+leaving another account usable. Separate forbidden-I/O fixtures prove rejected
+registration, token, callback, account, MCP and download requests never reach
+OAuth/database work; denied accounts never reach storage or native compute.
+The limiter deadline test observes the real one-second timeout. Ordinary auth
+and storage tests retain real bindings with generous fixture limits.
+
+Redacted source and six-worker candidate bundle scans found no leaks. The
+changed gateway configuration passed a Wrangler 4.147.0 no-bundle dry run with
+synthetic resource IDs and images. Evidence is under
+`.cache/hosted-deployment-rate-limits/` and `.cache/request-limits-*.log`; its
+receipt correctly records a dirty checkout and is not a release receipt.
+No provider resource, credential, threshold, route or image was deployed.
+Seventeen of eighteen checks on preceding head `293affa` have passed; the root
+Linux check is still running. The new change needs its own CI.
+
+Live OAuth, the pending security-email decision, sanitized operational alerts,
+updated combined-provider qualification, load/costs, backup retention/rollback
+and public-launch approval remain outstanding. The Google client form remains
+unsubmitted. The earlier private trial allowance is consumed and was not reused.
+
+Reference checked:
+[Cloudflare rate-limit configuration, locality and accuracy](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/).
+
+## Sanitized operational observations and alert candidates
+
+The gateway now writes explicit Analytics Engine points for HTTP response class,
+status and handler elapsed time, plus scheduled deletion and compute health. No
+request/response object, body, arbitrary URL, IP, account ID, token, download
+capability or exception enters a point. Fixed indexes separate HTTP from the two
+health streams. Persistent request logs and traces remain disabled.
+
+Deletion health queries primary D1 with indexed phase selection, reporting pending
+count, oldest age and jobs at least fifteen minutes old. A narrow private compute
+RPC exposes existing aggregate admission state without pause control or tenant
+identifiers. Both reads have independent two-second deadlines; unavailable data
+is marked explicitly with `-1` values, not zero. Scheduled recovery emits both
+components even after a failure and fails the invocation when recovery or either
+component is unavailable. A telemetry write failure does not change access,
+returned bytes or cleanup; external missing-heartbeat detection is required.
+
+The complete deployment binds only the gateway to its derived operations dataset
+and hashes `monitoring-candidate.json`. Six proposed Cloudflare Custom Alerts
+cover missing recovery/compute heartbeats, overdue deletion, persistent cleanup,
+HTTP errors and request rejections. They contain the exact account/dataset,
+one-minute evaluation and five-minute windows with hourly repeat proposals.
+They are not enabled and have no destination. Queries use the newer Analytics SQL
+API dialect, whose sampling rules differ from the legacy Analytics Engine API.
+Live catalog access, query validation, thresholds and notification delivery remain
+unverified. [OPERATIONS.md](https://github.com/instruktlabs/kiln/blob/f99f1b894cf8277077c0b1377fdc8a37a0990a28/hosting/OPERATIONS.md) records the schema,
+limitations, retention, volume assumptions and deployment qualification steps.
+
+Focused observation and deployment regressions failed before implementation.
+All 373 hosted tests, three typechecks, thirteen production builds and root lint
+pass locally. Real local D1, gateway and scheduled-handler fixtures establish
+empty/pending/completed aggregate behavior, secret-free fields, independent
+component failures and unaffected HTTP responses when telemetry fails. The
+read-only compute RPC test verifies unchanged admission and continued denial of
+public/operator access. A stalled read exercises the actual two-second timeout.
+Local tests do not establish remote Analytics Engine ingestion, SQL acceptance,
+sampling or alert delivery.
+
+Redacted source and generated-candidate scans found no leaks. Wrangler 4.147.0
+dry-ran the changed gateway with its Analytics Engine binding. Evidence is under
+`.cache/hosted-deployment-operations/` and `.cache/operations-*.log`; synthetic
+IDs/images and the dirty-checkout receipt are not release qualification. No cloud
+resource, dataset point, alert, email, credential or paid trial was created.
+
+CI on preceding head `71347d6` passed sixteen checks but the Windows hosted run
+failed its existing chunked-body test with `TypeError: fetch failed`, before the
+413 assertion. The root Windows check was still running at that checkpoint.
+The exact hosted failure log is retained locally and one unchanged failed-job
+rerun was requested. Cause and rerun outcome are not yet established; assertions
+and retry behavior in the suite are unchanged. This monitoring change requires
+its own CI. The pending owner security-email decision and prepared, unsubmitted
+Google client form remain unchanged.
+
+The unchanged Windows hosted rerun subsequently passed (run `37561702455`,
+attempt 2). Current upstream workerd issue
+[#7634](https://github.com/cloudflare/workerd/issues/7634) describes Windows
+connection resets after early responses through service bindings, and related
+workers-sdk issue [#15709](https://github.com/cloudflare/workers-sdk/issues/15709)
+covers oversized-body cancellation. These reports are consistent with the local
+failure shape, not proof of its precise cause or of deployed behavior. No drain,
+automatic retry or relaxed assertion was introduced. Live gateway qualification
+must include early 401/413/429 responses to streamed bodies and subsequent normal
+requests, confirming client-visible errors and continued service availability.
+
+References checked:
+[Analytics Engine writing](https://developers.cloudflare.com/analytics/analytics-engine/get-started/),
+[retention](https://developers.cloudflare.com/analytics/analytics-engine/limits/),
+[pricing](https://developers.cloudflare.com/analytics/analytics-engine/pricing/),
+[Custom Alerts](https://developers.cloudflare.com/notifications/notification-available/#custom-alerts-beta),
+[Analytics SQL datasets](https://developers.cloudflare.com/analytics/sql-api/datasets/).
+
+## Combined-service gateway preflight locally qualified
+
+The next private trial now has a reusable gateway preflight component. Its local
+fixture builds all six production Worker entrypoints and derives service, D1,
+KV, R2, rate-limit and DO links from the deployment configuration. It registers
+declared DO namespaces using Miniflare's local representation; remote namespace
+ownership, Container images, Cron and Analytics Engine remain unqualified.
+
+Thirteen fixed checks cover metadata, real helper-issued OAuth grants and PKCE
+exchange, edge tool discovery, anonymous and oversized-body denial, exact bearer
+and browser downloads, foreign-account denial, primary connection revocation,
+denial of retained access/refresh credentials and preservation of another account.
+Admission is paused through its real private operator RPC before setup and stays
+paused afterward. No step invokes native tooling or starts a VM. Fixtures bypass
+upstream identity verification and seed routing-test files directly; this is not
+evidence of provider consent, engine save, rendering or validated asset contents.
+
+The helper requires an explicit private-fixture mode and fixed `.invalid` origin.
+Existing account, OAuth or artifact data causes refusal before provisioning.
+A transaction claims the run once. Concurrent calls and terminal replay cannot
+create additional accounts or retry a failed sequence. The receipt contains only
+stage outcomes and pause state; credentials, identifiers, download capabilities,
+source and exception details stay out of it. An intentionally misbound gateway
+database fails at synthetic authorization and replay leaves that partial state
+unchanged. No HTTP route or provider-deployable operator was added.
+
+All 379 hosted tests pass, including six new preflight cases. Three typechecks,
+thirteen production builds, root lint and redacted probe-source/bundle scans also pass.
+The test preceded the implementation; local harness corrections then registered
+export-owned namespaces and serialized RPC receipts for deterministic comparison.
+Production dependency checks exclude every test/probe helper from all bundles.
+Evidence is under `.cache/gateway-preflight-*.log`. All eighteen CI checks on
+preceding head `e421455` now pass; this change needs its own exact-source CI.
+
+[GATEWAY_PREFLIGHT.md](https://github.com/instruktlabs/kiln/blob/f99f1b894cf8277077c0b1377fdc8a37a0990a28/hosting/probe/GATEWAY_PREFLIGHT.md) states the scope
+and remaining work: a bounded private operator and updated native/material/image
+phase, explicit VM/evidence budgets, complete cleanup, then renewed trial approval.
+Live OAuth/account actions/deletion, real scheduled recovery, retention, load,
+costs, alerts and public-client behavior remain launch gates. No cloud resource,
+provider credential, public route, paid run or email was created. The existing
+security-email decision remains pending and the Google client form unsubmitted.
+
+## Security notice decision and native lifecycle component
+
+The owner selected **in-app notices only for v1**. This supersedes the pending
+security-email question above. The plan's D10 and hosting guide now record that no
+separate security contact email, additional email scopes or outbound security mail
+will be added to v1. Google/GitHub sign-in remains unchanged. The next sequenced
+browser approval is creating the prepared Google web client with the sole callback
+`https://kiln.instruktlabs.com/oauth/google/callback`; the form remains unsubmitted.
+
+All eighteen CI checks passed on `dd33b5a`. The next native trial now has a locally
+qualified lifecycle runner and independent durable allowance. Twenty-one fixed
+stages cover material creation, fresh-host rendering/save/restore/source/export,
+GLB/manifest reads, exact browser download contents, account isolation, material
+closure restoration after removing the disposable live material, rerender and
+quota rejection. The actual engine fixture observes fourteen admitted MCP calls,
+three evaluations and three synthetic view calls; the fifteenth MCP call is denied.
+Manifest acceptance requires the exact evaluator-image identity. Local synthetic
+views do not qualify software Vulkan fidelity or cloud VM behavior.
+
+The proposed private allowance caps coordinator/evaluation/render starts at 14/4/4,
+22 total, once connected to diagnostic wrappers. It is transactional and one-use;
+failed starts cannot be refunded, and closing before opening forbids any later run.
+The old trial and its consumed allowance remain unchanged. No new paid execution,
+cloud resources, image upload or public route was created.
+
+The lifecycle uses fixed request/control deadlines, an 8 MiB response ceiling,
+64 MiB aggregate evidence ceiling, stop-on-failure, and terminal allowance closure
+with paused/idle admission verification. A retained interrupted record cannot
+resume or recreate the run. Raw synthetic response evidence stays private; public
+receipts exclude credentials, URLs, source and exception details. Paused/idle
+admission is not a cloud-resource-deletion receipt.
+
+Focused failing tests preceded implementation. Adversarial replays of real engine
+responses exposed weaknesses in the new trial's initial acceptance checks: it
+missed JSON-escaped source in an error and trusted download denial status without
+checking for leaked content. Both checks were corrected. Replays now reject those
+leaks, leaked material data, modified GLB downloads and unverified engine identity.
+Other tests exercise concurrent allowance claims, reconstruction, invalid inputs,
+oversized responses and the actual ten-second stalled-evidence deadline; late
+completion cannot resume the failed sequence.
+
+All 385 hosted tests, three typechecks, thirteen production builds, root lint and
+redacted probe-source/bundle scans pass locally. Logs are under
+`.cache/lifecycle-*.log`. [NATIVE_LIFECYCLE.md](https://github.com/instruktlabs/kiln/blob/f99f1b894cf8277077c0b1377fdc8a37a0990a28/hosting/probe/NATIVE_LIFECYCLE.md)
+records scope and limitations. Wiring the unchanged production gateway/tenant/
+admission services to diagnostic budget wrappers, the private operator, exact
+image/config verification and full cleanup is next; only then is another paid
+trial ready for approval. Live OAuth, account actions/deletion, scheduled recovery,
+retention, load/costs, alerts and actual public-client verification remain open.
+
+## Combined private operator and deployment candidate
+
+The native lifecycle and gateway preflight are now connected through a fixed private
+operator. It creates fresh grants for the same two synthetic accounts only after
+the preflight passes, opens the separate durable allowance, then sends every native
+request and browser download through the production gateway. Three wrappers add
+only startup claims around the production native jobs; gateway, tenant and admission
+implementations stay unchanged. The combined local test passes gateway checks,
+stops at the first missing VM, seals admission and retains its failure receipt.
+It does not pretend to qualify successful cloud native execution.
+
+The private allowance has its own Worker to eliminate a circular deployment
+dependency. The resulting eight roles have a tested order in which every dependency
+precedes its caller. The gateway omits provider secrets and Cron in this private
+candidate. All eight disable public routes, workers.dev, preview URLs and persisted
+logs/traces. The generic production preparation path retains its no-probe guard.
+The new `--private-lifecycle` path validates fixed quotas/origin/names and hashes
+eight separate bundles/configurations plus nine migrations. Unexpected helpers and
+native identity-provider dependencies cause rejection; output cannot overwrite an
+existing candidate.
+
+Operator controls include a 15-minute terminal alarm, one-minute recovery when
+cleanup remains unknown or non-idle, and status with explicit alarm/stop state.
+The startup ceiling remains 14/4/4, 22 total, with no refunds. Local tests cover
+concurrent invocation, failed preflight, stop before identity creation, body
+cancellation at all three closed native wrappers, eviction/replay and uncertain
+cleanup retaining its alarm. These do not prove remote alarm delivery.
+
+An eviction test exposed retained RPC capabilities in the initial diagnostic
+operator. Explicit disposal of control-call promises/results and copying plain
+receipt values fixes it; the same eviction/replay assertion now passes. The Workers
+type configuration includes the standard disposable declarations used by this code.
+This follows [Cloudflare RPC lifetime guidance](https://developers.cloudflare.com/workers/runtime-apis/rpc/lifecycle/).
+The initial default HTTP service binding also incorrectly named the `default`
+entrypoint; omitting the named-entrypoint field now reaches the actual gateway as
+documented for [HTTP service bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/http/).
+
+All 394 hosted tests, three typechecks, thirteen production builds, root lint and
+redacted source/bundle scans pass. All eight generated Wrangler 4.147.0 configurations
+pass no-bundle dry runs using synthetic IDs. The fixture candidate and logs are in
+`.cache/lifecycle-preview-final-13af43d`; its source was intentionally dirty while
+preparing the change, and it is not an approved deployment artifact. All eighteen CI
+checks passed on preceding commit `13af43d`; this new source needs its own CI.
+
+No Cloudflare resources, image uploads, paid starts or provider credentials were
+created. In-app security notices remain the settled v1 choice; Google client
+creation remains pending owner confirmation. Next steps are a clean candidate,
+exact image verification, a fresh private observer, concrete resource/readback and
+cleanup qualification, then a sequenced trial allowance. Live OAuth/deletion,
+scheduled recovery, retention/load/costs/alerts, production publication and directory
+submissions remain incomplete. Root README/Troy/site refresh remains deferred.
+
+## Native deadline classification corrected after Linux CI
+
+The Linux hosted job on `602700e` failed one of 394 tests: a native response
+interrupted by its deadline timer returned cancellation (499) instead of timeout
+(504). A deterministic regression reproduces that result when the deadline timer
+fires while the wall clock still reads one millisecond before the deadline. The
+controller now retains the timer-expiry cause, so catch handling reports timeout
+without relying solely on a second wall-clock read. Cancellation, late-response
+discard and whole-instance cleanup remain enforced. The original real-timer test
+and all its assertions remain in place.
+
+The new test failed before the fix; all 21 request-controller tests and the full
+395 hosted tests now pass locally, along with three typechecks, thirteen production
+builds and root lint. Logs are `.cache/request-deadline-*.log`. This changes the
+request Worker, not the installed native images. A fresh branch CI run is required.
+
+Read-only Cloudflare inventory confirms the fixed `kiln-private-lifecycle-v1` names
+are absent across Workers, Durable Objects, D1, KV, R2 and Container applications.
+There are no Container applications or registry images currently in this account.
+The existing local coordinator and software-image IDs still match their retained
+qualification receipts. Inventory receipt: `.cache/lifecycle-readonly-inventory-refreshed/receipt.json`.
+These observations authorize no resource creation or paid starts; image upload,
+remote configuration readback, a fresh observer and verified teardown remain trial
+preparation work. Google client creation remains the pending owner approval.
+
+## Local lifecycle observer prepared
+
+The next trial has a fresh tracked loopback observer rather than reusing the
+consumed integration-trial operator. It forwards only three fixed, argument-free
+RPC controls. Host/port, method, query and browser-request guards reject unrelated
+traffic; unread bodies are cancelled. Private JSON observations are capped at
+128 KiB. Status/stop expire after ten seconds and the run observation after sixteen
+minutes around the cloud operator's fifteen-minute terminal alarm. A missing
+observation is explicitly unknown and never triggers another operation. Promise
+and result capabilities are disposed, including results that arrive after timeout.
+
+Six focused tests cover these controls and the fixed remote-binding/loopback
+configuration. The combined Miniflare topology now routes its run/status/stop and
+eviction checks through this actual facade. The forwarding, failure and deadline
+tests failed against a refusal-only stub before implementation; all 401 hosted
+tests, three typechecks, thirteen production builds and root lint pass locally.
+The observer configuration also passes Wrangler 4.147.0 dry-run validation.
+Logs are `.cache/lifecycle-observer-*.log`.
+
+No observer listener, remote development proxy, new cloud resource, credential or
+paid native start was created. Concrete cloud deployment readback and cleanup
+orchestration still need preparation before the next trial allowance is requested.
+Google client approval remains pending. Public hosting and directory submissions
+remain open, and the final README/Troy/site refresh is still deferred.
+
+## Private deployment readback and cleanup preparation (October 7)
+
+All eighteen CI checks passed on `23fa54f`, including both hosted platforms and
+all three installed native-image jobs. The new pure readback verifier binds the
+eight deployed Workers to the clean candidate's hashes, active versions, exact
+bindings, three pinned Container images, seven SQLite namespaces and nine D1
+migrations. It rejects public routes, domains or previews, Cron, unexpected
+bindings, enabled logs/SSH and active or starting instances before admission.
+These checks use modeled provider responses locally; actual remote readback of
+this candidate remains a gate before any native invocation.
+
+The cleanup planner requires a stopped operator, closed one-use budget, paused
+idle admission, no recovery alarm and stopped VMs matched to recorded claims.
+It selects only the recorded temporary resources and reverses Worker dependency
+order. Failed starts can consume claims without leaving instances. The separate
+local collector and teardown scripts retain bounded synthetic evidence, recheck
+resource identities, stop on a partial failure and require final absence readback.
+They have not deployed or deleted anything. Registry images are preserved;
+Analytics Engine's documented three-month retention is not represented as data
+deletion by resource teardown.
+
+Six focused tests include deliberate code, binding, image, namespace, public
+surface, quota and cleanup-state mismatches. Positive cases failed against the
+initial refusal-only stub. All 407 hosted tests, three typechecks, thirteen
+production builds and root lint pass. Logs: `.cache/lifecycle-readback-*.log`.
+Read-only route inventory checked all five account zones and found no route for
+the fixed trial prefix; `.cache/lifecycle-operator/surface-inventory.json` retains
+the timestamped result. No cloud resource, native start or provider credential was
+created during this preparation. A new allowance and exact-candidate CI are still
+required. Google client approval remains pending; production launch is incomplete.
+
+## Hosted information and consent presentation (October 7)
+
+All eighteen CI checks passed on `4867aaf`. While Google client approval remained
+pending, the gateway gained public home/privacy/support routes and a shared account
+and consent layout. The pages describe the implemented identity, storage, telemetry,
+deletion and in-app-notice behavior without requiring sign-in. Existing consent
+cookies, CSRF/browser binding, escaped client identity and scope disclosure remain
+enforced. The account page now states that security changes do not send email.
+
+The new assertions failed first. All 410 hosted tests, three typechecks, thirteen
+production builds and root lint pass locally. Desktop and narrow-viewport checks
+cover the actual HTML functions with synthetic data. See the
+[page review and source mapping](2026-10-07-hosted-pages.md) for receipts and limits.
+Nothing was deployed or submitted; Google client approval, the next private trial,
+live sign-in/deletion, operational verification and public launch remain pending.
+The final README/Troy/site refresh remains deferred.
+
+## Hosted public operation mapping (October 7)
+
+All eighteen CI checks passed on `0b680d3`. A fresh official-document review found
+that directory preparation still needs terms, immediately usable review access and
+separately exposed hosted operations. The hosted adapter now derives 26 named
+operations from the pinned engine's 15-tool manifest. Input schemas stay owned by
+the registry; hidden action selectors and unrelated fields cannot reach native
+admission. Native jobs are conservatively annotated as writes, including reads
+that start stateful jobs. The published local package and tool contract are unchanged.
+
+The lifecycle fixture now traverses the actual public adapter before native MCP.
+Both initial regressions failed first; all 417 hosted tests, three typechecks,
+thirteen builds and root lint pass. Modern header/metadata translation, hidden-tool
+denial, hostile keys and registry drift have focused coverage. See
+[directory preflight](2026-10-07-directory-preflight.md) for the mapping, official
+sources, Claude source-archive measurements and remaining submission work.
+The previous frozen trial candidate must be refreshed before approval because the
+gateway and operator source changed. No cloud resource, credential, paid job or
+directory submission was created. Google client approval remains pending.
+
+## Portable hosted plugin and terms draft (October 7)
+
+All eighteen CI checks passed on `f701121`. The public plugin draft now packages
+one hosted MCP, listing metadata, a hosted workflow skill with maintained geometry
+references, the existing icon and eight review cases. Deterministic output and
+allowlisted inputs are tested; private connectors, credential configuration and
+hidden components are rejected. The generated skill validates. A local icon and
+listing preview is retained, without claiming actual directory presentation.
+
+A draft terms page and shared footer link are implemented. They reflect free
+quota-based access, no end-user billing, private assets and in-app notices only.
+Owner review remains required with the concrete deployment candidate. The review
+cases require a populated independent review account; no account, live case
+receipt, demo URL or submission has been fabricated. The packager's receipt always
+records that live qualification remains incomplete.
+
+The terms regressions failed before implementation. All 421 hosted tests, three
+typechecks, thirteen production builds and root lint pass. The actual terms page
+renders in the local browser. Details and remaining gates are appended to the
+[directory preflight](2026-10-07-directory-preflight.md). No new cloud resource,
+credential, paid job or publication occurred. Google client creation remains the
+pending approval. Refresh the frozen lifecycle trial to the new source before
+seeking its allowance; final README/Troy/site updates remain deferred until launch.
+
+## Publisher portal preflight and local plugin icon (October 7)
+
+All eighteen CI checks passed on `69d0326`. OpenAI's existing Instrukt Labs
+organization is marked Verified and the Plugins page is accessible; no upload was
+made. The selected listing identity and MCP domain challenge remain to be verified.
+
+Anthropic's portal validated the published stable tag at `fda71ac`, folder
+`plugins/kiln-engine`: repository, size, name and publisher checks passed. One
+missing-icon warning and two credential policy holds were reported. The latter
+refer to the public package-version pin beside npm's registry and the shared setup
+guidance. The actual environment/npm data flow is documented in the
+[directory preflight](2026-10-07-directory-preflight.md#publisher-portals-and-claude-validation-october-7)
+for reviewer assessment. No credential was requested or submitted in response to
+these findings, and no compliance acknowledgement or final submission occurred.
+
+The local plugin now includes a 512px PNG derived from the existing Kiln SVG.
+The maintained packager copies it and records its hash; the published 1.0.0 engine
+pin, executable and tag remain unchanged. The missing-icon test failed first;
+all eight focused packaging tests, skill checks, typechecking, lint and the
+Claude Code 2.1.287 manifest validator pass. The full offline gate passes 3,290
+tests with two skips, no failures, 95.16% function coverage and 92.50% line coverage.
+Exact new-source portal validation
+and CI remain necessary before saving or submitting the directory candidate.
+
+### Local-plugin platform correction and remaining submission declarations
+
+All 18 CI checks passed on `2339681`; Anthropic revalidation removed the icon
+warning. Listing details exposed a separate mismatch: the local installer was
+offered on chat and Cowork. The prepared plugin 1.0.1 now puts its actual
+Node installer in the documented `bin/` component with executable permission.
+Both maintained setup registries, provenance and installer instructions agree.
+Plugin versioning is independent of its unchanged published engine pin, 1.0.0.
+The npm package and v1.0.0 tag have not been replaced.
+
+The new regressions failed first; all 32 packaging/setup tests pass. In isolated
+profiles, Claude Code 2.1.287 and Codex 0.160.0 install the new cached plugin and
+create workspaces from the verified public 1.0.0 package. Both discover, render,
+save, reopen and export; Codex app-server confirms one setup skill, three workspace
+skills and one 17-tool MCP server. No normal user profile changed, model call ran,
+cloud job started, credential was created or final directory submission occurred.
+
+The portal also exposed unanswered data-handling declarations and a submitting
+identity of Matthew Kissinger. Its executable attestation needs resolving for a
+local installer before acceptance. Details and official documentation are in the
+[directory preflight](2026-10-07-directory-preflight.md#correcting-local-plugin-platform-support-october-7).
+The in-app-notices choice remains settled; the Google OAuth-client creation
+question remains the sole pending owner approval. New-source CI, portal readback
+and refreshed private-trial artifacts are separate from the completed local checks.
+
+The final offline gate passes 3,291 tests with two skips and no failures; coverage
+is 95.16% functions and 92.50% lines. Toolchain, typechecking, lint, maintained-skill
+consistency and Claude manifest validation also pass.
+
+### Local plugin disclosures and exact-source portal result
+
+All 25 CI checks passed on `6a213b6`. Anthropic validated that exact source and
+now lists the plugin for Claude Code only, with no icon warning. Two policy holds
+and the executable acknowledgement remain unresolved; no submission or acceptance
+occurred. The local plugin now includes a draft privacy notice, explicit
+execution/network disclosures, three setup examples and listing links in both
+manifests. Its engine pin and executable are unchanged.
+
+The metadata/privacy regressions failed first. The full offline gate passes 3,291
+tests with two skips and no failures, at 95.16% function and 92.50% line coverage.
+All 32 focused packaging/setup tests, typechecking, lint and strict Claude
+validation pass. Fresh isolated Claude/Codex installations accept the metadata and
+include the notice. A final prose clarification about npm caches/logs was checked
+with regeneration, focused tests and lint.
+
+The policy remains a draft and its intended `main` URL will not exist until an
+approved merge. Official Anthropic documentation also makes the first submitting
+Claude organization the listing owner; the current personal-account identity
+needs an owner decision before submission. A concrete clarification email is
+prepared locally but unsent. See the
+[directory preflight](2026-10-07-directory-preflight.md#local-privacy-and-listing-disclosures-october-7).
+Google OAuth-client creation remains the sole pending owner question; no cloud
+trial, credential or deployment was added. Hosted in-app notices remain settled.

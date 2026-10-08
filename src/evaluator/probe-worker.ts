@@ -1,9 +1,13 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, readlink, writeFile } from 'node:fs/promises';
 import { connect } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import { validate } from '../validation';
 import { writeFileSync } from 'node:fs';
-import { processCapabilitiesAreEmpty } from './probe-invariants';
+import {
+  parseProbeHostIdentity,
+  processCapabilitiesAreEmpty,
+  processUserNamespaceIsIsolated,
+} from './probe-invariants';
 
 const VERSION = 'kiln.evaluator.isolation-readiness.v1';
 type ProbeFailure =
@@ -105,12 +109,14 @@ function groupedFailure(failedChecks: readonly string[]): ProbeFailure {
 }
 
 function generatedDenials(): boolean {
+  if (Object.hasOwn(Object.prototype, '__proto__')) return false;
   const prelude = "const meta = { name: 'probe' }; function build(){ return createRoot('probe'); }";
   const probes = [
     `const leak = process.env; ${prelude}`,
     `const leak = fetch('http://169.254.169.254/'); ${prelude}`,
     `const leak = globalThis.process.mainModule.require('fs'); ${prelude}`,
     `const leak = globalThis.process.mainModule.require('child_process'); ${prelude}`,
+    `const leak = ({}).constructor.constructor('return process')(); ${prelude}`,
   ];
   return probes.every((source) => !validate(source).valid);
 }
@@ -119,11 +125,23 @@ async function main(): Promise<void> {
   const status = await optionalRead('/proc/self/status');
   const uidMap = await optionalRead('/proc/self/uid_map');
   const envKeys = Object.keys(process.env).sort();
-  const outsideUid = Number(uidMap?.trim().split(/\s+/)[1]);
+  const userNamespace = await readlink('/proc/self/ns/user').catch(() => undefined);
+  const hostIdentity = parseProbeHostIdentity(process.argv.slice(2));
   const interfaceMap = isolationInterfaces();
   const interfaces = interfaceMap ? Object.values(interfaceMap).flat().filter(Boolean) : undefined;
   const checks: Array<[string, boolean]> = [
-    ['user-namespace', Number.isInteger(outsideUid) && outsideUid > 0],
+    [
+      'user-namespace',
+      processUserNamespaceIsIsolated(
+        {
+          uid: process.getuid?.() ?? -1,
+          effectiveUid: process.geteuid?.() ?? -1,
+          uidMap,
+          userNamespace,
+        },
+        hostIdentity,
+      ),
+    ],
     ['no-new-privileges', typeof status === 'string' && /^NoNewPrivs:\s+1$/m.test(status)],
     ['capabilities-empty', processCapabilitiesAreEmpty(status)],
     ['environment-exact', envKeys.join(',') === 'NODE_ENV,NO_COLOR'],

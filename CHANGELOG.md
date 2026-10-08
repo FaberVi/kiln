@@ -5,11 +5,62 @@ Source releases and installable package publication are separate milestones.
 Published versions and tags are recorded by the npm registry; changing this file
 does not publish a package.
 
+## Unreleased
+
+- Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
+- `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
+- Organic authoring helpers: `metaballSurface`, `taperedTube` (incl. `sectionScale`), `catmullRomPath`, `spiralPath`, `smoothOrganic`, `rockDisplace`, `rockBoulder`, and SDF utilities `smoothUnion` / `sphereInside`. Discovery catalog and geometry-recipes skill updates.
+
+## 1.1.0
+
+Existing-project setup, public host interfaces and simpler onboarding. Hosted
+deployment and directory submissions remain deferred.
+
+- `kiln-init --adopt` configures an existing project or a new workspace through
+  the same initializer. Preview with `--adopt --check`; existing instructions,
+  unrelated configuration, saved assets and customized skills remain intact.
+- Multiple compatible client registrations share one program store. Managed
+  upgrades retain narrow configuration ownership and recover interrupted setup
+  writes without putting recovery snapshots inside the project.
+- Explicit migration of a copied legacy OpenCode workspace replaces its old
+  owned skill path instead of loading both original and copied instructions.
+- The local plugin's setup helper uses the pinned engine's adapter list. Plugin
+  installation remains specific to Claude Code and Codex; those clients can also
+  configure another supported workspace adapter through the shared helper.
+- Public `mcp`, `discovery/portable`, `tools/input` and `views/port` SDK entries
+  expose existing host contracts without requiring imports of internal package
+  files. Portable Discovery accepts an engine-generated catalog without loading
+  Node's catalog builder. The local stdio entry keeps lazy engine loading.
+- The release verifier accepts versioned 1.x follow-ups and release candidates,
+  retaining exact-archive evidence and owner promotion approval. Development
+  builds and unsupported prerelease tags remain ineligible for staging.
+- Concurrent captures rejoin a replacement local renderer when a delayed failure
+  arrives from the old connection. Startup failures preserve their bounded child
+  error output instead of reporting only the stack footer.
+- The README and maintained guides lead with npm installation and distinguish
+  released local functionality from deferred hosting. Real Troy captures join the
+  existing scene and vehicle previews. Global and project-local CLI instructions
+  explain the workspace launcher and avoid PowerShell argument forwarding errors.
+  Historical examples move out of the active source tree;
+  pinned Git-history restoration preserves the website archive and regression corpus.
+- The optional Linux isolated evaluator no longer passes an unsupported
+  `--preserve-fds` option to Bubblewrap. Its explicit fd3 protocol pipe uses
+  inherited descriptors; namespace, capability, filesystem and resource limits
+  remain required by readiness qualification.
+- Isolated readiness compares the child's namespace and non-root identity with
+  the parent, accounting for Bubblewrap's nested mapping when further user
+  namespaces are disabled. The final worker environment is cleared again to
+  remove Bubblewrap's injected `PWD` while retaining the exact allowed variables.
+- The isolated worker removes Node's legacy `__proto__` accessor instead of
+  throwing on reads, allowing Khronos glTF validation to initialize. Readiness
+  verifies that the accessor is absent; a regression also checks that assigning
+  a JSON `__proto__` key cannot change an object's prototype.
+
 ## 1.0.0
 
-Changes since the 0.10.0 tagged package release, qualified first through the public
-`1.0.0-rc.1` prerelease. Promotion of the stable archive to npm `latest` requires
-the separate release gates in [the runbook](docs/releasing.md).
+Published on npm as `@instruktlabs/kiln@1.0.0` under `latest`, following the public
+`1.0.0-rc.1` prerelease. These are the changes since the 0.10.0 tagged package.
+Future publication follows the separate release gates in [the runbook](docs/releasing.md).
 Hosted deployment and vendor directory acceptance remain separate milestones.
 
 - **Breaking:** the npm identity is now `@instruktlabs/kiln`, with compiled ESM and
@@ -46,11 +97,14 @@ Hosted deployment and vendor directory acceptance remain separate milestones.
   before exporting. The eight-asset campaign records its incomplete handoffs and
   visual defects separately from valid exports.
 
+<<<<<<< HEAD
 - Universal QA: `UNIVERSAL_MESH_TOPOLOGY` rejects open meshes tagged `kilnSolidRock`.
 - `summarizeAxisAlignedFacets` helper (and tests) for detecting large axis-aligned facet areas (implicit bounds clipping suspect).
 - Organic authoring helpers: `metaballSurface`, `taperedTube` (incl. `sectionScale`), `catmullRomPath`, `spiralPath`, `smoothOrganic`, `rockDisplace`, `rockBoulder`, and SDF utilities `smoothUnion` / `sphereInside`. Discovery catalog and geometry-recipes skill updates.
 - Organic before/after benchmark under `benchmark/organic-comparison/`, example programs, `scripts/organic-benchmark-compare.mjs`, and seahorse regression guards (`scripts/organic-benchmark-guards.mjs`). See benchmark README for the seahorse hard-example note.
 
+=======
+>>>>>>> upstream/organic-2-helpers
 - **Breaking (v1 candidate):** `optimize: 'full'` replaces flatten/join with rigid-group
   merging. Its rigid-merge pass preserves node names, hierarchy and transforms, including animated targets,
   named joint pivots, semantic nodes, composition placements and LOD levels. Ordinary

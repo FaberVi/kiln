@@ -7,13 +7,30 @@ import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { captureCgroupSnapshot, qualifyNativeRuntime } from './native-qualification.mjs';
+import {
+  captureCgroupSnapshot,
+  qualifyNativeRuntime,
+  qualifyNestedEvaluator,
+  qualifyUnsupportedEvaluator,
+} from './native-qualification.mjs';
 
-const [installationArg, outputArg, archiveArg] = process.argv.slice(2);
+const [installationArg, outputArg, archiveArg, mode] = process.argv.slice(2);
 assert(
-  installationArg && outputArg && archiveArg && process.argv.length === 5,
-  'Usage: run-native-qualification.mjs INSTALLED_PACKAGE NEW_OUTPUT_DIRECTORY EXACT_ARCHIVE',
+  installationArg &&
+    outputArg &&
+    archiveArg &&
+    (process.argv.length === 5 ||
+      (process.argv.length === 6 &&
+        ['--isolation-only', '--expect-unsupported-isolation'].includes(mode))),
+  'Usage: run-native-qualification.mjs INSTALLED_PACKAGE NEW_OUTPUT_DIRECTORY EXACT_ARCHIVE [--isolation-only | --expect-unsupported-isolation]',
 );
+const isolationOnly = mode === '--isolation-only';
+const expectUnsupported = mode === '--expect-unsupported-isolation';
+const qualificationVersion = expectUnsupported
+  ? 'kiln.unsupported-evaluator-rejection.v1'
+  : isolationOnly
+    ? 'kiln.nested-evaluator-qualification.v1'
+    : 'kiln.host-native-qualification.v1';
 const installation = await realpath(resolve(installationArg));
 const output = resolve(outputArg);
 const parent = await realpath(resolve(output, '..'));
@@ -52,15 +69,44 @@ try {
   );
   const module = (path) => import(pathToFileURL(join(installation, path)).href);
   const evaluator = await module('lib/evaluator/index.js');
-  const host = { bwrapPath: '/usr/bin/bwrap' };
+  const host = isolationOnly
+    ? { bwrapPath: '/usr/local/bin/kiln-probe-bwrap', nodePath: process.execPath }
+    : { bwrapPath: '/usr/bin/bwrap' };
   const require = createRequire(pathToFileURL(join(installation, 'package.json')));
   const { PNG } = require('pngjs');
   record.cgroupBefore = await cgroupSnapshot();
-  const result = await qualifyNativeRuntime({
+  const qualify = expectUnsupported
+    ? qualifyUnsupportedEvaluator
+    : isolationOnly
+      ? qualifyNestedEvaluator
+      : qualifyNativeRuntime;
+  const result = await qualify({
     platform: process.platform,
     uid: record.uid,
     ready: () => evaluator.assertIsolatedEvaluatorReady(host),
     readinessCode: evaluator.isolationReadinessFailureCode,
+    namespaceDenied: async () => {
+      const probe = spawnSync('/usr/bin/unshare', ['--user', '--map-root-user', '/usr/bin/true'], {
+        env: { LC_ALL: 'C' },
+        encoding: 'utf8',
+        timeout: 5000,
+        maxBuffer: 4096,
+      });
+      const denied =
+        probe.status === 1 &&
+        probe.signal === null &&
+        !probe.error &&
+        /^unshare: unshare failed: (Operation not permitted|Permission denied)\s*$/.test(
+          probe.stderr,
+        );
+      record.namespaceProbe = {
+        status: probe.status,
+        signal: probe.signal,
+        error: probe.error?.code ?? null,
+        permissionDenied: denied,
+      };
+      return denied;
+    },
     render: (source, controls) =>
       evaluator.renderGLBViaIsolatedEvaluator(source, {}, { ...controls, host }),
     cpu: async (glb) => {
@@ -109,7 +155,7 @@ try {
   Object.assign(record, result);
 } catch {
   Object.assign(record, {
-    version: 'kiln.host-native-qualification.v1',
+    version: qualificationVersion,
     status: 'failed',
     checks: [],
     artifacts: [],
