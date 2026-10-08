@@ -9,6 +9,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { smokePackageExporter } from './smoke-package-exporter.mjs';
 import { smokeSdkTypes } from './smoke-sdk-types.mjs';
+import { smokePackageAdoption } from './smoke-package-adoption.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // macOS exposes /var through /private/var. Match Node's canonical module URLs
@@ -77,11 +78,11 @@ async function npmCli() {
   throw new Error('Run this check with npm run test:package so npm can locate its CLI.');
 }
 
-async function connect(server, cwd, store) {
-  const child = spawn(process.execPath, Array.isArray(server) ? server : [server], {
+async function connect(server, cwd, store, env = {}, executable = process.execPath) {
+  const child = spawn(executable, Array.isArray(server) ? server : [server], {
     cwd,
     windowsHide: true,
-    env: { ...process.env, KILN_RENDER: 'cpu', KILN_PROGRAM_STORE: store },
+    env: { ...process.env, ...env, KILN_RENDER: 'cpu', KILN_PROGRAM_STORE: store },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let next = 0,
@@ -230,13 +231,23 @@ try {
     'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
   );
   assert.equal(portablePlugin.name, 'kiln-engine');
-  assert.equal(portablePlugin.version, pkg.version);
-  assert.equal((await pluginJson('.claude-plugin/plugin.json')).version, pkg.version);
-  assert.deepEqual(await pluginJson('runtime.json'), { name: pkg.name, version: pkg.version });
+  assert.equal((await pluginJson('.claude-plugin/plugin.json')).version, portablePlugin.version);
+  const { workspaceSetupCapabilities } = await import(
+    pathToFileURL(join(runtime, 'scripts/create-workspace.mjs')).href
+  );
+  assert.deepEqual(await pluginJson('runtime.json'), {
+    name: pkg.name,
+    version: pkg.version,
+    ...(workspaceSetupCapabilities?.harnesses
+      ? { harnesses: workspaceSetupCapabilities.harnesses }
+      : {}),
+  });
   assert.deepEqual(await readdir(join(plugin, 'skills')), ['kiln-setup-workspace']);
   const pluginReceipt = await pluginJson('package-provenance.json');
   assert.equal(pluginReceipt.kind, 'kiln-local-plugin');
   assert.equal(pluginReceipt.engineVersion, pkg.version);
+  // Published plugin 1.0.0 coupled these versions; newer plugin-only revisions do not.
+  assert.equal(portablePlugin.version, pluginReceipt.pluginVersion ?? pkg.version);
   for (const [name, digest] of Object.entries(pluginReceipt.files))
     assert.equal(
       `sha256:${sha(await readFile(join(plugin, name)))}`,
@@ -639,6 +650,15 @@ console.log(JSON.stringify({ renderBytes: result.glb.length }));
     'server-restart-persistence',
     'exact-source-export',
   );
+  receipt.projectAdoption = await smokePackageAdoption({
+    runtime,
+    root,
+    command,
+    connect,
+    textResult,
+  });
+  if (receipt.projectAdoption.status === 'passed')
+    receipt.checks.push('installed-project-adoption-and-cross-client-storage');
   receipt.status = 'passed';
 } catch (error) {
   receipt.status = 'failed';

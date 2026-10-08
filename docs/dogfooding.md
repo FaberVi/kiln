@@ -4,9 +4,12 @@ Three tiers, and they answer different questions. Running the cheap one does not
 what the expensive one would have. Per-harness install, flags and MCP config locations are in
 [headless harnesses](harnesses.md).
 
-The current V1 campaign is tracked in the [progress checkpoint](plans/2026-09-22-progress-checkpoint.md)
-and [reviewed run evidence](reviews/2026-09-22-opencode-main-campaign.md). It uses
-frozen checkout workspaces; later installed-package acceptance remains separate.
+The current [1.1 release goal](plans/2026-10-07-public-release-goal.md) covers blind
+clone and installed-package trials with AGY Gemini 3.8 Flash High and OpenCode
+Muse Spark 1.3 Contributor, for both new workspaces and existing projects.
+The September [checkpoint](plans/2026-09-22-progress-checkpoint.md) and
+[run evidence](reviews/2026-09-22-opencode-main-campaign.md) are historical;
+their frozen-checkout results do not qualify newer packages.
 Authorized free models and existing subscriptions may be used, with the model,
 runtime and guidance fixed within each trial. Historical run receipts below keep
 the versions, tool names and outcomes that were actually observed.
@@ -335,7 +338,7 @@ All successful refinement runs used references without inline source in subseque
 
 ### New asset trial
 
-Muse Spark 1.3 Contributor also authored [the tidal observatory](../examples/tidal-observatory.kiln.js) from a design brief, with no starting asset. It used the tools to build and review the structure, then refined the island shape and category metadata after reviewer feedback using saved references.
+Muse Spark 1.3 Contributor also authored [the tidal observatory](https://github.com/instruktlabs/kiln/blob/fda71ac775750f25390b6ee30082ebc56463edc6/examples/tidal-observatory.kiln.js) from a design brief, with no starting asset. It used the tools to build and review the structure, then refined the island shape and category metadata after reviewer feedback using saved references.
 
 The final geometry has 10,968 triangles. A separate GPU gallery render was inspected after authoring; the model's own views were CPU-only because the local render service required an authentication token. The result is a stylized specimen: its shiny copper and simplified rock do not fully match the requested aged surfaces. It is not evidence that material review succeeded in the model loop.
 

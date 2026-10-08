@@ -7,11 +7,10 @@ agent tools, arena, scenes, CLI, MCP and skills.
 
 Read [README.md](./README.md) before changing exports or shipped files. `src/` holds
 runtime/tests; `scripts/` holds repo checks. `package.json` owns `files` and `exports`;
-[CHANGELOG.md](./CHANGELOG.md) records releases. Dated `docs/plans/` and `docs/reviews/`
-are historical records, never overrides of code, this guide or the changelog, and
-never release acceptance.
+[CHANGELOG.md](./CHANGELOG.md) records releases. Dated plans and reviews are historical,
+never overrides of code, this guide or the changelog, and never release acceptance.
 
-## Authoring an asset is a different task from changing the engine
+## Asset authoring
 
 This guide covers engine changes. Author assets in a separate workspace with a live
 `kiln_workspace` server: exposing engine source and examples changes model outputs.
@@ -161,6 +160,7 @@ bun install --frozen-lockfile
 bun run check:toolchain
 bun run check:skills
 bun run build:sdk
+node scripts/example-archive.mjs --fetch
 bun run typecheck
 bun run lint
 bun run test
@@ -181,7 +181,7 @@ lower them without a measured rationale. Live model tests are opt-in via `bun ru
 `bun run test` is `bun test src scripts` and does **not** reach `render-service/`; run
 `bun run test:render-service` whenever you change it (CI requires it).
 
-For hosted-service changes, follow [hosting/AGENTS.md](hosting/AGENTS.md).
+Private hosting: `instruktlabs/kiln-hosted`; public metadata: `plugins/kiln-hosted/`.
 
 Tests use `--timeout 20000` for cold Windows startup; a larger budget needs an explicit third
 `test()` argument with a measured-duration comment. Tests and CI pin `KILN_RENDER=cpu` so the
